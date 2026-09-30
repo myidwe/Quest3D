@@ -1,0 +1,5 @@
+[configuration]
+entry_symbol = "xr_retirement_probe_init"
+compatibility_minimum = "4.7"
+[libraries]
+linux.debug.x86_64 = "res://libxr_retirement_probe.so"

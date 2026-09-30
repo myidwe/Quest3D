@@ -1,0 +1,291 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "wc_cuda"
+-version = "0.1.2+quest1"
++version = "0.1.2+quest2"
+ edition = "2024"
+ 
+ [lib]
+--- a/python/wc_cuda/__init__.py
++++ b/python/wc_cuda/__init__.py
+@@ -7,7 +7,15 @@
+ from ._wc_cuda import WcCapture as _NativeWcCapture
+ 
+ __all__ = ["WindowsCapture", "Frame", "InternalCaptureControl", "get_luid", "list_windows"]
+-QUEST3D_PATCH_VERSION = 1
++QUEST3D_PATCH_VERSION = 2
++
++
++def _pixel_layout(color_format):
++    if color_format == "bgra8":
++        return torch.uint8, 4
++    if color_format == "rgba16f":
++        return torch.float16, 8
++    raise ValueError("color_format must be bgra8 or rgba16f")
+ 
+ 
+ def _cuda_check(result, operation):
+@@ -133,10 +141,12 @@
+ 
+ 
+ class Frame:
+-    def __init__(self, tensor: torch.Tensor, width: int, height: int):
++    def __init__(self, tensor: torch.Tensor, width: int, height: int, color_format="bgra8"):
+         self.frame_buffer = tensor  # This is the PyTorch CUDA Tensor
+         self.width = width
+         self.height = height
++        self.color_format = color_format
++        self.row_pitch_bytes = tensor.stride(0) * tensor.element_size()
+ 
+ 
+ class InternalCaptureControl:
+@@ -148,7 +158,9 @@
+ 
+ 
+ class _DX11ToPyTorchBridge:
+-    def __init__(self, texture_ptr, width, height, device_id=0):
++    def __init__(self, texture_ptr, width, height, device_id=0, color_format="bgra8"):
++        self.dtype, self.bytes_per_pixel = _pixel_layout(color_format)
++        self.color_format = color_format
+         self.width = width
+         self.height = height
+         self.texture_ptr = texture_ptr
+@@ -162,7 +174,8 @@
+     def update(self, stream, device_id):
+         """Copies from DX11 texture to a new PyTorch tensor using a dedicated stream."""
+         _cuda_check(self.cudart.cudaSetDevice(device_id), "cudaSetDevice")
+-        target_tensor = torch.empty((self.height, self.width, 4), dtype=torch.uint8, device=f"cuda:{device_id}")
++        target_tensor = torch.empty((self.height, self.width, 4), dtype=self.dtype, device=f"cuda:{device_id}")
++        pitch = target_tensor.stride(0) * target_tensor.element_size()
+ 
+         h_stream = ctypes.c_void_p(stream.cuda_stream)
+         res = self.cudart.cudaGraphicsMapResources(1, ctypes.byref(self.resource), h_stream)
+@@ -174,11 +187,11 @@
+             # Use Async version to respect the dedicated stream
+             result = self.cudart.cudaMemcpy2DFromArrayAsync(
+                 target_tensor.data_ptr(),
+-                self.width * 4,
++                pitch,
+                 cu_array,
+                 0,
+                 0,
+-                self.width * 4,
++                self.width * self.bytes_per_pixel,
+                 self.height,
+                 3,  # cudaMemcpyDeviceToDevice
+                 h_stream,
+@@ -222,15 +235,18 @@
+         window_name: Optional[str] = None,
+         window_hwnd: Optional[int] = None,
+         device_id: int = 0,  # Custom addition for CUDA
++        color_format: str = "bgra8",
+     ):
++        _pixel_layout(color_format)
+         # Selecting another adapter silently is not safe for D3D/CUDA interop.
+         low, high = get_luid(device_id)
+         luid = (low, high)
+ 
+         self.device_id = device_id
++        self.color_format = color_format
+         self._inner = _NativeWcCapture(
+             luid=luid, monitor_index=monitor_index, window_hwnd=window_hwnd,
+-            window_title=window_name, cursor_capture=cursor_capture
++            window_title=window_name, cursor_capture=cursor_capture, color_format=color_format
+         )
+         if self._inner.lease_protocol_version != 1:
+             raise RuntimeError("Native CUDA texture lease protocol version mismatch")
+@@ -285,7 +301,7 @@
+                     # owns its CUDA storage independently of the native slot.
+                     tensor = self._copy_leased_frame(gpu_frame, new_id)
+                     ow, oh = gpu_frame.original_width, gpu_frame.original_height
+-                    frame = Frame(tensor[:oh, :ow], ow, oh)
++                    frame = Frame(tensor[:oh, :ow], ow, oh, gpu_frame.color_format)
+                     self.frame_handler(frame, self._control)
+                 else:
+                     # If no frame arrived, check if the capture thread is still alive
+@@ -305,11 +321,16 @@
+     def _copy_leased_frame(self, gpu_frame, frame_id):
+         try:
+             w, h = gpu_frame.width, gpu_frame.height
++            color_format = gpu_frame.color_format
++            _, bytes_per_pixel = _pixel_layout(color_format)
++            if gpu_frame.row_pitch_bytes != w * bytes_per_pixel:
++                raise RuntimeError("Native frame row pitch disagrees with its pixel format")
+             if (self._bridge is None or self._bridge.width != w or self._bridge.height != h
+-                    or self._bridge.texture_ptr != gpu_frame.texture_ptr):
++                    or self._bridge.texture_ptr != gpu_frame.texture_ptr
++                    or self._bridge.color_format != color_format):
+                 if self._bridge is not None:
+                     self._bridge.close()
+-                self._bridge = _DX11ToPyTorchBridge(gpu_frame.texture_ptr, w, h, self.device_id)
++                self._bridge = _DX11ToPyTorchBridge(gpu_frame.texture_ptr, w, h, self.device_id, color_format)
+             return self._bridge.update(self._stream, self.device_id)
+         except BaseException:
+             # If CUDA unmap fails, stop graphics writes before releasing lease.
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -32,6 +32,24 @@
+     GraphicsCaptureItemType, MinimumUpdateIntervalSettings, SecondaryWindowSettings,
+ };
+ use windows_capture::window::Window;
++
++fn parse_color_format(name: &str) -> PyResult<ColorFormat> {
++    match name {
++        "bgra8" => Ok(ColorFormat::Bgra8),
++        "rgba16f" => Ok(ColorFormat::Rgba16F),
++        _ => Err(pyo3::exceptions::PyValueError::new_err(
++            "color_format must be bgra8 or rgba16f",
++        )),
++    }
++}
++
++fn color_layout(format: i32) -> Result<(&'static str, u32), WcCudaError> {
++    match format {
++        87 => Ok(("bgra8", 4)),
++        10 => Ok(("rgba16f", 8)),
++        _ => Err(WcCudaError::Capture(format!("Unexpected DXGI format: {format}"))),
++    }
++}
+ 
+ #[derive(thiserror::Error, Debug)]
+ pub enum WcCudaError {
+@@ -113,6 +131,10 @@
+     pub original_width: u32,
+     #[pyo3(get)]
+     pub original_height: u32,
++    #[pyo3(get)]
++    pub color_format: String,
++    #[pyo3(get)]
++    pub row_pitch_bytes: u32,
+ }
+ 
+ #[pymethods]
+@@ -173,6 +195,7 @@
+     shared_texture: Option<ID3D11Texture2D>,
+     current_aligned_width: u32,
+     current_aligned_height: u32,
++    current_format: i32,
+     thread_id: u32,
+ }
+ 
+@@ -187,6 +210,7 @@
+             shared_texture: None,
+             current_aligned_width: 0,
+             current_aligned_height: 0,
++            current_format: 0,
+         })
+     }
+ 
+@@ -207,13 +231,15 @@
+         let width = frame.width();
+         let height = frame.height();
+         let format = frame.desc().Format;
++        let (color_name, bytes_per_pixel) = color_layout(format.0)?;
+ 
+         let aligned_width = (width + 63) & !63;
+         let aligned_height = (height + 31) & !31;
+ 
+         let recreate = self.shared_texture.is_none()
+             || self.current_aligned_width != aligned_width
+-            || self.current_aligned_height != aligned_height;
++            || self.current_aligned_height != aligned_height
++            || self.current_format != format.0;
+ 
+         if recreate {
+             let desc = D3D11_TEXTURE2D_DESC {
+@@ -236,6 +262,7 @@
+             self.shared_texture = Some(tex.unwrap());
+             self.current_aligned_width = aligned_width;
+             self.current_aligned_height = aligned_height;
++            self.current_format = format.0;
+         }
+ 
+         if let Some(ref tex) = self.shared_texture {
+@@ -249,6 +276,8 @@
+                 height: aligned_height,
+                 original_width: width,
+                 original_height: height,
++                color_format: color_name.to_string(),
++                row_pitch_bytes: aligned_width * bytes_per_pixel,
+             };
+             
+             data.frame = Some(gpu_frame);
+@@ -273,6 +302,7 @@
+     window_hwnd: Option<isize>,
+     window_title: Option<String>,
+     cursor_capture: Option<bool>,
++    color_format: ColorFormat,
+     shared_slot: Arc<FrameSlot>,
+     thread_handle: Mutex<Option<thread::JoinHandle<()>>>,
+     thread_id: Arc<Mutex<Option<u32>>>,
+@@ -283,20 +313,23 @@
+ #[pymethods]
+ impl WcCapture {
+     #[new]
+-    #[pyo3(signature = (luid=None, monitor_index=None, window_hwnd=None, window_title=None, cursor_capture=None))]
++    #[pyo3(signature = (luid=None, monitor_index=None, window_hwnd=None, window_title=None, cursor_capture=None, color_format="bgra8"))]
+     fn new(
+         luid: Option<(u32, i32)>,
+         monitor_index: Option<usize>,
+         window_hwnd: Option<isize>,
+         window_title: Option<String>,
+         cursor_capture: Option<bool>,
+-    ) -> Self {
+-        Self {
++        color_format: &str,
++    ) -> PyResult<Self> {
++        let color_format = parse_color_format(color_format)?;
++        Ok(Self {
+             luid,
+             monitor_index,
+             window_hwnd,
+             window_title,
+             cursor_capture,
++            color_format,
+             shared_slot: Arc::new(FrameSlot {
+                 data: Mutex::new(SlotData::default()),
+                 condvar: Condvar::new(),
+@@ -305,7 +338,7 @@
+             thread_id: Arc::new(Mutex::new(Option::None)),
+             should_stop: Arc::new(AtomicBool::new(false)),
+             last_error: Arc::new(Mutex::new(None)),
+-        }
++        })
+     }
+ 
+     fn start(&self) -> PyResult<()> {
+@@ -333,6 +366,7 @@
+         let window_hwnd = self.window_hwnd;
+         let window_title = self.window_title.clone();
+         let cursor_capture = self.cursor_capture;
++        let color_format = self.color_format;
+         let thread_id_ptr = self.thread_id.clone();
+         let should_stop = self.should_stop.clone();
+         let last_error = self.last_error.clone();
+@@ -402,7 +436,7 @@
+                     SecondaryWindowSettings::Default,
+                     MinimumUpdateIntervalSettings::Default,
+                     DirtyRegionSettings::Default,
+-                    ColorFormat::Bgra8,
++                    color_format,
+                     tid,
+                     result,
+                 )
+@@ -515,7 +549,14 @@
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::LeaseState;
++    use super::{LeaseState, color_layout};
++
++    #[test]
++    fn fp16_layout_is_rgba_and_twice_the_bgra8_pitch() {
++        assert_eq!(color_layout(87).unwrap(), ("bgra8", 4));
++        assert_eq!(color_layout(10).unwrap(), ("rgba16f", 8));
++        assert!(color_layout(28).is_err());
++    }
+ 
+     #[test]
+     fn consumer_lease_excludes_writer_until_matching_release() {

@@ -1,0 +1,78 @@
+{
+  "baseline_apk_sha256": "ed4af89e46deb6ec600a67d6e80b5a91c56657d022df4ae7d195a2eb5e68414e",
+  "baseline_project": "artifacts\\quest\\pointer-visibility-20260923\\project",
+  "files": {
+    "main.gd": {
+      "baseline": "b1636e09595e665f113412b3c71ab592d4e39f4a41cfcd96bb24b3260d393bad",
+      "candidate": "ff5fe59b1848ca86d2a357bbf460bf928b91dbdd967c07875591e1882a6a9ae6"
+    },
+    "src/screen_manager.gd": {
+      "baseline": "183b4dd59e8c70e48c5266f7e0f84b8699097f97808527dffdc2e26aeb7d573d",
+      "candidate": "a313f4dba0266bd16cd2372c48b27a1d9fd969a392ed9cfa9e456437e84aa5e3"
+    },
+    "src/state_manager.gd": {
+      "baseline": "0c55db29297aa6ffb5136660befc3e3d25fa43183695a9032ea23e79da15e56b",
+      "candidate": "f1a4981b876804a0ebb9b2d8cd3e2a710485f843946d9b22fd6052df2d53e7a3"
+    },
+    "src/precision_ui.gd": {
+      "baseline": "9de98184b31a615db04ef5665f2149be524317f2932e9ca6e0bc7f94ab0bb320",
+      "candidate": "d1bf41ca8ebcd131cb78bc16a2a4d9cc176fb0219bb0dc9d3e04b5ff2f70e0f2"
+    },
+    "src/precision_depth_slider.gd": {
+      "baseline": "0477bbb361c998866e2c4a66372aaa5c3e4fd11bab2596eb6a4fe0dbdab0b175",
+      "candidate": "0a4e965463323ebde9c416f36009154e70188b08bfd8a413d3a8db61bf047596"
+    },
+    "src/xr_interaction.gd": {
+      "baseline": "7f14184190b6387563dc7e7b641ebf97866797501c06ea93ac2c77700ed52775",
+      "candidate": "c6bb9c5935d9353dccd1964b10f329f46a6e998ed1845ac656d49a127f21a350"
+    },
+    "src/native_xr_renderer.gd": {
+      "baseline": "041f8487c56ebc0504d64e99789d9ed858d357c9e401b8076cc8284ff19eac9d",
+      "candidate": "78bd58629edf5e74865c7300416748557b6f78e64eeb77401971d242ba0d9ef8"
+    },
+    "src/shaders/circle_cursor.gdshader": {
+      "baseline": "8d637d4c9f031c82218b08f0a783beb967826cbc3b6aadb128439da48bf2095f",
+      "candidate": "800bc32a762a0cd68a6048f07650cdfc5ce6255cd9e76109c2fd4d963bf64380"
+    },
+    "extensions/nightfall-xr/include/view_framing.h": {
+      "baseline": null,
+      "candidate": "0f87288bf7f74b18ee8220519eefe58eff5d5bee7707154f10c477dc69f97929"
+    },
+    "extensions/nightfall-xr/include/fast_xr_renderer.h": {
+      "baseline": "de5cd5e4647939a28630220330e06b3e87e8fe9e7adcf42f4a06ede883fb8146",
+      "candidate": "63d5425ff9bd7be32ccf588991f2cff4f7aea455331a661a83d49bd3dcd2af78"
+    },
+    "extensions/nightfall-xr/src/fast_xr_renderer.cpp": {
+      "baseline": "9a0bd357456782285cc4dbc7b45df05f6a5d54d88bb7c9838f5c66cc4fc099ea",
+      "candidate": "b021d6618bc721de49782c4b00a8ccd9ca431d2f97cfca05c53a364fabf481ce"
+    },
+    "extensions/nightfall-xr/src/fast_xr_renderer_android.cpp": {
+      "baseline": "f1727a23e538e7ab5fa96705d04aec95b84628d781230838e4ef2e21a0ec9347",
+      "candidate": "a78a729afd251d0d14d3072ec68352cade46bc51a7e620f13b4067592bae5570"
+    },
+    "test/test_display_view_settings.gd": {
+      "baseline": null,
+      "candidate": "3caf5474b2df0fba3ba944b5de3e96f2b9b1d3c7542a1b691fce146f78a0a34a"
+    },
+    "test/test_menu_pointer_visibility.gd": {
+      "baseline": "1c68de21f2ebc73f2214feaa2033032366230a67be37ffecbf2a0d7c19dc24f3",
+      "candidate": "ffdbfd109b0de3069862e7897668047fa62b9ae71d59d93f3f95ab309dbf87e3"
+    },
+    "test/test_precision_ui.gd": {
+      "baseline": "69f828093c1e37129ba9c36faaf09ff021aef7f3402a926ec26f83c2a0a30f76",
+      "candidate": "85457def678f2eba2dbad36c16c955ea4d548861f07b0323a9d893af70e80592"
+    },
+    "test/test_usability_regression.gd": {
+      "baseline": "e62be92327f9bda8512c768742210f2ad934ecdf31f5d2a4bf1b78e06f24161a",
+      "candidate": "e087b1bd9c5b7ca6f16eec7e1fb652d34d11dcbdd56c41b69459119fda4d4de2"
+    },
+    "test/test_quest3_first_run.gd": {
+      "baseline": "42bf87def838910852127fd1b159f941b793716c6ee1aba59749a2510528dc0e",
+      "candidate": "de5656cbc6c9242aa01a903bfab33ae0a7cd51e4cf6d4e9364b69435bc4a520c"
+    },
+    "test/render_product_ui.gd": {
+      "baseline": "c938de69cb9cc7f483a870f5927af91aea9ac29f1fa61925bfde357571621f7b",
+      "candidate": "376ff5cb2ed6a30de4626ba51e6ee80a20d2e2a15a16e4e7f41421363af48f94"
+    }
+  }
+}

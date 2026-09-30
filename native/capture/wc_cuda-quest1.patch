@@ -1,0 +1,507 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 41476d0..046704e 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "wc_cuda"
+-version = "0.1.2"
++version = "0.1.2+quest1"
+ edition = "2024"
+ 
+ [lib]
+@@ -8,7 +8,7 @@ name = "_wc_cuda"
+ crate-type = ["cdylib"]
+ 
+ [dependencies]
+-windows-capture = "2.0.0-alpha.7"
++windows-capture = "=2.0.0-alpha.7"
+ pyo3 = { version = "0.23.4", features = ["extension-module", "abi3-py310"] }
+ thiserror = "2.0"
+ parking_lot = "0.12"
+diff --git a/python/wc_cuda/__init__.py b/python/wc_cuda/__init__.py
+index b1527a2..1b8363f 100644
+--- a/python/wc_cuda/__init__.py
++++ b/python/wc_cuda/__init__.py
+@@ -7,6 +7,12 @@ from typing import Optional
+ from ._wc_cuda import WcCapture as _NativeWcCapture
+ 
+ __all__ = ["WindowsCapture", "Frame", "InternalCaptureControl", "get_luid", "list_windows"]
++QUEST3D_PATCH_VERSION = 1
++
++
++def _cuda_check(result, operation):
++    if result != 0:
++        raise RuntimeError(f"{operation} failed: CUDA error {result}")
+ 
+ 
+ # --- Utilities ---
+@@ -101,6 +107,11 @@ def _get_cudart():
+             ctypes.c_void_p,
+         ]
+         _cudart.cudaSetDevice.argtypes = [ctypes.c_int]
++        for name in ("cudaSetDevice", "cudaGraphicsD3D11RegisterResource",
++                     "cudaGraphicsUnregisterResource", "cudaGraphicsMapResources",
++                     "cudaGraphicsUnmapResources", "cudaGraphicsSubResourceGetMappedArray",
++                     "cudaMemcpy2DFromArray", "cudaMemcpy2DFromArrayAsync"):
++            getattr(_cudart, name).restype = ctypes.c_int
+     return _cudart
+ 
+ 
+@@ -108,10 +119,10 @@ def get_luid(device_id=0):
+     if ctypes.windll.nvcuda.cuInit(0) != 0:
+         raise RuntimeError("Failed to initialize CUDA Driver API")
+     device = ctypes.c_int()
+-    ctypes.windll.nvcuda.cuDeviceGet(ctypes.byref(device), device_id)
++    _cuda_check(ctypes.windll.nvcuda.cuDeviceGet(ctypes.byref(device), device_id), "cuDeviceGet")
+     luid_buf = ctypes.create_string_buffer(8)
+     mask = ctypes.c_uint()
+-    ctypes.windll.nvcuda.cuDeviceGetLuid(luid_buf, ctypes.byref(mask), device)
++    _cuda_check(ctypes.windll.nvcuda.cuDeviceGetLuid(luid_buf, ctypes.byref(mask), device), "cuDeviceGetLuid")
+     luid_bytes = luid_buf.raw
+     low = int.from_bytes(luid_bytes[:4], "little")
+     high = int.from_bytes(luid_bytes[4:], "little", signed=True)
+@@ -140,26 +151,28 @@ class _DX11ToPyTorchBridge:
+     def __init__(self, texture_ptr, width, height, device_id=0):
+         self.width = width
+         self.height = height
++        self.texture_ptr = texture_ptr
++        self.device_id = device_id
+         self.resource = ctypes.c_void_p()
+         self.cudart = _get_cudart()
+-        self.cudart.cudaSetDevice(device_id)
++        _cuda_check(self.cudart.cudaSetDevice(device_id), "cudaSetDevice")
+         res = self.cudart.cudaGraphicsD3D11RegisterResource(ctypes.byref(self.resource), texture_ptr, 0)
+-        if res != 0:
+-            raise RuntimeError(f"cudaGraphicsD3D11RegisterResource failed: {res}")
++        _cuda_check(res, "cudaGraphicsD3D11RegisterResource")
+ 
+     def update(self, stream, device_id):
+         """Copies from DX11 texture to a new PyTorch tensor using a dedicated stream."""
++        _cuda_check(self.cudart.cudaSetDevice(device_id), "cudaSetDevice")
+         target_tensor = torch.empty((self.height, self.width, 4), dtype=torch.uint8, device=f"cuda:{device_id}")
+ 
+         h_stream = ctypes.c_void_p(stream.cuda_stream)
+         res = self.cudart.cudaGraphicsMapResources(1, ctypes.byref(self.resource), h_stream)
+-        if res != 0:
+-            return None
++        _cuda_check(res, "cudaGraphicsMapResources")
+         try:
+             cu_array = ctypes.c_void_p()
+-            self.cudart.cudaGraphicsSubResourceGetMappedArray(ctypes.byref(cu_array), self.resource, 0, 0)
++            _cuda_check(self.cudart.cudaGraphicsSubResourceGetMappedArray(
++                ctypes.byref(cu_array), self.resource, 0, 0), "cudaGraphicsSubResourceGetMappedArray")
+             # Use Async version to respect the dedicated stream
+-            self.cudart.cudaMemcpy2DFromArrayAsync(
++            result = self.cudart.cudaMemcpy2DFromArrayAsync(
+                 target_tensor.data_ptr(),
+                 self.width * 4,
+                 cu_array,
+@@ -170,17 +183,29 @@ class _DX11ToPyTorchBridge:
+                 3,  # cudaMemcpyDeviceToDevice
+                 h_stream,
+             )
++            _cuda_check(result, "cudaMemcpy2DFromArrayAsync")
+             # Synchronize ONLY the dedicated stream to ensure the copy is finished before returning
+             stream.synchronize()
+         finally:
+-            self.cudart.cudaGraphicsUnmapResources(1, ctypes.byref(self.resource), h_stream)
++            _cuda_check(self.cudart.cudaGraphicsUnmapResources(
++                1, ctypes.byref(self.resource), h_stream), "cudaGraphicsUnmapResources")
++            # Only after unmap completes may release_frame allow the producer
++            # to issue another graphics write to this same shared texture.
++            stream.synchronize()
+ 
+         return target_tensor
+ 
++    def close(self):
++        if self.resource:
++            _cuda_check(self.cudart.cudaSetDevice(self.device_id), "cudaSetDevice")
++            _cuda_check(self.cudart.cudaGraphicsUnregisterResource(self.resource),
++                        "cudaGraphicsUnregisterResource")
++            self.resource = ctypes.c_void_p()
++
+     def __del__(self):
+         if hasattr(self, "resource") and self.resource:
+             try:
+-                self.cudart.cudaGraphicsUnregisterResource(self.resource)
++                self.close()
+             except Exception:
+                 pass
+ 
+@@ -198,17 +223,17 @@ class WindowsCapture:
+         window_hwnd: Optional[int] = None,
+         device_id: int = 0,  # Custom addition for CUDA
+     ):
+-        # Resolve LUID if possible, else fallback to default
+-        try:
+-            low, high = get_luid(device_id)
+-            luid = (low, high)
+-        except Exception:
+-            luid = None
++        # Selecting another adapter silently is not safe for D3D/CUDA interop.
++        low, high = get_luid(device_id)
++        luid = (low, high)
+ 
+         self.device_id = device_id
+         self._inner = _NativeWcCapture(
+-            luid=luid, monitor_index=monitor_index, window_hwnd=window_hwnd, window_title=window_name
++            luid=luid, monitor_index=monitor_index, window_hwnd=window_hwnd,
++            window_title=window_name, cursor_capture=cursor_capture
+         )
++        if self._inner.lease_protocol_version != 1:
++            raise RuntimeError("Native CUDA texture lease protocol version mismatch")
+         self.frame_handler = None
+         self.closed_handler = None
+         self._bridge = None
+@@ -217,6 +242,7 @@ class WindowsCapture:
+         self._control = InternalCaptureControl(self)
+         self._last_id = 0
+         self._stream = None
++        self._failed = False
+ 
+     def event(self, handler):
+         if handler.__name__ == "on_frame_arrived":
+@@ -229,6 +255,8 @@ class WindowsCapture:
+         """Starts the capture and blocks (emulating windows-capture behavior)."""
+         if not self.frame_handler:
+             raise Exception("on_frame_arrived handler not set")
++        if self._failed:
++            raise RuntimeError("Create a new capture instance after a failed CUDA copy")
+ 
+         # Initialize a dedicated stream for this capture session
+         self._stream = torch.cuda.Stream(device=self.device_id)
+@@ -237,15 +265,14 @@ class WindowsCapture:
+         self._running = True
+         self._last_id = 0
+ 
+-        # Wait for thread to initialize (up to 1 second)
+-        start_wait = time.time()
+-        while not self._inner.is_alive() and time.time() - start_wait < 1.0:
+-            err = self._inner.get_last_error()
+-            if err:
+-                raise RuntimeError(err)
+-            time.sleep(0.01)
+-
+         try:
++            # Initialization errors also pass through the cleanup block.
++            start_wait = time.time()
++            while not self._inner.is_alive() and time.time() - start_wait < 1.0:
++                err = self._inner.get_last_error()
++                if err:
++                    raise RuntimeError(err)
++                time.sleep(0.01)
+             while self._running:
+                 # Use a small timeout to keep Python responsive (Ctrl+C)
+                 res = self._inner.get_frame(self._last_id, timeout=0.1)
+@@ -253,18 +280,13 @@ class WindowsCapture:
+                     gpu_frame, new_id = res
+                     self._last_id = new_id
+ 
+-                    w, h = gpu_frame.width, gpu_frame.height
++                    # release_frame occurs before user callbacks, including
++                    # callbacks which throw or request stop. The output tensor
++                    # owns its CUDA storage independently of the native slot.
++                    tensor = self._copy_leased_frame(gpu_frame, new_id)
+                     ow, oh = gpu_frame.original_width, gpu_frame.original_height
+-                    if self._bridge is None or self._bridge.width != w or self._bridge.height != h:
+-                        self._bridge = _DX11ToPyTorchBridge(gpu_frame.texture_ptr, w, h, self.device_id)
+-
+-                    # Update returns a fresh, synchronized tensor
+-                    tensor = self._bridge.update(self._stream, self.device_id)
+-                    if tensor is not None:
+-                        # Slice the tensor to original size to remove alignment padding
+-                        sliced_tensor = tensor[:oh, :ow]
+-                        frame = Frame(sliced_tensor, ow, oh)
+-                        self.frame_handler(frame, self._control)
++                    frame = Frame(tensor[:oh, :ow], ow, oh)
++                    self.frame_handler(frame, self._control)
+                 else:
+                     # If no frame arrived, check if the capture thread is still alive
+                     if not self._inner.is_alive():
+@@ -274,9 +296,30 @@ class WindowsCapture:
+                         break
+         finally:
+             self.stop()
++            if self._bridge is not None:
++                self._bridge.close()
++                self._bridge = None
+             if self.closed_handler:
+                 self.closed_handler()
+ 
++    def _copy_leased_frame(self, gpu_frame, frame_id):
++        try:
++            w, h = gpu_frame.width, gpu_frame.height
++            if (self._bridge is None or self._bridge.width != w or self._bridge.height != h
++                    or self._bridge.texture_ptr != gpu_frame.texture_ptr):
++                if self._bridge is not None:
++                    self._bridge.close()
++                self._bridge = _DX11ToPyTorchBridge(gpu_frame.texture_ptr, w, h, self.device_id)
++            return self._bridge.update(self._stream, self.device_id)
++        except BaseException:
++            # If CUDA unmap fails, stop graphics writes before releasing lease.
++            # Do not continue streaming or reuse this potentially failed bridge.
++            self._failed = True
++            self._inner.stop()
++            raise
++        finally:
++            self._inner.release_frame(frame_id)
++
+     def start_free_threaded(self):
+         """Starts the capture on a background thread."""
+         self._loop_thread = threading.Thread(target=self.start, daemon=True)
+@@ -291,3 +334,7 @@ class WindowsCapture:
+         """Waits for the background thread to finish."""
+         if self._loop_thread:
+             self._loop_thread.join()
++
++    def lease_stats(self):
++        """Return (leased frame id or None, producer skips during lease, latest id)."""
++        return self._inner.lease_stats()
+diff --git a/src/lib.rs b/src/lib.rs
+index 355b307..820461a 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -124,10 +124,50 @@ impl WcGpuFrame {
+ }
+ 
+ struct FrameSlot {
+-    data: Mutex<(Option<WcGpuFrame>, u64)>,
++    data: Mutex<SlotData>,
+     condvar: Condvar,
+ }
+ 
++#[derive(Default)]
++struct LeaseState {
++    owner: Option<u64>,
++    skipped: u64,
++}
++
++impl LeaseState {
++    fn writer_available(&mut self) -> bool {
++        if self.owner.is_some() {
++            self.skipped += 1;
++            false
++        } else {
++            true
++        }
++    }
++
++    fn acquire(&mut self, frame_id: u64) -> bool {
++        if self.owner.is_some() {
++            return false;
++        }
++        self.owner = Some(frame_id);
++        true
++    }
++
++    fn release(&mut self, frame_id: u64) -> bool {
++        if self.owner != Some(frame_id) {
++            return false;
++        }
++        self.owner = None;
++        true
++    }
++}
++
++#[derive(Default)]
++struct SlotData {
++    frame: Option<WcGpuFrame>,
++    frame_id: u64,
++    lease: LeaseState,
++}
++
+ struct InnerHandler {
+     shared_slot: Arc<FrameSlot>,
+     shared_texture: Option<ID3D11Texture2D>,
+@@ -155,6 +195,13 @@ impl GraphicsCaptureApiHandler for InnerHandler {
+         frame: &mut Frame,
+         _capture_control: InternalCaptureControl,
+     ) -> Result<(), Self::Error> {
++        // This lock covers BOTH submitting the D3D copy and publishing its ID.
++        // get_frame grants a lease under this same lock. While Python owns it,
++        // do not submit any D3D access to the texture mapped by CUDA.
++        let mut data = self.shared_slot.data.lock();
++        if !data.lease.writer_available() {
++            return Ok(());
++        }
+         let device = frame.device();
+         let context = frame.device_context();
+         let width = frame.width();
+@@ -204,10 +251,8 @@ impl GraphicsCaptureApiHandler for InnerHandler {
+                 original_height: height,
+             };
+             
+-            // Update the shared slot with the latest frame
+-            let mut data = self.shared_slot.data.lock();
+-            data.0 = Some(gpu_frame);
+-            data.1 += 1;
++            data.frame = Some(gpu_frame);
++            data.frame_id += 1;
+             self.shared_slot.condvar.notify_all();
+         }
+         Ok(())
+@@ -227,6 +272,7 @@ pub struct WcCapture {
+     monitor_index: Option<usize>,
+     window_hwnd: Option<isize>,
+     window_title: Option<String>,
++    cursor_capture: Option<bool>,
+     shared_slot: Arc<FrameSlot>,
+     thread_handle: Mutex<Option<thread::JoinHandle<()>>>,
+     thread_id: Arc<Mutex<Option<u32>>>,
+@@ -237,20 +283,22 @@ pub struct WcCapture {
+ #[pymethods]
+ impl WcCapture {
+     #[new]
+-    #[pyo3(signature = (luid=None, monitor_index=None, window_hwnd=None, window_title=None))]
++    #[pyo3(signature = (luid=None, monitor_index=None, window_hwnd=None, window_title=None, cursor_capture=None))]
+     fn new(
+         luid: Option<(u32, i32)>,
+         monitor_index: Option<usize>,
+         window_hwnd: Option<isize>,
+         window_title: Option<String>,
++        cursor_capture: Option<bool>,
+     ) -> Self {
+         Self {
+             luid,
+             monitor_index,
+             window_hwnd,
+             window_title,
++            cursor_capture,
+             shared_slot: Arc::new(FrameSlot {
+-                data: Mutex::new((None, 0)),
++                data: Mutex::new(SlotData::default()),
+                 condvar: Condvar::new(),
+             }),
+             thread_handle: Mutex::new(None),
+@@ -267,6 +315,15 @@ impl WcCapture {
+                 "Capture already running",
+             ));
+         }
++        {
++            let mut data = self.shared_slot.data.lock();
++            if data.lease.owner.is_some() {
++                return Err(pyo3::exceptions::PyRuntimeError::new_err(
++                    "Release the outstanding CUDA frame lease before restarting capture",
++                ));
++            }
++            data.frame = None;
++        }
+ 
+         let luid = self.luid.map(|(low, high)| LUID {
+             LowPart: low,
+@@ -275,6 +332,7 @@ impl WcCapture {
+         let monitor_index = self.monitor_index;
+         let window_hwnd = self.window_hwnd;
+         let window_title = self.window_title.clone();
++        let cursor_capture = self.cursor_capture;
+         let thread_id_ptr = self.thread_id.clone();
+         let should_stop = self.should_stop.clone();
+         let last_error = self.last_error.clone();
+@@ -335,7 +393,11 @@ impl WcCapture {
+                     d3d_device_context,
+                     item_type,
+                     callback_arc,
+-                    CursorCaptureSettings::Default,
++                    match cursor_capture {
++                        Some(true) => CursorCaptureSettings::WithCursor,
++                        Some(false) => CursorCaptureSettings::WithoutCursor,
++                        None => CursorCaptureSettings::Default,
++                    },
+                     DrawBorderSettings::Default,
+                     SecondaryWindowSettings::Default,
+                     MinimumUpdateIntervalSettings::Default,
+@@ -384,7 +446,10 @@ impl WcCapture {
+             }
+         }
+         let mut data = self.shared_slot.data.lock();
+-        data.0 = None;
++        data.frame = None;
++        // A consumer can still be finishing CUDA work while stop() runs. Keep
++        // its lease until its explicit release, so restart cannot reuse data.
++        self.shared_slot.condvar.notify_all();
+     }
+ 
+     fn is_alive(&self) -> bool {
+@@ -398,22 +463,76 @@ impl WcCapture {
+     }
+ 
+     #[pyo3(signature = (last_id, timeout=None))]
+-    fn get_frame(&self, py: Python, last_id: u64, timeout: Option<f32>) -> Option<(WcGpuFrame, u64)> {
++    fn get_frame(&self, py: Python, last_id: u64, timeout: Option<f32>) -> PyResult<Option<(WcGpuFrame, u64)>> {
++        if timeout.is_some_and(|value| !value.is_finite() || value < 0.0) {
++            return Err(pyo3::exceptions::PyValueError::new_err("Invalid frame timeout"));
++        }
+         let slot = self.shared_slot.clone();
+         py.allow_threads(move || {
+             let mut data = slot.data.lock();
+-            if data.1 <= last_id && timeout.is_some() {
++            if data.lease.owner.is_some() {
++                return Err(pyo3::exceptions::PyRuntimeError::new_err(
++                    "Release the outstanding CUDA frame lease before acquiring another frame",
++                ));
++            }
++            if data.frame_id <= last_id && timeout.is_some() {
+                 let dur = Duration::from_secs_f32(timeout.unwrap());
+                 let _ = slot.condvar.wait_for(&mut data, dur);
+             }
+             
+-            if data.1 > last_id {
+-                data.0.as_ref().map(|f| (f.clone(), data.1))
++            if data.frame_id > last_id {
++                let result = data.frame.as_ref().map(|frame| (frame.clone(), data.frame_id));
++                if let Some((_, frame_id)) = result.as_ref() {
++                    if !data.lease.acquire(*frame_id) {
++                        return Err(pyo3::exceptions::PyRuntimeError::new_err("Frame lease contention"));
++                    }
++                }
++                Ok(result)
+             } else {
+-                None
++                Ok(None)
+             }
+         })
+     }
++
++    fn release_frame(&self, frame_id: u64) -> PyResult<()> {
++        let mut data = self.shared_slot.data.lock();
++        if !data.lease.release(frame_id) {
++            return Err(pyo3::exceptions::PyRuntimeError::new_err("Incorrect or already released frame lease"));
++        }
++        Ok(())
++    }
++
++    #[getter]
++    fn lease_protocol_version(&self) -> u32 {
++        1
++    }
++
++    fn lease_stats(&self) -> (Option<u64>, u64, u64) {
++        let data = self.shared_slot.data.lock();
++        (data.lease.owner, data.lease.skipped, data.frame_id)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::LeaseState;
++
++    #[test]
++    fn consumer_lease_excludes_writer_until_matching_release() {
++        let mut lease = LeaseState::default();
++        assert!(lease.writer_available());
++        assert!(lease.acquire(41));
++        assert!(!lease.writer_available());
++        assert!(!lease.acquire(42));
++        assert!(!lease.release(40));
++        assert!(!lease.writer_available());
++        assert_eq!(lease.skipped, 2);
++        assert!(lease.release(41));
++        assert!(!lease.release(41));
++        assert!(lease.writer_available());
++        assert!(lease.acquire(42));
++        assert!(lease.release(42));
++    }
+ }
+ 
+ #[pymodule]

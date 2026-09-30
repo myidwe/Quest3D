@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "generated-ui-asset",
+  "tool": "built-in image_gen",
+  "created_on": "2026-09-11",
+  "source_design": "artifacts/design/round4/option-1.png",
+  "user_selected": true,
+  "file": "quest3d-mark.png",
+  "sha256": "e8b3d6f7aec0cb065c7c80742c5f580d83fee839336b1febde1b88a35e8cc468",
+  "bytes": 332404,
+  "width": 1254,
+  "height": 1254,
+  "mode": "RGBA",
+  "prompt": "Recreate only the user-selected Quest3D coral overlapping twin hexagonal outline mark on a transparent background; no text, windows, gradients, shadows, glow or 3D rendering; equal strokes and padding, crisp antialiased edges",
+  "desktop_icon": {
+    "file": "resources/desktop.ico",
+    "sha256": "5c0308bb447d31b25a5b2902066e5363c57f6831e92b4254785d23a79f43ae6c",
+    "conversion": "PNG to multiresolution ICO; original pixels scaled to 16/24/32/48/64/128/256 with Pillow"
+  }
+}

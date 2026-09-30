@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "nightfall": {
+    "url": "https://github.com/tB0nE/nightfall",
+    "commit": "2c2162af9738dadb32e441a48255cef65bf7dd56"
+  },
+  "vcpkg": {
+    "url": "https://github.com/microsoft/vcpkg",
+    "commit": "f781d9387e4684783e69e136e2e124ff4660bffc"
+  },
+  "godot": "5b4e0cb0fd279832bbdd69fed5354d4e5ad26f88",
+  "godot_cpp": "05057de73de4b99f114d36c40d84ca46926c0e25",
+  "vcpkg_ports": "026ac03d99ca88e45b5f260267b22e103ec05ec0",
+  "ndk": "29.0.14206865",
+  "sdk": 36,
+  "build_tools": "36.1.0",
+  "cmake": "3.31.6",
+  "ninja": "1.11.1.4",
+  "scons": "4.9.1"
+}

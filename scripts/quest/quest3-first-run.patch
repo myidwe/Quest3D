@@ -1,0 +1,108 @@
+--- a/src/state_manager.gd
++++ b/src/state_manager.gd
+@@ -2,16 +2,22 @@
+ extends RefCounted
+ 
+ var main: Node3D
++var _app_state_load_failed := false
++
++const QUEST3_PC_STREAM_FPS := 72
+ 
+ func _init(owner: Node3D):
+ 	main = owner
+ 
+ func save_state():
+-	var save = ConfigFile.new()
+-	SettingsPersistence.write_app(save, main.settings)
+-	save.set_value("screen", "curvature", main.curvature)
+-	main.controller_mapper.write_settings(save)
+-	save.save("user://app_state.cfg")
++	if _app_state_load_failed:
++		main._log("[STATE] Preserving unreadable app settings; automatic save skipped")
++	else:
++		var save = ConfigFile.new()
++		SettingsPersistence.write_app(save, main.settings)
++		save.set_value("screen", "curvature", main.curvature)
++		main.controller_mapper.write_settings(save)
++		save.save("user://app_state.cfg")
+ 	save_host_state()
+ 
+ func save_host_state():
+@@ -19,7 +25,10 @@
+ 	if ip.is_empty():
+ 		return
+ 	var save = ConfigFile.new()
+-	save.load("user://host_state.cfg")
++	var err := save.load("user://host_state.cfg")
++	if err != OK and not _config_is_missing(err, "user://host_state.cfg"):
++		main._log("[STATE] Preserving unreadable host settings; automatic save skipped: %d" % err)
++		return
+ 	var host: HostSettings = main.settings.host
+ 	SettingsPersistence.write_host(save, ip, host)
+ 	save.set_value(ip, "screen_layout", JSON.stringify(main.layout.to_dict()))
+@@ -46,9 +55,13 @@
+ 	main.settings_controller.refresh_color_balance_controls()
+ 	main.settings_controller.apply_filter()
+ 	var save = ConfigFile.new()
+-	if save.load("user://host_state.cfg") != OK:
++	var err := save.load("user://host_state.cfg")
++	if err != OK:
++		if _config_is_missing(err, "user://host_state.cfg"):
++			_apply_new_quest3_host_defaults()
+ 		return
+ 	if not save.has_section(ip):
++		_apply_new_quest3_host_defaults()
+ 		return
+ 	var host: HostSettings = main.settings.host
+ 	SettingsPersistence.read_host(
+@@ -199,12 +212,40 @@
+ 		main._log("[STATE] PC input mapping disabled in memory; setting repair failed: %d" % err)
+ 	return err
+ 
++func _config_is_missing(err: Error, path: String) -> bool:
++	# A corrupt or inaccessible profile must never become a fresh-install profile.
++	return err == ERR_FILE_NOT_FOUND and not FileAccess.file_exists(path)
++
++func _apply_new_quest3_host_defaults() -> void:
++	if not main.PC_SBS_BUILD or not main.device_is_quest3:
++		return
++	main.settings.host.stream_fps = QUEST3_PC_STREAM_FPS
++	if main.ui_controller:
++		main.ui_controller.update_option_btn(main._ui_fps_btn, "%d" % main.settings.host.stream_fps)
++
++func _apply_new_quest3_app_defaults() -> void:
++	if not main.PC_SBS_BUILD or not main.device_is_quest3:
++		return
++	# Full-SBS 4096x1152 exceeds this client's H.264 width guard. Keep the
++	# first connection usable without copying another headset's private state.
++	main.settings.codec_preference = 1
++	main.settings.quick_start_enabled = true
++	if main.settings_controller.get_sharpen_choices().has(main.SHARPEN_RUNTIME_NORMAL):
++		main.settings.sharpen_mode = main.SHARPEN_RUNTIME_NORMAL
++	# The first manual Pair can start directly, before any host-state lookup.
++	# A later saved host section still restores its explicit FPS unchanged.
++	_apply_new_quest3_host_defaults()
++	main._log("[STATE] New Quest 3 PC defaults: HEVC, 72 FPS, Quick Start")
++
+ func load_state():
+ 	MonitorPresets.write_default_presets_snapshot()
+ 	var save = ConfigFile.new()
+ 	var err = save.load("user://app_state.cfg")
+ 	main._log("[STATE] load_state called. Load result: %d" % err)
++	_app_state_load_failed = err != OK and not _config_is_missing(err, "user://app_state.cfg")
+ 	if err != OK:
++		if _config_is_missing(err, "user://app_state.cfg"):
++			_apply_new_quest3_app_defaults()
+ 		main._log("[STATE] load failed or not found, applying default curvature and syncing...")
+ 		main.screen_manager.apply_curvature()
+ 		sync_ui_to_settings()
+--- a/src/welcome_screen.gd
++++ b/src/welcome_screen.gd
+@@ -759,6 +759,7 @@
+ 
+ func start_pair(ip: String):
+ 	main.get_node("%IPInput").text = ip
++	main.state_manager.load_host_state(ip)
+ 	var parsed = main.parse_ip_port(ip)
+ 	var host_ip: String = parsed[0]
+ 	var host_port: int = parsed[1]

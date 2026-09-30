@@ -1,0 +1,6 @@
+[configuration]
+entry_symbol="audio_startup_probe_init"
+compatibility_minimum="4.7"
+[libraries]
+linux.debug.x86_64="res://libaudio_startup_probe.so"
+linux.release.x86_64="res://libaudio_startup_probe.so"

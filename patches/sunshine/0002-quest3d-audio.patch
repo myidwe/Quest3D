@@ -1,0 +1,3348 @@
+diff --git a/src/audio.cpp b/src/audio.cpp
+index 28a3d81..a379d94 100644
+--- a/src/audio.cpp
++++ b/src/audio.cpp
+@@ -3,6 +3,8 @@
+  * @brief Definitions for audio capture and encoding.
+  */
+ // standard includes
++#include <charconv>
++#include <cstdlib>
+ #include <thread>
+ 
+ // lib includes
+@@ -10,6 +12,7 @@
+ 
+ // local includes
+ #include "audio.h"
++#include "audio_delay.h"
+ #include "config.h"
+ #include "globals.h"
+ #include "logging.h"
+@@ -17,16 +20,27 @@
+ #include "thread_safe.h"
+ #include "utility.h"
+ 
++#ifdef _WIN32
++  #include "platform/windows/quest3d_audio_reader.h"
++  #include "platform/windows/quest3d_input.h"
++#endif
++
+ namespace audio {
+   using namespace std::literals;
+   /**
+    * @brief Owning pointer for an Opus multistream encoder.
+    */
+   using opus_t = util::safe_ptr<OpusMSEncoder, opus_multistream_encoder_destroy>;
++
+   /**
+    * @brief Shared queue carrying captured PCM sample buffers to the encoder thread.
+    */
+-  using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<float>>>;
++  struct captured_pcm_t {
++    std::vector<float> data;  ///< Interleaved PCM packet.
++    std::uint64_t received_ns = 0;  ///< Host receipt time, not DAC presentation time.
++  };
++
++  using sample_queue_t = std::shared_ptr<safe::queue_t<captured_pcm_t>>;
+ 
+   static int start_audio_control(audio_ctx_t &ctx);
+   static void stop_audio_control(audio_ctx_t &);
+@@ -43,6 +57,16 @@ namespace audio {
+ 
+   constexpr auto SAMPLE_RATE = 48000;  ///< Audio sample rate in hertz required by Opus.
+ 
++  /** @brief Create the same low-delay CBR Opus encoder for loopback and native file PCM. */
++  opus_t make_encoder(const opus_stream_config_t &stream) {
++    opus_t opus {opus_multistream_encoder_create(stream.sampleRate, stream.channelCount, stream.streams, stream.coupledStreams, stream.mapping, OPUS_APPLICATION_RESTRICTED_LOWDELAY, nullptr)};
++    if (opus) {
++      opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream.bitrate));
++      opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
++    }
++    return opus;
++  }
++
+   // NOTE: If you adjust the bitrates listed here, make sure to update the
+   // corresponding bitrate adjustment logic in rtsp_stream::cmd_announce()
+   /**
+@@ -117,28 +141,77 @@ namespace audio {
+     platf::set_thread_name("audio::encode");
+     platf::adjust_thread_priority(platf::thread_priority_e::high);
+ 
+-    opus_t opus {opus_multistream_encoder_create(
+-      stream.sampleRate,
+-      stream.channelCount,
+-      stream.streams,
+-      stream.coupledStreams,
+-      stream.mapping,
+-      OPUS_APPLICATION_RESTRICTED_LOWDELAY,
+-      nullptr
+-    )};
+-
+-    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream.bitrate));
+-    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
++    opus_t opus = make_encoder(stream);
++    if (!opus) {
++      packets->stop();
++      return;
++    }
+ 
+     BOOST_LOG(info) << "Opus initialized: "sv << stream.sampleRate / 1000 << " kHz, "sv
+                     << stream.channelCount << " channels, "sv
+                     << stream.bitrate / 1000 << " kbps (total), LOWDELAY"sv;
+ 
+     auto frame_size = config.packetDuration * stream.sampleRate / 1000;
++    pcm_delay_t delay {static_cast<std::uint32_t>(stream.sampleRate), static_cast<std::uint32_t>(stream.channelCount)};
++    unsigned configured_delay_ms = 0;
++    if (config::video.capture == "quest3d") {
++      if (const auto setting = std::getenv("QUEST3D_AUDIO_DELAY_MS")) {
++        const auto end = setting + std::char_traits<char>::length(setting);
++        const auto result = std::from_chars(setting, end, configured_delay_ms);
++        if (result.ec != std::errc {} || result.ptr != end || configured_delay_ms > 500) {
++          BOOST_LOG(error) << "[Quest3D] Invalid QUEST3D_AUDIO_DELAY_MS; expected integer 0..500; audio stopped";
++          packets->stop();
++          return;
++        }
++      }
++      BOOST_LOG(info) << "[Quest3D] Bounded PCM delay configured " << configured_delay_ms
++                      << "ms; 2D uses 0ms; end-to-end audio/video sync still requires measurement";
++    }
++    std::uint64_t audio_epoch = 0;
++    std::uint64_t audio_generation = 0;
++    bool audio_source_live = false;
++    std::uint64_t audio_cutoff_ns = 0;
++    std::uint64_t stale_pcm_packets = 0;
+     while (auto sample = samples->pop()) {
+       buffer_t packet {1400};
+ 
+-      int bytes = opus_multistream_encode_float(opus.get(), sample->data(), frame_size, std::begin(packet), (opus_int32) packet.size());
++#ifdef _WIN32
++      if (config::video.capture == "quest3d") {
++        const auto header = quest3d::input_geometry();
++        const auto now_ns = quest3d::qpc_nanoseconds();
++        const bool live = header && now_ns >= header->publish_qpc_ns &&
++                          now_ns - header->publish_qpc_ns <= 500000000ULL;
++        const bool changed = live && (header->stream_epoch != audio_epoch ||
++                                      header->geometry_generation != audio_generation);
++        const auto target = delay_for_frame(live, header ? header->flags : 0U, configured_delay_ms);
++        if (changed || live != audio_source_live || target != delay.delay_ms()) {
++          delay.configure(target, true);
++          audio_cutoff_ns = now_ns;
++          BOOST_LOG(info) << "[Quest3D] PCM delay reset " << target << "ms, source_live=" << live;
++        }
++        audio_source_live = live;
++        if (live) {
++          audio_epoch = header->stream_epoch;
++          audio_generation = header->geometry_generation;
++          const bool stale = now_ns < sample->received_ns || now_ns - sample->received_ns > 50000000ULL;
++          if (sample->received_ns < audio_cutoff_ns || stale) {
++            std::fill(sample->data.begin(), sample->data.end(), 0.0f);
++            if (stale) {
++              delay.configure(target, true);
++              if (++stale_pcm_packets == 1 || stale_pcm_packets % 100 == 0) {
++                BOOST_LOG(warning) << "[Quest3D] Stale PCM packets silenced=" << stale_pcm_packets << "; capture-to-encode exceeded 50ms";
++              }
++            }
++          } else {
++            delay.process(sample->data);
++          }
++        } else {
++          std::fill(sample->data.begin(), sample->data.end(), 0.0f);
++        }
++      }
++#endif
++
++      int bytes = opus_multistream_encode_float(opus.get(), sample->data.data(), frame_size, std::begin(packet), (opus_int32) packet.size());
+       if (bytes < 0) {
+         BOOST_LOG(error) << "Couldn't encode audio: "sv << opus_strerror(bytes);
+         packets->stop();
+@@ -151,15 +224,103 @@ namespace audio {
+     }
+   }
+ 
+-  /**
+-   * @brief Run the capture loop for this backend.
+-   */
+-  void capture(safe::mail_t mail, config_t config, void *channel_data) {
++#ifdef _WIN32
++  /** @brief Pull scheduled file PCM directly into Opus without opening a Windows audio device. */
++  std::optional<quest3d::pcm::reader_retirement> capture_file_pcm(safe::mail_t mail, config_t config, void *channel_data, const std::string &channel, const std::shared_ptr<quest3d::pcm::file_transport> &transport) {
++    auto shutdown = mail->event<bool>(mail::shutdown);
++    auto packets = mail::man->queue<packet_t>(mail::audio_packets);
++    const unsigned frame_samples = config.packetDuration * SAMPLE_RATE / 1000;
++    if (config.channels != 2 || config.flags[config_t::CUSTOM_SURROUND_PARAMS] ||
++        (frame_samples != 240 && frame_samples != 480)) {
++      BOOST_LOG(error) << "[Quest3D] File PCM requires stereo and 5ms/10ms Opus packets";
++      shutdown->view();
++      return std::nullopt;
++    }
++    quest3d::pcm::reader source;
++    if (!source.open(channel)) {
++      // Failed opens can still own partial mapping/Consumer handles. Release
++      // them before waiting, without publishing a successful retirement.
++      source.retire();
++      BOOST_LOG(error) << "[Quest3D] Private file PCM channel unavailable; WASAPI fallback disabled";
++      shutdown->view();
++      return std::nullopt;
++    }
++    auto stream = stream_configs[map_stream(2, config.flags[config_t::HIGH_QUALITY])];
++    opus_t opus;
++    std::shared_ptr<quest3d::pcm::packet_scope> scope;
++    bool scope_initialized = false;
++    const auto stop_packets = [&] {
++      if (scope) {
++        scope->stop();
++      }
++    };
++    const auto encode = [&](const std::vector<float> &pcm) {
++      // Capacity is reserved before Opus advances. Failure is terminal, never retried.
++      return packets->try_produce([&]() -> std::optional<packet_t> {
++        buffer_t packet {1400};
++        const int bytes = opus_multistream_encode_float(opus.get(), pcm.data(), frame_samples, std::begin(packet), static_cast<opus_int32>(packet.size()));
++        if (bytes < 0) {
++          return std::nullopt;
++        }
++        packet.fake_resize(bytes);
++        return packet_t(channel_data, std::move(packet), scope);
++      });
++    };
++    BOOST_LOG(info) << "[Quest3D] Native file PCM→Opus; encoder consumption is not Quest playback";
++    while (!shutdown->peek()) {
++      const auto outcome = source.step(quest3d::qpc_nanoseconds(), frame_samples, encode, stop_packets);
++      if (outcome == quest3d::pcm::result::scope_changed) {
++        scope_initialized = false;
++        opus = make_encoder(stream);
++        scope = transport ? transport->replace_packet_scope() : std::make_shared<quest3d::pcm::packet_scope>();
++        if (!opus || !scope) {
++          break;
++        }
++        scope_initialized = true;
++      } else if (outcome == quest3d::pcm::result::closed) {
++        break;
++      } else if (outcome == quest3d::pcm::result::failed) {
++        // Stay alive to service an explicit flush and return durable final cursors.
++        stop_packets();
++      }
++      if (outcome != quest3d::pcm::result::encoded) {
++        std::this_thread::sleep_for(1ms);
++      }
++    }
++    source.stop(stop_packets);
++    const auto retired = source.retire();
++    return scope_initialized ? retired : std::nullopt;
++  }
++#endif
++
++  /** @brief Run the capture loop for this backend. */
++  void capture(safe::mail_t mail, config_t config, void *channel_data
++#ifdef _WIN32
++               ,
++               std::shared_ptr<quest3d::pcm::file_transport> file_transport
++#endif
++  ) {
+     auto shutdown_event = mail->event<bool>(mail::shutdown);
+     if (!config::audio.stream) {
+       shutdown_event->view();
+       return;
+     }
++#ifdef _WIN32
++    if (config::video.capture == "quest3d") {
++      if (file_transport) {
++        const auto retired = capture_file_pcm(mail, config, channel_data, file_transport->channel(), file_transport);
++        // The capture function's reader and Opus locals have been destroyed.
++        if (retired) {
++          file_transport->capture_retired(*retired);
++        }
++        return;
++      }
++      if (const auto channel = std::getenv("QUEST3D_FILE_AUDIO_CHANNEL"); channel && *channel) {
++        capture_file_pcm(mail, config, channel_data, channel, {});
++        return;
++      }
++    }
++#endif
+     auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+     if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
+       apply_surround_params(stream, config.customStreamParams);
+@@ -233,7 +394,7 @@ namespace audio {
+     // Capture takes place on this thread
+     platf::adjust_thread_priority(platf::thread_priority_e::critical);
+ 
+-    auto samples = std::make_shared<sample_queue_t::element_type>(30);
++    auto samples = std::make_shared<sample_queue_t::element_type>(config::video.capture == "quest3d" ? 2 : 30);
+     std::jthread thread {encodeThread, samples, config, channel_data};
+ 
+     auto fg = util::fail_guard([&]() {
+@@ -269,7 +430,11 @@ namespace audio {
+           return;
+       }
+ 
+-      samples->raise(std::move(sample_buffer));
++      captured_pcm_t captured {std::move(sample_buffer), 0};
++#ifdef _WIN32
++      captured.received_ns = quest3d::qpc_nanoseconds();
++#endif
++      samples->raise(std::move(captured));
+     }
+   }
+ 
+@@ -335,6 +500,9 @@ namespace audio {
+   }
+ 
+   void stop_audio_control(audio_ctx_t &ctx) {
++    if (config::video.capture == "quest3d" && ctx.control && ctx.control->restore_session_route()) {
++      return;
++    }
+     // restore audio-sink if applicable
+     if (!ctx.restore_sink) {
+       return;
+diff --git a/src/audio.h b/src/audio.h
+index e0e919a..6b9bcfd 100644
+--- a/src/audio.h
++++ b/src/audio.h
+@@ -6,8 +6,12 @@
+ 
+ // local includes
+ #include "platform/common.h"
++#include "quest3d_audio_packet.h"
+ #include "thread_safe.h"
+ #include "utility.h"
++#ifdef _WIN32
++  #include "quest3d_file_transport.h"
++#endif
+ 
+ #include <bitset>
+ 
+@@ -90,10 +94,22 @@ namespace audio {
+    * @brief Byte buffer used for encoded audio packet payloads.
+    */
+   using buffer_t = util::buffer_t<std::uint8_t>;
++
+   /**
+    * @brief Encoded audio packet paired with platform channel metadata.
+    */
+-  using packet_t = std::pair<void *, buffer_t>;
++  struct packet_t {
++    void *first;  ///< Existing stream/session channel pointer.
++    buffer_t second;  ///< Encoded Opus bytes.
++    std::shared_ptr<quest3d::pcm::packet_scope> file_scope;  ///< Optional private file generation gate.
++
++    /** @brief Preserve normal two-argument queue construction; file audio adds its scope. */
++    packet_t(void *channel, buffer_t data, std::shared_ptr<quest3d::pcm::packet_scope> scope = {}):
++        first(channel),
++        second(std::move(data)),
++        file_scope(std::move(scope)) {}
++  };
++
+   /**
+    * @brief Shared mailbox reference to the global audio context.
+    */
+@@ -106,7 +122,12 @@ namespace audio {
+    * @param config Audio capture and encoder settings.
+    * @param channel_data Platform-specific capture channel pointer.
+    */
+-  void capture(safe::mail_t mail, config_t config, void *channel_data);
++  void capture(safe::mail_t mail, config_t config, void *channel_data
++#ifdef _WIN32
++               ,
++               std::shared_ptr<quest3d::pcm::file_transport> file_transport = {}
++#endif
++  );
+ 
+   /**
+    * @brief Get the reference to the audio context.
+diff --git a/src/platform/windows/audio.cpp b/src/platform/windows/audio.cpp
+index 9ace2a6..b9db544 100644
+--- a/src/platform/windows/audio.cpp
++++ b/src/platform/windows/audio.cpp
+@@ -6,6 +6,7 @@
+ 
+ // standard includes
+ #include <format>
++#include <mutex>
+ #include <utility>
+ 
+ // platform includes
+@@ -17,6 +18,9 @@
+ #include <synchapi.h>
+ 
+ // local includes
++#include "audio_route_journal.h"
++#include "audio_watchdog.h"
++#include "src/audio_delay.h"
+ #include "src/config.h"
+ #include "src/logging.h"
+ #include "src/platform/common.h"
+@@ -569,15 +573,20 @@ namespace platf::audio {
+      * @return Capture status reported to the streaming pipeline.
+      */
+     capture_e sample(std::vector<float> &sample_out) override {
++      if (route_health && !route_health()) {
++        return capture_e::error;
++      }
+       auto sample_size = sample_out.size();
+ 
+       // Refill the sample buffer if needed
+       while (sample_buf_pos - std::begin(sample_buf) < sample_size) {
+         auto capture_result = _fill_buffer();
+         if (capture_result == capture_e::timeout && continuous_audio) {
+-          // Write silence to sample_buf
+-          std::fill_n(sample_buf_pos, sample_size, 0.0f);
+-          sample_buf_pos += sample_size;
++          // Account for the wait interval, rather than inserting only one shorter Opus packet.
++          const auto available = static_cast<std::size_t>(std::end(sample_buf) - sample_buf_pos);
++          const auto count = std::min(timeout_silence_samples, available / channels * channels);
++          std::fill_n(sample_buf_pos, count, 0.0f);
++          sample_buf_pos += count;
+         } else if (capture_result != capture_e::ok) {
+           return capture_result;
+         }
+@@ -662,9 +671,17 @@ namespace platf::audio {
+         return -1;
+       }
+ 
+-      REFERENCE_TIME default_latency;
+-      audio_client->GetDevicePeriod(&default_latency, nullptr);
+-      default_latency_ms = default_latency / 1000;
++      REFERENCE_TIME default_latency = 0;
++      if (FAILED(audio_client->GetDevicePeriod(&default_latency, nullptr))) {
++        return -1;
++      }
++      try {
++        default_latency_ms = ::audio::device_period_ms(default_latency);
++      } catch (const std::invalid_argument &) {
++        BOOST_LOG(error) << "Invalid WASAPI device period";
++        return -1;
++      }
++      timeout_silence_samples = static_cast<std::size_t>(sample_rate) * default_latency_ms / 1000 * channels_out;
+       continuous_audio = continuous;
+ 
+       std::uint32_t frames;
+@@ -783,7 +800,8 @@ namespace platf::audio {
+       for (
+         status = audio_capture->GetNextPacketSize(&packet_size);
+         SUCCEEDED(status) && packet_size > 0;
+-        status = audio_capture->GetNextPacketSize(&packet_size)) {
++        status = audio_capture->GetNextPacketSize(&packet_size)
++      ) {
+         DWORD buffer_flags;
+         status = audio_capture->GetBuffer(
+           (BYTE **) &sample_aligned.samples,
+@@ -846,8 +864,10 @@ namespace platf::audio {
+ 
+     audio_notification_t endpt_notification;  ///< Endpoint notification callback registered with Windows.
+     std::optional<std::function<void()>> default_endpt_changed_cb;  ///< Callback invoked when the default endpoint changes.
++    std::function<bool()> route_health;  ///< Stop PCM capture if crash recovery protection is lost.
+ 
+     REFERENCE_TIME default_latency_ms;  ///< WASAPI default device period used as capture latency.
++    std::size_t timeout_silence_samples = 0;  ///< Whole channel samples matching one silent device-period wait.
+ 
+     util::buffer_t<float> sample_buf;  ///< Floating-point sample buffer filled from WASAPI packets.
+     float *sample_buf_pos;  ///< Current write position in `sample_buf`.
+@@ -1009,9 +1029,25 @@ namespace platf::audio {
+         return nullptr;
+       }
+ 
++      if (config::video.capture == "quest3d") {
++        mic->route_health = [this] {
++          std::lock_guard lock(route_mutex);
++          if (watchdog_failed) {
++            return false;
++          }
++          if (session_route.active() && !route_watchdog.alive()) {
++            watchdog_failed = true;
++            BOOST_LOG(error) << "[Quest3D] Audio watchdog exited; restoring owned roles and stopping audio capture";
++            restore_session_route();
++            return false;
++          }
++          return true;
++        };
++      }
++
+       // If this is a virtual sink, set a callback that will change the sink back if it's changed
+       auto virtual_sink_info = extract_virtual_sink_info(assigned_sink);
+-      if (virtual_sink_info) {
++      if (virtual_sink_info && config::video.capture != "quest3d") {
+         mic->default_endpt_changed_cb = [this] {
+           BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
+           set_sink(assigned_sink);
+@@ -1098,6 +1134,9 @@ namespace platf::audio {
+      * @return Status from updating sink.
+      */
+     int set_sink(const std::string &sink) override {
++      if (config::video.capture == "quest3d") {
++        return set_session_sink(sink);
++      }
+       auto device_id = set_format(sink);
+       if (!device_id) {
+         return -1;
+@@ -1127,6 +1166,157 @@ namespace platf::audio {
+       return failure;
+     }
+ 
++    /** @brief Read a role's current default without changing any endpoint.
++     * @param role Windows role index. @return Current endpoint ID, or empty on failure.
++     */
++    std::string role_endpoint(std::size_t role) {
++      device_t current;
++      wstring_t id;
++      if (FAILED(device_enum->GetDefaultAudioEndpoint(eRender, static_cast<ERole>(role), &current)) ||
++          FAILED(current->GetId(&id))) {
++        return {};
++      }
++      return utf_utils::to_utf8(id.get());
++    }
++
++    /** @brief Route defaults only after persisting per-role originals; do not change format, mute or volume.
++     * @param sink Requested target. @return Zero on success, negative on safe refusal or rollback.
++     */
++    int set_session_sink(const std::string &sink) {
++      std::lock_guard lock(route_mutex);
++      if (watchdog_failed) {
++        return -1;
++      }
++      if (session_route.active()) {
++        BOOST_LOG(error) << "[Quest3D] A session already owns audio roles; refusing another route";
++        return -1;
++      }
++      auto target_device = get_sink_device(sink);
++      wstring_t target_id;
++      if (!target_device || FAILED(target_device->GetId(&target_id))) {
++        return -1;
++      }
++      const auto target = utf_utils::to_utf8(target_id.get());
++      std::array<std::string, 3> originals;
++      for (std::size_t role = 0; role < originals.size(); ++role) {
++        originals[role] = role_endpoint(role);
++      }
++      if (originals[0] != originals[1]) {
++        BOOST_LOG(error) << "[Quest3D] Console and multimedia defaults differ; private Windows policy couples these roles, so routing is refused";
++        return -1;
++      }
++      try {
++        session_route.prepare(originals, target);
++      } catch (const std::exception &exception) {
++        BOOST_LOG(error) << "[Quest3D] Audio route refused: " << exception.what();
++        return -1;
++      }
++      if (std::all_of(originals.begin(), originals.end(), [&target](const auto &id) {
++            return id == target;
++          })) {
++        assigned_sink = sink;
++        return 0;
++      }
++      if (!route_journal.is_open()) {
++        std::vector<wchar_t> path(32768);
++        const auto length = GetEnvironmentVariableW(L"QUEST3D_AUDIO_ROUTE_JOURNAL", path.data(), static_cast<DWORD>(path.size()));
++        if (length == 0 || length >= path.size() || !route_journal.open(std::filesystem::path(path.data()))) {
++          BOOST_LOG(error) << "[Quest3D] Audio route refused: require absolute writable QUEST3D_AUDIO_ROUTE_JOURNAL with no unresolved record";
++          return -1;
++        }
++      }
++      route_journal.disarm_watchdog();
++      if (!route_journal.write(session_route, "planned")) {
++        BOOST_LOG(error) << "[Quest3D] Cannot persist audio route; no default endpoints were changed";
++        return -1;
++      }
++      if (!route_watchdog.wait_ready(2000)) {
++        watchdog_failed = true;
++        BOOST_LOG(error) << "[Quest3D] Audio watchdog was not ready; no endpoints changed";
++        if (!route_journal.write(session_route, "restored")) {
++          BOOST_LOG(error) << "[Quest3D] Unarmed route journal remains pending; no endpoint change was permitted";
++        }
++        return -1;
++      }
++      route_journal.arm_watchdog();
++      if (!route_journal.write(session_route, "planned")) {
++        watchdog_failed = true;
++        BOOST_LOG(error) << "[Quest3D] Cannot commit watchdog readiness; no endpoints changed";
++        return -1;
++      }
++      for (std::size_t role = 0; role < originals.size(); ++role) {
++        if (originals[role] == target) {
++          continue;
++        }
++        if (!route_watchdog.alive()) {
++          watchdog_failed = true;
++          restore_session_route();
++          return -1;
++        }
++        // Console policy changes can also set multimedia to our planned target.
++        // A different external selection still cancels the transaction.
++        const auto current = role_endpoint(role);
++        if ((current != originals[role] && current != target) ||
++            (current != target && FAILED(policy->SetDefaultEndpoint(target_id.get(), static_cast<ERole>(role))))) {
++          BOOST_LOG(error) << "[Quest3D] Audio route cancelled at role " << role << "; restoring completed changes";
++          restore_session_route();
++          return -1;
++        }
++        session_route.applied(role);
++        if (!route_journal.write(session_route, "active")) {
++          BOOST_LOG(error) << "[Quest3D] Audio journal update failed; restoring completed changes";
++          restore_session_route();
++          return -1;
++        }
++      }
++      assigned_sink = sink;
++      BOOST_LOG(info) << "[Quest3D] Audio route journaled; format, mute and volume preserved";
++      return 0;
++    }
++
++    /** @brief Restore each role only if its current endpoint is still this session's target.
++     * @return True for the Quest3D backend, even when a logged restore failure requires recovery.
++     */
++    bool restore_session_route() override {
++      std::lock_guard lock(route_mutex);
++      if (config::video.capture != "quest3d" && !session_route.active()) {
++        return false;
++      }
++      for (std::size_t role = 0; role < 3; ++role) {
++        if (!session_route.route(role).applied) {
++          continue;
++        }
++        const auto current = role_endpoint(role);
++        if (current.empty()) {
++          BOOST_LOG(error) << "[Quest3D] Cannot query audio role " << role << "; restoration remains pending";
++          continue;
++        }
++        if (current == session_route.route(role).original) {
++          session_route.relinquish(role, "already_original");
++          continue;
++        }
++        if (!session_route.owns(role, current)) {
++          session_route.relinquish(role, "external_preserved");
++          BOOST_LOG(info) << "[Quest3D] Preserving external audio change for role " << role;
++          continue;
++        }
++        if (role < 2 && !session_route.coupled_restore_safe(role, role_endpoint(1 - role))) {
++          BOOST_LOG(error) << "[Quest3D] Coupled audio role conflict; preserving the peer selection and keeping restoration pending";
++          continue;
++        }
++        const auto original = utf_utils::from_utf8(session_route.route(role).original);
++        if (FAILED(policy->SetDefaultEndpoint(original.c_str(), static_cast<ERole>(role)))) {
++          BOOST_LOG(error) << "[Quest3D] Audio role " << role << " restoration failed; journal retained";
++        } else {
++          session_route.relinquish(role);
++        }
++      }
++      if (route_journal.is_open() && !route_journal.write(session_route, session_route.active() ? "restore_pending" : "restored")) {
++        BOOST_LOG(error) << "[Quest3D] Cannot update audio restoration journal; verify endpoints before recovery";
++      }
++      return true;
++    }
++
+     /**
+      * @brief Enumerates supported match field options.
+      */
+@@ -1419,11 +1609,19 @@ namespace platf::audio {
+      * @brief Destroy the Windows audio control.
+      */
+     ~audio_control_t() override {
++      if (session_route.active()) {
++        restore_session_route();
++      }
+     }
+ 
+     policy_t policy;  ///< Windows policy configuration interface used to switch default audio devices.
+     audio::device_enum_t device_enum;  ///< Device enumerator used to query and watch audio endpoints.
+     std::string assigned_sink;  ///< Sink assigned while Sunshine captures host audio, captured directly by the microphone.
++    ::audio::role_route_guard_t session_route;  ///< Only successfully applied role changes are owned.
++    route_journal_t route_journal;  ///< Recovery record persisted before role mutations.
++    watchdog_gate_t route_watchdog;  ///< READY and live lease required before COM routing.
++    std::recursive_mutex route_mutex;  ///< Serialize route, health and reentrant rollback.
++    bool watchdog_failed = false;  ///< Route protection failure requires a new host lifetime.
+   };
+ 
+ #ifdef SUNSHINE_TESTS
+@@ -1542,7 +1740,7 @@ namespace platf {
+ 
+     // Install Steam Streaming Speakers if needed. We do this during audio_control() to ensure
+     // the sink information returned includes the new Steam Streaming Speakers device.
+-    if (config::audio.install_steam_drivers && !control->find_device_id(control->match_steam_speakers())) {
++    if (config::video.capture != "quest3d" && config::audio.install_steam_drivers && !control->find_device_id(control->match_steam_speakers())) {
+       // This is best effort. Don't fail if it doesn't work.
+       control->install_steam_audio_drivers();
+     }
+@@ -1562,7 +1760,9 @@ namespace platf {
+     // change the default to something else (if another device is available).
+     audio::audio_control_t audio_ctrl;
+     if (audio_ctrl.init() == 0) {
+-      audio_ctrl.reset_default_device();
++      if (config::video.capture != "quest3d") {
++        audio_ctrl.reset_default_device();
++      }
+     }
+ 
+     return co_init;
+diff --git a/tests/unit/test_audio.cpp b/tests/unit/test_audio.cpp
+index 6c8c2a0..cd7e1fc 100644
+--- a/tests/unit/test_audio.cpp
++++ b/tests/unit/test_audio.cpp
+@@ -8,6 +8,11 @@
+ 
+ // local includes
+ #include <src/audio.h>
++#include <src/audio_delay.h>
++#include <src/audio_route.h>
++#ifdef _WIN32
++  #include <src/platform/windows/audio_route_journal.h>
++#endif
+ 
+ using namespace audio;
+ 
+@@ -70,3 +75,273 @@ TEST_P(AudioTest, TestEncode) {
+   timer.join();
+   capture.join();
+ }
++
++TEST(QuestAudioDelayTest, ZeroDelayPreservesEverySample) {
++  pcm_delay_t delay {48000, 2};
++  std::vector<float> samples {0.25f, -0.5f, 0.75f, -1.0f};
++  const auto expected = samples;
++  delay.process(samples);
++  EXPECT_EQ(samples, expected);
++  EXPECT_EQ(delay.capacity_samples(), 48000U);
++}
++
++TEST(QuestAudioDelayTest, ExactOneMillisecondDelayPreservesStereoChannelOrder) {
++  pcm_delay_t delay {48000, 2};
++  delay.configure(1);
++  std::vector<float> first(96);
++  for (std::size_t index = 0; index < first.size(); ++index) {
++    first[index] = static_cast<float>(index + 1);
++  }
++  const auto expected = first;
++  delay.process(first);
++  EXPECT_EQ(first, std::vector<float>(96, 0));
++  std::vector<float> second(96, -1);
++  delay.process(second);
++  EXPECT_EQ(second, expected);
++  std::vector<float> third(96, 1);
++  delay.process(third);
++  EXPECT_EQ(third, std::vector<float>(96, -1));
++}
++
++TEST(QuestAudioDelayTest, TwoDimensionalReturnAndNewSourceDoNotReplayOldAudio) {
++  pcm_delay_t delay {48000, 2};
++  delay.configure(10);
++  std::vector<float> samples(960, 0.5f);
++  delay.process(samples);
++  delay.configure(0);
++  samples.assign(960, -0.25f);
++  delay.process(samples);
++  EXPECT_EQ(samples, std::vector<float>(960, -0.25f));
++  delay.configure(10);
++  samples.assign(960, 1.0f);
++  delay.process(samples);
++  EXPECT_EQ(samples, std::vector<float>(960, 0));
++  delay.configure(10, true);
++  samples.assign(960, 1.0f);
++  delay.process(samples);
++  EXPECT_EQ(samples, std::vector<float>(960, 0));
++}
++
++TEST(QuestAudioDelayTest, RejectsOutOfBoundsDelayAndPartialChannelFrames) {
++  EXPECT_THROW((pcm_delay_t {0, 2}), std::invalid_argument);
++  EXPECT_THROW((pcm_delay_t {48000, 9}), std::invalid_argument);
++  pcm_delay_t delay {48000, 2};
++  EXPECT_THROW(delay.configure(501), std::invalid_argument);
++  std::vector<float> incomplete {1, 2, 3};
++  EXPECT_THROW(delay.process(incomplete), std::invalid_argument);
++  EXPECT_EQ(delay.delay_ms(), 0U);
++}
++
++TEST(QuestAudioDelayTest, DevicePeriodUsesOneHundredNanosecondUnits) {
++  EXPECT_EQ(device_period_ms(100000), 10U);
++  EXPECT_EQ(device_period_ms(10001), 2U);
++  EXPECT_EQ(device_period_ms(1), 1U);
++  EXPECT_THROW(device_period_ms(0), std::invalid_argument);
++  EXPECT_THROW(device_period_ms(10000001), std::invalid_argument);
++}
++
++TEST(QuestAudioDelayTest, MonoAndDuplicatedStereoUseImmediateAudio) {
++  EXPECT_EQ(delay_for_frame(true, 0U, 100U), 0U);
++  EXPECT_EQ(delay_for_frame(true, 1U, 100U), 100U);
++  EXPECT_EQ(delay_for_frame(true, 3U, 100U), 0U);
++  EXPECT_EQ(delay_for_frame(true, 15U, 100U), 0U);
++  EXPECT_EQ(delay_for_frame(false, 1U, 100U), 0U);
++}
++
++TEST(QuestAudioRouteTest, RestoresEachOriginalRoleAndPreservesExternalChanges) {
++  role_route_guard_t route;
++  route.prepare({"speakers", "dac", "headset"}, "virtual");
++  route.applied(0);
++  route.applied(1);
++  route.applied(2);
++  EXPECT_TRUE(route.owns(0, "virtual"));
++  EXPECT_EQ(route.route(0).original, "speakers");
++  EXPECT_EQ(route.route(1).original, "dac");
++  EXPECT_EQ(route.route(2).original, "headset");
++  EXPECT_FALSE(route.owns(1, "user-selected-device"));
++  route.relinquish(1);
++  EXPECT_FALSE(route.owns(1, "virtual"));
++  route.relinquish(0);
++  route.relinquish(2);
++  EXPECT_FALSE(route.active());
++}
++
++TEST(QuestAudioRouteTest, PartialFailureOnlyOwnsCompletedChanges) {
++  role_route_guard_t route;
++  route.prepare({"original-a", "original-b", "original-c"}, "virtual");
++  route.applied(0);
++  EXPECT_TRUE(route.owns(0, "virtual"));
++  EXPECT_FALSE(route.owns(1, "virtual"));
++  EXPECT_FALSE(route.owns(2, "virtual"));
++  EXPECT_THROW(route.prepare({"x", "y", "z"}, "other"), std::invalid_argument);
++  route.relinquish(0);
++  EXPECT_FALSE(route.active());
++}
++
++TEST(QuestAudioRouteTest, AlreadySelectedTargetIsNotClaimedAndUnknownOriginalIsRejected) {
++  role_route_guard_t route;
++  EXPECT_THROW(route.prepare({"", "b", "c"}, "virtual"), std::invalid_argument);
++  route.prepare({"virtual", "virtual", "virtual"}, "virtual");
++  route.applied(0);
++  route.applied(1);
++  route.applied(2);
++  EXPECT_FALSE(route.active());
++  EXPECT_FALSE(route.owns(0, "virtual"));
++}
++
++TEST(QuestAudioRouteTest, CoupledPairRequiresMatchingOriginals) {
++  role_route_guard_t route;
++  route.prepare({"console-dac", "multimedia-speakers", "headset"}, "virtual");
++  route.applied(0);
++  EXPECT_FALSE(route.coupled_restore_safe(0, "virtual"));
++  EXPECT_TRUE(route.coupled_restore_safe(2, {}));
++}
++
++TEST(QuestAudioRouteTest, CoupledPairCanRestoreOnlyOwnedOrOriginalPeer) {
++  role_route_guard_t route;
++  route.prepare({"dac", "dac", "headset"}, "virtual");
++  route.applied(0);
++  route.applied(1);
++  EXPECT_TRUE(route.coupled_restore_safe(0, "virtual"));
++  EXPECT_TRUE(route.coupled_restore_safe(0, "dac"));
++  EXPECT_FALSE(route.coupled_restore_safe(0, "user-choice"));
++  EXPECT_FALSE(route.coupled_restore_safe(0, {}));
++}
++
++TEST(QuestAudioRouteTest, RelinquishedPeerCannotBeReclaimedByCoupledRestore) {
++  role_route_guard_t route;
++  route.prepare({"dac", "dac", "headset"}, "virtual");
++  route.applied(0);
++  route.applied(1);
++  route.relinquish(1, "external_preserved");
++  EXPECT_EQ(route.route(1).outcome, "external_preserved");
++  EXPECT_FALSE(route.coupled_restore_safe(0, "virtual"));
++  EXPECT_TRUE(route.coupled_restore_safe(0, "dac"));
++}
++
++#ifdef _WIN32
++/** @brief Journal-only tests never create an audio controller or mutate endpoints. */
++class QuestAudioJournalTest: public testing::Test {
++protected:
++  /** @brief Create one unique local directory for test records. */
++  void SetUp() override {
++    directory = std::filesystem::current_path() / ("quest3d-audio-journal-test-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(GetTickCount64()));
++    std::filesystem::create_directory(directory);
++    path = directory / "route.json";
++    route.prepare({"speaker-a", "speaker-b", "speaker-c"}, "virtual-target");
++  }
++
++  /** @brief Remove only this fixture's explicitly named files and empty directory. */
++  void TearDown() override {
++    std::filesystem::remove(path);
++    auto sidecar = path;
++    sidecar += L".lock";
++    std::filesystem::remove(sidecar);
++    std::filesystem::remove(directory);
++  }
++
++  std::filesystem::path directory;  ///< Isolated test record directory.
++  std::filesystem::path path;  ///< Fixture JSON path.
++  role_route_guard_t route;  ///< Synthetic route data, never applied to COM.
++};
++
++TEST_F(QuestAudioJournalTest, PlansBeforeMutationAndBlocksConcurrentOwner) {
++  platf::audio::route_journal_t owner;
++  ASSERT_TRUE(owner.open(path));
++  ASSERT_TRUE(owner.write(route, "planned"));
++  std::ifstream input(path);
++  boost::property_tree::ptree record;
++  boost::property_tree::read_json(input, record);
++  EXPECT_EQ(record.get<int>("schema"), 1);
++  EXPECT_EQ(record.get<std::string>("phase"), "planned");
++  EXPECT_FALSE(record.get<bool>("mute_changes"));
++  EXPECT_FALSE(record.get<bool>("watchdog_armed"));
++  EXPECT_EQ(record.get_child("roles").size(), 3U);
++  platf::audio::route_journal_t competing;
++  EXPECT_FALSE(competing.open(path));
++}
++
++TEST_F(QuestAudioJournalTest, CrashStylePendingRecordRequiresExplicitRecovery) {
++  {
++    platf::audio::route_journal_t owner;
++    ASSERT_TRUE(owner.open(path));
++    ASSERT_TRUE(owner.write(route, "planned"));
++    owner.arm_watchdog();
++    ASSERT_TRUE(owner.write(route, "planned"));
++    route.applied(0);
++    ASSERT_TRUE(owner.write(route, "active"));
++  }
++  platf::audio::route_journal_t next;
++  EXPECT_FALSE(next.open(path));
++  EXPECT_FALSE(next.write(route, "restored"));
++}
++
++TEST_F(QuestAudioJournalTest, CompletedRestorationAllowsNextSession) {
++  {
++    platf::audio::route_journal_t owner;
++    ASSERT_TRUE(owner.open(path));
++    ASSERT_TRUE(owner.write(route, "planned"));
++    owner.arm_watchdog();
++    ASSERT_TRUE(owner.write(route, "planned"));
++    route.applied(0);
++    ASSERT_TRUE(owner.write(route, "active"));
++    route.relinquish(0);
++    ASSERT_TRUE(owner.write(route, "restored"));
++  }
++  platf::audio::route_journal_t next;
++  EXPECT_TRUE(next.open(path));
++  EXPECT_TRUE(next.write(route, "planned"));
++}
++
++TEST_F(QuestAudioJournalTest, RefusesRelativeAndCorruptRecords) {
++  platf::audio::route_journal_t invalid;
++  EXPECT_FALSE(invalid.open("relative-audio-route.json"));
++  {
++    std::ofstream output(path);
++    output << "broken JSON";
++  }
++  EXPECT_FALSE(invalid.open(path));
++}
++
++TEST_F(QuestAudioJournalTest, EscapesEndpointDataAndRejectsFalseRestoration) {
++  route.prepare({"speaker\"a", "speaker\\b", "speaker\nc"}, "virtual-target");
++  platf::audio::route_journal_t owner;
++  ASSERT_TRUE(owner.open(path));
++  ASSERT_TRUE(owner.write(route, "planned"));
++  {
++    std::ifstream input(path);
++    boost::property_tree::ptree record;
++    boost::property_tree::read_json(input, record);
++    std::size_t index = 0;
++    for (const auto &entry : record.get_child("roles")) {
++      EXPECT_EQ(entry.second.get<std::string>("original"), route.route(index++).original);
++    }
++  }
++  route.applied(0);
++  EXPECT_FALSE(owner.write(route, "restored"));
++  EXPECT_FALSE(owner.write(route, "unrecognized"));
++  EXPECT_FALSE(owner.write(route, "restore_pending"));
++  owner.arm_watchdog();
++  EXPECT_TRUE(owner.write(route, "restore_pending"));
++}
++
++TEST_F(QuestAudioJournalTest, SharingViolationPreservesPreviousRecordAndCanRetry) {
++  platf::audio::route_journal_t owner;
++  ASSERT_TRUE(owner.open(path));
++  ASSERT_TRUE(owner.write(route, "planned"));
++  owner.arm_watchdog();
++  ASSERT_TRUE(owner.write(route, "planned"));
++  const auto reader = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
++  ASSERT_NE(reader, INVALID_HANDLE_VALUE);
++  route.applied(0);
++  EXPECT_FALSE(owner.write(route, "active"));
++  CloseHandle(reader);
++  {
++    std::ifstream input(path);
++    boost::property_tree::ptree record;
++    boost::property_tree::read_json(input, record);
++    EXPECT_EQ(record.get<std::string>("phase"), "planned");
++  }
++  EXPECT_TRUE(owner.write(route, "active"));
++}
++#endif
+diff --git a/src/audio_delay.h b/src/audio_delay.h
+new file mode 100644
+--- /dev/null
++++ b/src/audio_delay.h
+@@ -0,0 +1,91 @@
++/** @file src/audio_delay.h
++ * @brief Bounded interleaved PCM delay used by the Quest3D host before Opus.
++ */
++#pragma once
++#include <algorithm>
++#include <cstddef>
++#include <cstdint>
++#include <stdexcept>
++#include <vector>
++
++namespace audio {
++  /** @brief Select delay only for a live stereoscopic pair; mono and duplicated 2D are immediate.
++   * @param live Whether the video publication is fresh. @param flags Bridge Full-SBS bit 0 and duplicated-2D bit 1.
++   * @param configured_ms Calibrated bounded stereo delay. @return Applicable delay in milliseconds.
++   */
++  inline std::uint32_t delay_for_frame(bool live, std::uint32_t flags, std::uint32_t configured_ms) {
++    return live && (flags & 1U) && !(flags & 2U) ? configured_ms : 0U;
++  }
++
++  /** @brief Convert the WASAPI 100ns device period to a bounded wait duration.
++   * @param period_100ns Positive device period. @return Rounded-up milliseconds, bounded to 1..1000.
++   */
++  inline std::uint32_t device_period_ms(std::int64_t period_100ns) {
++    if (period_100ns <= 0 || period_100ns > 10000000) {
++      throw std::invalid_argument("Invalid WASAPI device period");
++    }
++    return static_cast<std::uint32_t>((period_100ns + 9999) / 10000);
++  }
++
++  /** @brief Fixed-capacity PCM delay; configuration changes discard old source audio. */
++  class pcm_delay_t {
++  public:
++    /** @brief Allocate bounded storage. @param rate Samples per second per channel. @param channels Interleaved channels. @param limit_ms Maximum selectable delay. */
++    pcm_delay_t(std::uint32_t rate, std::uint32_t channels, std::uint32_t limit_ms = 500):
++        rate_ {rate},
++        channels_ {channels},
++        limit_ms_ {limit_ms} {
++      if (rate == 0 || rate > 192000 || channels == 0 || channels > 8 || limit_ms > 500) {
++        throw std::invalid_argument("Invalid bounded PCM delay format");
++      }
++      samples_.resize(static_cast<std::size_t>(rate) * limit_ms / 1000 * channels);
++    }
++
++    /** @brief Change delay and flush previous content. @param milliseconds New delay. @param force_reset Reset on source identity change even if delay is unchanged. */
++    void configure(std::uint32_t milliseconds, bool force_reset = false) {
++      if (milliseconds > limit_ms_) {
++        throw std::invalid_argument("PCM delay exceeds the configured bound");
++      }
++      if (milliseconds == delay_ms_ && !force_reset) {
++        return;
++      }
++      delay_ms_ = milliseconds;
++      active_samples_ = static_cast<std::size_t>(rate_) * milliseconds / 1000 * channels_;
++      cursor_ = 0;
++      std::fill(samples_.begin(), samples_.end(), 0.0f);
++    }
++
++    /** @brief Delay one PCM block in place without changing cadence or sample count. @param block Whole interleaved audio frames. */
++    void process(std::vector<float> &block) {
++      if (block.size() % channels_ != 0) {
++        throw std::invalid_argument("PCM block does not contain complete channel frames");
++      }
++      if (active_samples_ == 0) {
++        return;
++      }
++      for (auto &sample : block) {
++        std::swap(sample, samples_[cursor_]);
++        cursor_ = (cursor_ + 1) % active_samples_;
++      }
++    }
++
++    /** @brief Current delay. @return Milliseconds selected. */
++    std::uint32_t delay_ms() const {
++      return delay_ms_;
++    }
++
++    /** @brief Maximum allocated PCM memory. @return Allocated float sample slots. */
++    std::size_t capacity_samples() const {
++      return samples_.size();
++    }
++
++  private:
++    std::uint32_t rate_;  ///< Per-channel sample rate.
++    std::uint32_t channels_;  ///< Interleaved channel count.
++    std::uint32_t limit_ms_;  ///< Hard delay bound.
++    std::uint32_t delay_ms_ = 0;  ///< Current delay.
++    std::size_t active_samples_ = 0;  ///< Circular buffer interval including priming silence.
++    std::size_t cursor_ = 0;  ///< Next delayed sample position.
++    std::vector<float> samples_;  ///< Bounded storage allocated once.
++  };
++}  // namespace audio
+diff --git a/src/audio_route.h b/src/audio_route.h
+new file mode 100644
+--- /dev/null
++++ b/src/audio_route.h
+@@ -0,0 +1,90 @@
++/** @file src/audio_route.h
++ * @brief Ownership rules for restoring Windows role-specific default endpoints.
++ */
++#pragma once
++#include <array>
++#include <cstddef>
++#include <stdexcept>
++#include <string>
++
++namespace audio {
++  /** @brief Original and applied target for one Windows audio role. */
++  struct role_route_t {
++    std::string original;  ///< Endpoint selected before this session.
++    std::string target;  ///< Endpoint requested by this session.
++    bool applied = false;  ///< This process successfully changed this role.
++    std::string outcome;  ///< Terminal restoration result, preserved across crash recovery.
++  };
++
++  /** @brief Value-only restoration state; actual COM calls remain in the platform backend. */
++  class role_route_guard_t {
++  public:
++    /** @brief Prepare before any mutation or journal write. @param originals Current IDs for each of three roles. @param target Requested endpoint ID. */
++    void prepare(const std::array<std::string, 3> &originals, const std::string &target) {
++      if (active() || target.empty()) {
++        throw std::invalid_argument("Cannot replace an owned or invalid audio route");
++      }
++      for (const auto &original : originals) {
++        if (original.empty()) {
++          throw std::invalid_argument("Cannot restore an unknown original audio role");
++        }
++      }
++      for (std::size_t role = 0; role < routes_.size(); ++role) {
++        routes_[role] = {originals[role], target, false, {}};
++      }
++    }
++
++    /** @brief Mark only a successful COM change. @param role Role index 0..2. */
++    void applied(std::size_t role) {
++      auto &route = routes_.at(role);
++      route.applied = route.original != route.target;
++      route.outcome.clear();
++    }
++
++    /** @brief Whether this session still owns the current selection. @param role Role index. @param current Current endpoint ID. @return True when restoration is permitted. */
++    bool owns(std::size_t role, const std::string &current) const {
++      const auto &route = routes_.at(role);
++      return route.applied && route.target == current;
++    }
++
++    /** @brief Forget restored or externally changed ownership.
++     * @param role Role index. @param outcome Terminal state persisted for crash recovery.
++     */
++    void relinquish(std::size_t role, const std::string &outcome = "restored") {
++      routes_.at(role).applied = false;
++      routes_.at(role).outcome = outcome;
++    }
++
++    /** @brief Guard Windows console/multimedia policy coupling before restoration.
++     * @param role Role being restored. @param peer_current Other coupled role's current ID.
++     * @return False if changing this role could overwrite a different or relinquished peer selection.
++     */
++    bool coupled_restore_safe(std::size_t role, const std::string &peer_current) const {
++      const auto &current = routes_.at(role);
++      if (role == 2) {
++        return true;
++      }
++      const auto &peer = routes_.at(1 - role);
++      return current.original == peer.original && !peer_current.empty() &&
++             (peer_current == peer.original || (peer.outcome.empty() && peer_current == peer.target));
++    }
++
++    /** @brief Determine whether any successful mutation remains owned. @return Any applied role. */
++    bool active() const {
++      for (const auto &route : routes_) {
++        if (route.applied) {
++          return true;
++        }
++      }
++      return false;
++    }
++
++    /** @brief Read the planned/original route for journaling. @param role Role index. @return Role state. */
++    const role_route_t &route(std::size_t role) const {
++      return routes_.at(role);
++    }
++
++  private:
++    std::array<role_route_t, 3> routes_;  ///< Independent state for console, multimedia and communications.
++  };
++}  // namespace audio
+diff --git a/src/platform/windows/audio_route_journal.h b/src/platform/windows/audio_route_journal.h
+new file mode 100644
+--- /dev/null
++++ b/src/platform/windows/audio_route_journal.h
+@@ -0,0 +1,189 @@
++/** @file src/platform/windows/audio_route_journal.h
++ * @brief Durable, exclusive recovery record written before default endpoint changes.
++ */
++#pragma once
++
++#include "src/audio_route.h"
++
++#include <boost/property_tree/json_parser.hpp>
++#include <boost/property_tree/ptree.hpp>
++#include <chrono>
++#include <filesystem>
++#include <fstream>
++#include <iomanip>
++#include <sstream>
++#include <string>
++#include <windows.h>
++
++namespace platf::audio {
++  /** @brief Own one journal path until the platform controller is destroyed. */
++  class route_journal_t {
++  public:
++    /** @brief Start with no file lock or route ownership. */
++    route_journal_t() = default;
++    route_journal_t(const route_journal_t &) = delete;
++    route_journal_t &operator=(const route_journal_t &) = delete;
++
++    /** @brief Release the sidecar lock; the recovery JSON remains on disk. */
++    ~route_journal_t() {
++      if (lock_ != INVALID_HANDLE_VALUE) {
++        CloseHandle(lock_);
++      }
++    }
++
++    /** @brief Lock an absolute existing-directory path, refusing unresolved records.
++     * @param path Absolute recovery JSON path supplied by the product launcher.
++     * @return False if locked, invalid, unreadable or recovery remains pending.
++     */
++    bool open(const std::filesystem::path &path) {
++      std::error_code error;
++      if (lock_ != INVALID_HANDLE_VALUE || !path.is_absolute() ||
++          path.filename().empty() || !std::filesystem::is_directory(path.parent_path(), error)) {
++        return false;
++      }
++      auto sidecar = path;
++      sidecar += L".lock";
++      lock_ = CreateFileW(sidecar.c_str(), GENERIC_READ | GENERIC_WRITE | DELETE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
++      if (lock_ == INVALID_HANDLE_VALUE) {
++        return false;
++      }
++      bool valid = false;
++      try {
++        if (!std::filesystem::exists(path)) {
++          valid = true;
++        } else if (std::filesystem::file_size(path) <= 65536) {
++          std::ifstream input(path);
++          boost::property_tree::ptree previous;
++          boost::property_tree::read_json(input, previous);
++          valid = previous.get<int>("schema") == 1 && previous.get<std::string>("phase") == "restored";
++        }
++      } catch (...) {
++        valid = false;
++      }
++      if (!valid) {
++        CloseHandle(lock_);
++        lock_ = INVALID_HANDLE_VALUE;
++        return false;
++      }
++      path_ = path;
++      return true;
++    }
++
++    /** @brief Atomically flush a complete record; never change audio when this fails.
++     * @param state Per-role originals and planned targets.
++     * @param phase planned, active, restore_pending or restored.
++     * @return True only after the replacement record has been committed.
++     */
++    bool write(const ::audio::role_route_guard_t &state, const std::string &phase) const {
++      if (lock_ == INVALID_HANDLE_VALUE) {
++        return false;
++      }
++      if (phase != "planned" && phase != "active" && phase != "restore_pending" && phase != "restored") {
++        return false;
++      }
++      if ((phase == "planned" || phase == "restored") && state.active()) {
++        return false;
++      }
++      if (!watchdog_armed_ && state.active()) {
++        return false;
++      }
++      try {
++        FILETIME created {}, exited {}, kernel {}, user {};
++        if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) {
++          return false;
++        }
++        const auto created_ticks = (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
++        std::ostringstream output;
++        output << "{\"schema\":1,\"owner_pid\":" << GetCurrentProcessId()
++               << ",\"owner_creation_filetime\":\"" << created_ticks << "\",\"phase\":" << quote(phase)
++               << ",\"watchdog_armed\":" << (watchdog_armed_ ? "true" : "false")
++               << ",\"format_changes\":false,\"mute_changes\":false,\"volume_changes\":false,\"roles\":[";
++        for (std::size_t index = 0; index < 3; ++index) {
++          if (index) {
++            output << ',';
++          }
++          const auto &role = state.route(index);
++          output << "{\"role\":" << index << ",\"original\":" << quote(role.original)
++                 << ",\"target\":" << quote(role.target) << ",\"applied\":" << (role.applied ? "true" : "false");
++          if (!role.outcome.empty()) {
++            output << ",\"recovery_status\":" << quote(role.outcome);
++          }
++          output << '}';
++        }
++        output << "]}\n";
++        const auto bytes = output.str();
++        auto temporary = path_;
++        temporary += L"." + std::to_wstring(GetCurrentProcessId()) + L".tmp";
++        const auto file = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
++        if (file == INVALID_HANDLE_VALUE) {
++          return false;
++        }
++        DWORD written = 0;
++        const bool flushed = WriteFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) &&
++                             written == bytes.size() && FlushFileBuffers(file);
++        CloseHandle(file);
++        bool committed = false;
++        if (flushed) {
++          const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
++          for (unsigned attempt = 0; attempt <= 10; ++attempt) {
++            if (MoveFileExW(temporary.c_str(), path_.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
++              committed = true;
++              break;
++            }
++            const auto error = GetLastError();
++            if (attempt == 10 || std::chrono::steady_clock::now() >= deadline ||
++                (error != ERROR_SHARING_VIOLATION && error != ERROR_ACCESS_DENIED && error != ERROR_LOCK_VIOLATION)) {
++              break;
++            }
++            Sleep(1);
++          }
++        }
++        if (!committed) {
++          DeleteFileW(temporary.c_str());
++        }
++        return committed;
++      } catch (...) {
++        return false;
++      }
++    }
++
++    /** @brief Whether a usable record is locked by this controller. @return Open state. */
++    bool is_open() const {
++      return lock_ != INVALID_HANDLE_VALUE;
++    }
++
++    /** @brief Commit readiness in the next planned write before the first COM call. */
++    void arm_watchdog() {
++      watchdog_armed_ = true;
++    }
++
++    /** @brief A new route must independently commit a fresh unarmed plan. */
++    void disarm_watchdog() {
++      watchdog_armed_ = false;
++    }
++
++  private:
++    /** @brief Escape UTF-8 text for a JSON string without altering scalar types.
++     * @param value Text from an endpoint ID or internal phase. @return Quoted JSON value.
++     */
++    static std::string quote(const std::string &value) {
++      std::ostringstream output;
++      output << '"';
++      for (const unsigned char character : value) {
++        if (character == '"' || character == '\\') {
++          output << '\\' << character;
++        } else if (character < 32) {
++          output << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<unsigned>(character);
++        } else {
++          output << character;
++        }
++      }
++      output << '"';
++      return output.str();
++    }
++
++    std::filesystem::path path_;  ///< Explicit product runtime JSON path.
++    HANDLE lock_ = INVALID_HANDLE_VALUE;  ///< Exclusive sidecar deleted automatically on process death.
++    bool watchdog_armed_ = false;  ///< False records prove no new native route COM call was allowed.
++  };
++}  // namespace platf::audio
+diff --git a/src/platform/windows/audio_watchdog.h b/src/platform/windows/audio_watchdog.h
+new file mode 100644
+--- /dev/null
++++ b/src/platform/windows/audio_watchdog.h
+@@ -0,0 +1,92 @@
++/** @file src/platform/windows/audio_watchdog.h
++ * @brief Require a live, registered crash-recovery watchdog before audio routing.
++ */
++#pragma once
++#include <algorithm>
++#include <string>
++#include <windows.h>
++
++namespace platf::audio {
++  /** @brief Read-only consumer of the watchdog-owned READY event and lifetime mutex. */
++  class watchdog_gate_t {
++  public:
++    watchdog_gate_t() = default;  ///< No kernel objects are created by the native host.
++    watchdog_gate_t(const watchdog_gate_t &) = delete;
++    watchdog_gate_t &operator=(const watchdog_gate_t &) = delete;
++
++    ~watchdog_gate_t() {
++      close();
++    }  ///< Close handles without owning the watchdog mutex.
++
++    /** @brief Accept only the launcher's random startup token. */
++    static bool valid_token(const std::wstring &token) {
++      return token.size() == 32 && std::all_of(token.begin(), token.end(), [](wchar_t value) {
++               return (value >= L'0' && value <= L'9') || (value >= L'a' && value <= L'f');
++             });
++    }
++
++    /** @brief Wait a bounded duration after the native planned journal is committed. */
++    bool wait_ready(DWORD timeout_ms) {
++      const auto deadline = GetTickCount64() + timeout_ms;
++      do {
++        if (alive()) {
++          return true;
++        }
++        if (GetTickCount64() >= deadline) {
++          return false;
++        }
++        Sleep(1);
++      } while (true);
++    }
++
++    /** @brief READY is insufficient after watchdog exit; its mutex must still be owned. */
++    bool alive() {
++      if (!open() || WaitForSingleObject(ready_, 0) != WAIT_OBJECT_0) {
++        return false;
++      }
++      const auto state = WaitForSingleObject(live_, 0);
++      if (state == WAIT_TIMEOUT) {
++        return true;
++      }
++      if (state == WAIT_OBJECT_0 || state == WAIT_ABANDONED) {
++        ReleaseMutex(live_);
++      }
++      return false;
++    }
++
++  private:
++    /** @brief Open only the unique names supplied through the process environment. */
++    bool open() {
++      if (ready_ && live_) {
++        return true;
++      }
++      wchar_t token[33] {};
++      const auto length = GetEnvironmentVariableW(L"QUEST3D_AUDIO_WATCHDOG_TOKEN", token, 33);
++      if (length != 32 || !valid_token(token)) {
++        return false;
++      }
++      const auto suffix = std::wstring(token);
++      ready_ = OpenEventW(SYNCHRONIZE, FALSE, (L"Local\\Quest3D.Audio.Ready." + suffix).c_str());
++      live_ = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, (L"Local\\Quest3D.Audio.Live." + suffix).c_str());
++      if (!ready_ || !live_) {
++        close();
++        return false;
++      }
++      return true;
++    }
++
++    /** @brief Never release an owned watchdog lock: the host only probes it. */
++    void close() {
++      if (ready_) {
++        CloseHandle(ready_);
++      }
++      if (live_) {
++        CloseHandle(live_);
++      }
++      ready_ = live_ = nullptr;
++    }
++
++    HANDLE ready_ = nullptr;  ///< Signaled only after journal owner registration.
++    HANDLE live_ = nullptr;  ///< Remains nonsignaled only while the watchdog owns it.
++  };
++}  // namespace platf::audio
+diff --git a/src/quest3d_audio_ring.h b/src/quest3d_audio_ring.h
+new file mode 100644
+--- /dev/null
++++ b/src/quest3d_audio_ring.h
+@@ -0,0 +1,283 @@
++/** @file src/quest3d_audio_ring.h
++ * @brief Bounded PCM wire layout and transactional Opus-consumption cursors.
++ */
++#pragma once
++#include <algorithm>
++#include <array>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <functional>
++#include <limits>
++#include <map>
++#include <openssl/sha.h>
++#include <optional>
++#include <vector>
++
++namespace quest3d::pcm {
++  constexpr std::uint32_t slot_count = 50;  ///< Maximum buffered original blocks.
++  constexpr std::uint32_t max_samples = 24000;  ///< At most 500ms at 48kHz.
++  constexpr std::uint32_t eof = 1, producer_closed = 2, consumer_stopped = 4;  ///< Header flags.
++
++  /** @brief Exact 256-byte little-endian channel state; all access holds the named mutex. */
++  struct header {
++    std::array<char, 8> magic;  ///< Exact Q3DAUD1 signature.
++    std::uint32_t version, header_bytes, slots, slot_bytes, rate, channels, format, flags;  ///< Fixed format and state flags.
++    std::uint32_t producer_pid, consumer_pid;  ///< Exact process identifiers.
++    std::uint64_t producer_creation, consumer_creation;  ///< Creation FILETIME paired with each PID.
++    std::array<std::uint8_t, 16> session, channel;  ///< Immutable file and private channel identities.
++    std::uint64_t epoch, generation, head, tail, flush_request, flush_ack;  ///< Media scope and monotonic queue/barrier cursors.
++    std::uint32_t buffered_samples, fault;  ///< Reserved suffix samples and sticky failure.
++    std::uint64_t consumer_heartbeat, producer_heartbeat, encoded_samples, encoded_packets, last_block_id;  ///< Lifetime diagnostics and real encoder totals.
++    std::uint32_t ready;  ///< Native reader has bound original owner identity.
++    std::array<std::uint8_t, 60> reserved;  ///< Must remain zero in v1.
++  };
++
++  /** @brief One original PCM block suffix and its durable cumulative encoder cursor. */
++  struct slot {
++    std::uint64_t block_id, due_ns;  ///< Original block token and QPC deadline.
++    std::int64_t pts_ns;  ///< Original video-relative presentation position.
++    std::uint32_t total, offset, count, consumed, discontinuity, reserved_word;  ///< Original bounds, cumulative encoder cursor and discontinuity.
++    std::uint64_t sequence;  ///< Exact ring sequence, independent of media block id.
++    std::array<std::uint8_t, 32> digest;  ///< SHA256 of immutable metadata and valid samples.
++    std::uint64_t epoch, generation;  ///< Slot scope must match the current header.
++    std::array<std::uint8_t, 24> reserved;  ///< Must remain zero in v1.
++    std::array<float, 960> samples;  ///< Owned stereo suffix, at most 480 sample frames.
++    std::array<std::uint8_t, 128> padding;  ///< Must remain zero in v1.
++  };
++
++  /** @brief Entire fixed-size mapping; no pointers or user-controlled allocation sizes. */
++  struct memory {
++    header state;  ///< Shared channel state.
++    std::array<slot, slot_count> data;  ///< Bounded original PCM blocks.
++  };
++
++  static_assert(sizeof(header) == 256 && sizeof(slot) == 4096 && sizeof(memory) == 205056);
++  static_assert(offsetof(header, encoded_samples) == 168 && offsetof(slot, samples) == 128);
++
++  /** @brief Observable native state, separate from UDP or Quest playback. */
++  enum class result {
++    waiting,
++    encoded,
++    flushed,
++    scope_changed,
++    drained,
++    closed,
++    failed
++  };
++
++  /** @brief Validate zeros required by protocol v1. @param bytes Reserved field. */
++  template<class T>
++  bool zero(const T &bytes) {
++    return std::ranges::all_of(bytes, [](auto value) {
++      return value == 0;
++    });
++  }
++
++  /** @brief Hash immutable metadata and the owned PCM suffix, excluding mutable consumption. */
++  inline std::array<std::uint8_t, 32> digest(const slot &value) {
++    std::vector<unsigned char> input(56 + value.count * 2 * sizeof(float));
++    std::memcpy(input.data(), &value, 36);
++    std::memcpy(input.data() + 36, &value.discontinuity, 4);
++    std::memcpy(input.data() + 40, &value.epoch, 16);
++    std::memcpy(input.data() + 56, value.samples.data(), value.count * 2 * sizeof(float));
++    std::array<std::uint8_t, 32> output;
++    SHA256(input.data(), input.size(), output.data());
++    return output;
++  }
++
++  /** @brief Validate static fields, queue bounds, per-slot digest and finite stereo samples. */
++  inline bool valid(const memory &mapped) {
++    const auto &h = mapped.state;
++    if (h.magic != std::array<char, 8> {'Q', '3', 'D', 'A', 'U', 'D', '1', 0} || h.version != 1 || h.header_bytes != 256 ||
++        h.slots != slot_count || h.slot_bytes != 4096 || h.rate != 48000 || h.channels != 2 || h.format != 1 ||
++        (h.flags & ~7U) || !h.producer_pid || !h.producer_creation || zero(h.session) || zero(h.channel) ||
++        h.head > h.tail || h.tail - h.head > slot_count || h.tail > INT64_MAX || h.epoch > INT64_MAX || h.generation > INT64_MAX ||
++        h.flush_ack > h.flush_request || h.buffered_samples > max_samples || h.ready > 1 || !zero(h.reserved)) {
++      return false;
++    }
++    std::uint32_t total = 0;
++    std::optional<std::uint64_t> previous;
++    for (auto sequence = h.head; sequence < h.tail; ++sequence) {
++      const auto &s = mapped.data[sequence % slot_count];
++      if (s.sequence != sequence || s.block_id > INT64_MAX || !s.total || s.total > 480 || s.offset >= s.total ||
++          s.count != s.total - s.offset || s.consumed < s.offset || s.consumed > s.total || s.discontinuity > 5 ||
++          s.epoch != h.epoch || s.generation != h.generation ||
++          s.reserved_word || !zero(s.reserved) || !zero(s.padding) || s.due_ns > INT64_MAX ||
++          (previous && s.block_id <= *previous) ||
++          !std::all_of(s.samples.begin(), s.samples.begin() + s.count * 2, [](float v) {
++            return std::isfinite(v);
++          }) ||
++          !std::all_of(s.samples.begin() + s.count * 2, s.samples.end(), [](float v) {
++            return v == 0;
++          }) ||
++          digest(s) != s.digest) {
++        return false;
++      }
++      previous = s.block_id;
++      total += s.count;
++    }
++    return total == h.buffered_samples;
++  }
++
++  /** @brief Convert a sample cursor to exact rounded nanoseconds without floating overflow. */
++  inline std::uint64_t sample_ns(std::uint64_t samples) {
++    return (samples * 1000000000ULL + 24000) / 48000;
++  }
++
++  /** @brief A serialized pull/encode transaction; successful callbacks commit durable cursors. */
++  class ring {
++  public:
++    /** @brief Bind a validated-size memory region. @param mapped Shared ring, externally locked. */
++    explicit ring(memory &mapped):
++        mapped_(mapped) {}
++
++    /** @brief Return only the epoch/generation accepted by a real step, not an unvalidated header. */
++    std::optional<std::pair<std::uint64_t, std::uint64_t>> accepted_scope() const {
++      return scope_;
++    }
++
++    /**
++     * @brief Encode at most one 5ms/10ms packet; never ACK a copy, wait or failed encode.
++     * @param now_ns Host QPC nanoseconds.
++     * @param frame_samples Negotiated Opus frame size, 240 or 480 per channel.
++     * @param encode Synchronous encoder/handoff callback; false is terminal and is not retried.
++     * @param stop_packets Stops old-scope native packet sending before flush acknowledgement.
++     */
++    result step(std::uint64_t now_ns, unsigned frame_samples, const std::function<bool(const std::vector<float> &)> &encode, const std::function<void()> &stop_packets) {
++      auto &h = mapped_.state;
++      h.consumer_heartbeat = now_ns;
++      if (!valid(mapped_) || (frame_samples != 240 && frame_samples != 480)) {
++        h.fault = 1;
++      }
++      // Even a sticky error can stop packet handoff and return final known cursors.
++      if (h.flush_request != h.flush_ack) {
++        stop_packets();
++        h.flags |= consumer_stopped;
++        h.flush_ack = h.flush_request;
++        next_due_.reset();
++        return result::flushed;
++      }
++      if (h.fault) {
++        stop_packets();
++        return result::failed;
++      }
++      if (h.flags & producer_closed) {
++        stop_packets();
++        h.flags |= consumer_stopped;
++        return result::closed;
++      }
++      if (h.flags & consumer_stopped) {
++        return result::waiting;
++      }
++      if (!scope_ || *scope_ != std::pair {h.epoch, h.generation}) {
++        if (scope_ && std::pair {h.epoch, h.generation} < *scope_) {
++          h.fault = 1;
++          stop_packets();
++          return result::failed;
++        }
++        stop_packets();
++        scope_ = {h.epoch, h.generation};
++        next_due_.reset();
++        observed_.clear();
++        highest_block_.reset();
++        observed_head_ = observed_tail_ = 0;
++        return result::scope_changed;
++      }
++      if (!observe()) {
++        h.fault = 1;
++        stop_packets();
++        return result::failed;
++      }
++      std::vector<float> pcm(frame_samples * 2, 0.0f);
++      std::vector<std::pair<slot *, std::uint32_t>> cursors;
++      unsigned filled = 0;
++      std::optional<std::uint64_t> due;
++      for (auto sequence = h.head; sequence < h.tail && filled < frame_samples; ++sequence) {
++        auto &s = mapped_.data[sequence % slot_count];
++        if (s.consumed == s.total) {
++          continue;
++        }
++        const auto start_ns = s.due_ns + sample_ns(s.consumed);
++        if (!due) {
++          due = start_ns;
++          if (now_ns < *due) {
++            return result::waiting;
++          }
++          if (now_ns - *due > 250000000ULL) {
++            h.fault = 5;
++            return result::failed;
++          }
++          if (next_due_ && (*due > *next_due_ + 2 || *next_due_ > *due + 2)) {
++            h.fault = 4;
++            return result::failed;
++          }
++        }
++        const auto expected = *due + sample_ns(filled);
++        if (s.discontinuity >= 3 || start_ns > expected + 2 || expected > start_ns + 2) {
++          h.fault = 4;
++          return result::failed;
++        }
++        const auto count = std::min<unsigned>(s.total - s.consumed, frame_samples - filled);
++        std::copy_n(s.samples.begin() + (s.consumed - s.offset) * 2, count * 2, pcm.begin() + filled * 2);
++        cursors.emplace_back(&s, s.consumed + count);
++        filled += count;
++      }
++      if (!filled) {
++        return (h.flags & eof) ? result::drained : result::waiting;
++      }
++      if (filled < frame_samples && !(h.flags & eof)) {
++        return result::waiting;
++      }
++      if (!encode(pcm)) {
++        h.fault = 6;
++        stop_packets();
++        return result::failed;
++      }
++      for (auto [s, cursor] : cursors) {
++        s->consumed = cursor;
++      }
++      h.encoded_samples += filled;
++      ++h.encoded_packets;
++      next_due_ = *due + sample_ns(frame_samples);
++      return result::encoded;
++    }
++
++  private:
++    /** @brief Reject rewritten observed payloads, duplicate blocks and same-scope cursor rewinds. */
++    bool observe() {
++      const auto &h = mapped_.state;
++      if (h.head < observed_head_ || h.tail < observed_tail_) {
++        return false;
++      }
++      while (!observed_.empty() && observed_.begin()->first < h.head) {
++        observed_.erase(observed_.begin());
++      }
++      for (auto sequence = h.head; sequence < h.tail; ++sequence) {
++        const auto &s = mapped_.data[sequence % slot_count];
++        const auto identity = std::pair {s.block_id, s.digest};
++        if (const auto previous = observed_.find(sequence); previous != observed_.end()) {
++          if (previous->second != identity) {
++            return false;
++          }
++        } else {
++          if (highest_block_ && s.block_id <= *highest_block_) {
++            return false;
++          }
++          highest_block_ = s.block_id;
++          observed_[sequence] = identity;
++        }
++      }
++      observed_head_ = h.head;
++      observed_tail_ = h.tail;
++      return true;
++    }
++
++    memory &mapped_;  ///< Externally mutex-protected ring.
++    std::optional<std::pair<std::uint64_t, std::uint64_t>> scope_;  ///< Encoder scope; change resets all partial state.
++    std::optional<std::uint64_t> next_due_;  ///< Expected next original PCM timestamp.
++    std::map<std::uint64_t, std::pair<std::uint64_t, std::array<std::uint8_t, 32>>> observed_;  ///< At most 50 immutable slot identities.
++    std::optional<std::uint64_t> highest_block_;  ///< Prevents a reaped token from being offered again.
++    std::uint64_t observed_head_ = 0, observed_tail_ = 0;  ///< Same-scope ring sequences cannot reverse.
++  };
++}  // namespace quest3d::pcm
+diff --git a/src/quest3d_audio_packet.h b/src/quest3d_audio_packet.h
+new file mode 100644
+--- /dev/null
++++ b/src/quest3d_audio_packet.h
+@@ -0,0 +1,34 @@
++/** @file src/quest3d_audio_packet.h
++ * @brief Serializes native file-audio packet sends with a local flush barrier.
++ */
++#pragma once
++#include <cstdint>
++#include <mutex>
++
++namespace quest3d::pcm {
++  /** @brief Skip the remainder of an old four-data-shard FEC group after a PCM scope change. */
++  constexpr std::uint16_t next_fec_sequence(std::uint16_t sequence) {
++    return static_cast<std::uint16_t>((static_cast<unsigned>(sequence) + 3U) & ~3U);
++  }
++
++  /** @brief One epoch/generation's encoded packet permission, never Quest playback ACK. */
++  struct packet_scope {
++    std::mutex mutex;  ///< Held across actual send and by flush invalidation.
++    bool active = true;  ///< False prevents queued old-scope packets from sending.
++
++    /** @brief Acquire the actual send/FEC gate, or return an unlocked guard for a retired packet. */
++    std::unique_lock<std::mutex> acquire_send() {
++      std::unique_lock lock(mutex);
++      if (!active) {
++        lock.unlock();
++      }
++      return lock;
++    }
++
++    /** @brief Wait for current send to finish, then deny subsequent old sends. */
++    void stop() {
++      std::lock_guard lock(mutex);
++      active = false;
++    }
++  };
++}  // namespace quest3d::pcm
+diff --git a/src/quest3d_file_transport.h b/src/quest3d_file_transport.h
+new file mode 100644
+--- /dev/null
++++ b/src/quest3d_file_transport.h
+@@ -0,0 +1,172 @@
++/** @file src/quest3d_file_transport.h
++ * @brief Internal FilePCM closure from actual reader retirement and session worker joins.
++ */
++#pragma once
++#ifdef _WIN32
++  #include "platform/windows/quest3d_audio_reader.h"
++  #include "quest3d_audio_packet.h"
++
++namespace stream {
++  struct session_t;
++
++  namespace session {
++    /** @brief Actual worker barrier shared by normal session::join and isolated lifecycle tests. */
++    void join_workers(session_t &session);
++  }  // namespace session
++}  // namespace stream
++
++namespace quest3d::pcm {
++  /** @brief Exact owner copied from authenticated launch plus the host's bootstrap PCM channel. */
++  struct file_transport_identity {
++    std::string client_certificate, transport_epoch, channel;  ///< Exact paired PEM, launch nonce and private PCM channel.
++    std::uint32_t launch_session_id, host_pid;  ///< Actual RTSP session and current host process.
++    std::uint64_t host_creation;  ///< Actual host creation FILETIME; PID alone is insufficient.
++  };
++
++  class file_transport;
++
++  /** @brief Read-only completed host scope; neither a JSON assertion nor a Quest playback receipt. */
++  class file_transport_closed {
++  public:
++    /** @brief Return the immutable authenticated transport owner. */
++    const file_transport_identity &transport() const {
++      return transport_;
++    }
++
++    /** @brief Return the sealed actual PCM reader retirement. */
++    const reader_retirement &reader() const {
++      return reader_;
++    }
++
++    /** @brief Count packet scopes closed across this session, including prior generations. */
++    std::uint64_t packet_scopes_closed() const {
++      return packet_scopes_closed_;
++    }
++
++  private:
++    friend class file_transport;
++
++    /** @brief Only the tracker can issue this after all actual lifecycle boundaries complete. */
++    file_transport_closed(file_transport_identity identity, reader_retirement reader, std::uint64_t gates):
++        transport_(std::move(identity)),
++        reader_(std::move(reader)),
++        packet_scopes_closed_(gates) {}
++
++    file_transport_identity transport_;  ///< Original authenticated stream owner.
++    reader_retirement reader_;  ///< Actual private native resource release.
++    std::uint64_t packet_scopes_closed_;  ///< Closed gate lineage, not transmitted or played samples.
++  };
++
++  /** @brief One transport's internal observation, retained independently of stream registry removal. */
++  class file_transport {
++  public:
++    /** @brief Copy the immutable bootstrap binding before any audio worker starts. */
++    explicit file_transport(file_transport_identity identity):
++        identity_(std::move(identity)) {}
++
++    /** @brief Return the channel captured for this launch; running process env changes cannot replace it. */
++    const std::string &channel() const {
++      return identity_.channel;
++    }
++
++    /** @brief Return this launch's immutable video gate; every packet retains it before enqueue. */
++    const std::shared_ptr<packet_scope> &video_gate() const {
++      return video_scope_;
++    }
++
++    /** @brief Replace a packet scope only after its actual send/FEC mutex has been retired. */
++    std::shared_ptr<packet_scope> replace_packet_scope() {
++      std::lock_guard transition(transition_mutex_);
++      auto next = std::make_shared<packet_scope>();
++      std::shared_ptr<packet_scope> previous;
++      {
++        std::lock_guard lock(mutex_);
++        previous = scope_;
++      }
++      if (previous) {
++        previous->stop();
++      }
++      std::lock_guard lock(mutex_);
++      if (reader_ || closure_) {
++        return {};
++      }
++      if (previous) {
++        ++closed_scopes_;
++      }
++      scope_ = next;
++      return next;
++    }
++
++    /** @brief Accept only a sealed resource-release token from this exact actual PCM consumer. */
++    void capture_retired(const reader_retirement &retired) {
++      std::lock_guard transition(transition_mutex_);
++      const auto &h = retired.identity();
++      constexpr char hex[] = "0123456789abcdef";
++      std::string channel;
++      for (const auto byte : h.channel) {
++        channel += hex[byte >> 4];
++        channel += hex[byte & 15];
++      }
++      std::shared_ptr<packet_scope> scope;
++      {
++        std::lock_guard lock(mutex_);
++        scope = scope_;
++      }
++      const bool valid_transport = identity_.transport_epoch.size() == 32 && std::ranges::all_of(identity_.transport_epoch, [](char c) {
++                                     return (c >= 'a' && c <= 'f') || (c >= '0' && c <= '9');
++                                   });
++      if (channel != identity_.channel || !identity_.host_pid || !identity_.host_creation || h.consumer_pid != identity_.host_pid || h.consumer_creation != identity_.host_creation ||
++          identity_.client_certificate.empty() || !valid_transport || !retired.media_scope() || !scope) {
++        return;
++      }
++      {
++        std::lock_guard gate(scope->mutex);
++        if (scope->active) {
++          return;
++        }
++      }
++      std::lock_guard lock(mutex_);
++      if (!reader_) {
++        reader_ = retired;
++        ++closed_scopes_;
++      }
++    }
++
++    /** @brief Observe only a completed host scope; STOPPING/local flush/reader release alone return empty. */
++    std::optional<file_transport_closed> closed() const {
++      std::lock_guard lock(mutex_);
++      return closure_;
++    }
++
++    /** @brief Observe PCM resource retirement only; worker/control completion remains a separate barrier. */
++    bool reader_retired() const {
++      std::lock_guard lock(mutex_);
++      return reader_.has_value();
++    }
++
++  private:
++    friend void stream::session::join_workers(stream::session_t &session);
++
++    /** @brief Called exclusively after the real session video/audio joins and controlEnd wait return. */
++    void workers_joined() {
++      std::lock_guard transition(transition_mutex_);
++      // The global video broadcaster outlives individual capture workers.
++      // Wait for its current UDP/FEC send and deny every queued/late old packet.
++      video_scope_->stop();
++      std::lock_guard lock(mutex_);
++      if (reader_ && !closure_) {
++        closure_ = file_transport_closed {identity_, *reader_, closed_scopes_};
++      }
++    }
++
++    const file_transport_identity identity_;  ///< Fixed owner; no later client-provided binding.
++    std::mutex transition_mutex_;  ///< Serializes gate replacement and retirement without blocking observations.
++    mutable std::mutex mutex_;  ///< Protects observations; never held over a send or worker wait.
++    std::shared_ptr<packet_scope> scope_;  ///< Current scope; every replaced predecessor is already stopped.
++    const std::shared_ptr<packet_scope> video_scope_ = std::make_shared<packet_scope>();  ///< Independent per-transport video send gate.
++    std::uint64_t closed_scopes_ = 0;  ///< Actual stopped predecessor/current gates.
++    std::optional<reader_retirement> reader_;  ///< Actual resource retirement, absent on open/close failure.
++    std::optional<file_transport_closed> closure_;  ///< Issued only by the production worker barrier.
++  };
++}  // namespace quest3d::pcm
++#endif
+diff --git a/src/platform/windows/quest3d_audio_reader.h b/src/platform/windows/quest3d_audio_reader.h
+new file mode 100644
+--- /dev/null
++++ b/src/platform/windows/quest3d_audio_reader.h
+@@ -0,0 +1,219 @@
++/** @file src/platform/windows/quest3d_audio_reader.h
++ * @brief Private Windows PCM mapping consumer with exact producer lifetime.
++ */
++#pragma once
++#include "src/quest3d_audio_ring.h"
++
++#include <memory>
++#include <string>
++#include <Windows.h>
++
++namespace quest3d::pcm {
++  class reader;
++
++  /** @brief Immutable proof issued only after an opened native reader releases its owned resources. */
++  class reader_retirement {
++  public:
++    /** @brief Return the original validated file/channel and process lifetimes. */
++    const header &identity() const {
++      return identity_;
++    }
++
++    /** @brief Return the last scope accepted by ring::step; absent means no media scope was entered. */
++    const std::optional<std::pair<std::uint64_t, std::uint64_t>> &media_scope() const {
++      return scope_;
++    }
++
++  private:
++    friend class reader;
++
++    /** @brief Only reader::retire can construct a closure after actual successful resource release. */
++    reader_retirement(header identity, std::optional<std::pair<std::uint64_t, std::uint64_t>> scope):
++        identity_(std::move(identity)),
++        scope_(scope) {}
++
++    header identity_;  ///< Immutable original ownership, never a later JSON assertion.
++    std::optional<std::pair<std::uint64_t, std::uint64_t>> scope_;  ///< Last accepted media scope.
++  };
++
++  /** @brief Exact process creation FILETIME; zero means unavailable. */
++  inline std::uint64_t creation_time(HANDLE process) {
++    FILETIME creation {}, exit {}, kernel {}, user {};
++    if (!GetProcessTimes(process, &creation, &exit, &kernel, &user)) {
++      return 0;
++    }
++    return (std::uint64_t(creation.dwHighDateTime) << 32) | creation.dwLowDateTime;
++  }
++
++  /** @brief One native consumer; opening never creates or trusts a missing producer mapping. */
++  class reader {
++  public:
++    reader() = default;  ///< Create an unopened reader.
++    reader(const reader &) = delete;  ///< Native handle ownership cannot be copied.
++    reader &operator=(const reader &) = delete;  ///< Native handle ownership cannot be assigned.
++
++    /** @brief Close owned handles without changing any Windows audio endpoint. */
++    ~reader() {
++      close_resources();
++    }
++
++    /** @brief Release this thread's actual reader resources; failure or unopened/repeated calls issue no token. */
++    std::optional<reader_retirement> retire() {
++      const bool was_open = opened_;
++      opened_ = false;
++      const auto scope = core_ ? core_->accepted_scope() : std::nullopt;
++      if (!close_resources() || !was_open) {
++        return std::nullopt;
++      }
++      return reader_retirement {identity_, scope};
++    }
++
++    /** @brief Open a random channel and bind its exact original process lifetime. */
++    bool open(const std::string &channel) {
++      if (mutex_ || mapping_ || consumer_ || producer_ || mapped_ || opened_) {
++        return false;
++      }
++      if (channel.size() != 32 || !std::ranges::all_of(channel, [](char c) {
++            return (c >= 'a' && c <= 'f') || (c >= '0' && c <= '9');
++          })) {
++        return false;
++      }
++      const std::wstring prefix = L"Local\\Quest3D.Audio.v1." + std::wstring(channel.begin(), channel.end());
++      mutex_ = OpenMutexW(SYNCHRONIZE | MUTEX_MODIFY_STATE, FALSE, (prefix + L".Mutex").c_str());
++      mapping_ = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, prefix.c_str());
++      if (!mutex_ || !mapping_) {
++        return false;
++      }
++      mapped_ = static_cast<memory *>(MapViewOfFile(mapping_, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(memory)));
++      if (!mapped_) {
++        return false;
++      }
++      SetLastError(0);
++      consumer_ = CreateMutexW(nullptr, TRUE, (prefix + L".Consumer").c_str());
++      if (!consumer_ || GetLastError() == ERROR_ALREADY_EXISTS) {
++        return false;
++      }
++      consumer_owned_ = true;
++      const auto opened_wait = WaitForSingleObject(mutex_, 50);
++      if (opened_wait == WAIT_ABANDONED) {
++        mapped_->state.fault = 7;
++        ReleaseMutex(mutex_);
++        return false;
++      }
++      if (opened_wait != WAIT_OBJECT_0) {
++        return false;
++      }
++      bool success = false;
++      auto &h = mapped_->state;
++      if (valid(*mapped_) && !h.consumer_pid && !h.fault && !(h.flags & (producer_closed | consumer_stopped))) {
++        std::array<std::uint8_t, 16> expected {};
++        for (unsigned i = 0; i < 16; ++i) {
++          expected[i] = static_cast<std::uint8_t>(std::stoi(channel.substr(i * 2, 2), nullptr, 16));
++        }
++        producer_ = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, h.producer_pid);
++        const auto consumer_creation = creation_time(GetCurrentProcess());
++        if (consumer_creation && h.channel == expected && producer_ && creation_time(producer_) == h.producer_creation && WaitForSingleObject(producer_, 0) == WAIT_TIMEOUT) {
++          h.consumer_pid = GetCurrentProcessId();
++          h.consumer_creation = consumer_creation;
++          h.ready = 1;
++          identity_ = h;
++          core_ = std::make_unique<ring>(*mapped_);
++          opened_ = true;
++          success = true;
++        }
++      }
++      ReleaseMutex(mutex_);
++      return success;
++    }
++
++    /** @brief Hold the transaction mutex across the actual encoder callback and cursor commit. */
++    result step(std::uint64_t now_ns, unsigned samples, const std::function<bool(const std::vector<float> &)> &encode, const std::function<void()> &stop_packets) {
++      if (!core_) {
++        return result::failed;
++      }
++      const auto wait = WaitForSingleObject(mutex_, 50);
++      if (wait == WAIT_TIMEOUT) {
++        return result::waiting;
++      }
++      if (wait != WAIT_OBJECT_0 && wait != WAIT_ABANDONED) {
++        return result::failed;
++      }
++      auto &h = mapped_->state;
++      if (wait == WAIT_ABANDONED) {
++        h.fault = 7;
++      }
++      if (WaitForSingleObject(producer_, 0) != WAIT_TIMEOUT && !(h.flags & producer_closed)) {
++        h.fault = 2;
++      }
++      if (h.session != identity_.session || h.channel != identity_.channel || h.producer_pid != identity_.producer_pid ||
++          h.producer_creation != identity_.producer_creation || h.consumer_pid != identity_.consumer_pid ||
++          h.consumer_creation != identity_.consumer_creation) {
++        h.fault = 1;
++      }
++      result outcome = result::failed;
++      try {
++        outcome = core_->step(now_ns, samples, encode, stop_packets);
++      } catch (...) {
++        h.fault = 6;
++        stop_packets();
++      }
++      ReleaseMutex(mutex_);
++      return outcome;
++    }
++
++    /** @brief Stop local packet handoff and atomically leave final encoder cursors intact. */
++    void stop(const std::function<void()> &stop_packets) {
++      if (!core_) {
++        return;
++      }
++      const auto wait = WaitForSingleObject(mutex_, 50);
++      if (wait != WAIT_OBJECT_0 && wait != WAIT_ABANDONED) {
++        stop_packets();
++        return;
++      }
++      stop_packets();
++      mapped_->state.flags |= consumer_stopped;
++      mapped_->state.ready = 0;
++      mapped_->state.flush_ack = mapped_->state.flush_request;
++      ReleaseMutex(mutex_);
++    }
++
++  private:
++    /** @brief Close all owned resources and preserve a failure instead of claiming retirement. */
++    bool close_resources() {
++      bool success = true;
++      core_.reset();
++      if (mapped_) {
++        if (UnmapViewOfFile(mapped_)) {
++          mapped_ = nullptr;
++        } else {
++          success = false;
++        }
++      }
++      if (consumer_ && consumer_owned_) {
++        if (ReleaseMutex(consumer_)) {
++          consumer_owned_ = false;
++        } else {
++          success = false;
++        }
++      }
++      for (auto *handle : {&consumer_, &producer_, &mapping_, &mutex_}) {
++        if (*handle) {
++          if (CloseHandle(*handle)) {
++            *handle = nullptr;
++          } else {
++            success = false;
++          }
++        }
++      }
++      return success;
++    }
++
++    HANDLE mapping_ = nullptr, mutex_ = nullptr, consumer_ = nullptr, producer_ = nullptr;  ///< Owned kernel handles.
++    memory *mapped_ = nullptr;  ///< Exact-sized mapped view.
++    std::unique_ptr<ring> core_;  ///< Scope and expected deadline state.
++    bool consumer_owned_ = false;  ///< Existing mutexes are never released by a duplicate reader.
++    bool opened_ = false;  ///< A successful real open is required to issue retirement evidence.
++    header identity_ {};  ///< Immutable file/channel/process ownership captured at successful open.
++  };
++}  // namespace quest3d::pcm
+diff --git a/tests/unit/test_quest3d_audio_ring.cpp b/tests/unit/test_quest3d_audio_ring.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/unit/test_quest3d_audio_ring.cpp
+@@ -0,0 +1,312 @@
++/** @file tests/unit/test_quest3d_audio_ring.cpp
++ * @brief Transaction, malformed PCM and actual Opus encode/decode regression checks.
++ */
++#include "src/quest3d_audio_packet.h"
++#include "src/quest3d_audio_ring.h"
++#include "src/thread_safe.h"
++#include "tests/tests_common.h"
++
++#include <future>
++#include <opus/opus_multistream.h>
++
++namespace {
++  using namespace quest3d::pcm;
++  constexpr std::uint64_t now = 1000000000;
++
++  /** @brief Valid deterministic private ring with one PCM producer. */
++  class QuestAudioRing: public ::testing::Test {
++  protected:
++    memory mapped {};
++    ring reader {mapped};
++    unsigned calls = 0, stops = 0;
++    std::vector<float> last;
++
++    void SetUp() override {
++      auto &h = mapped.state;
++      h.magic = {'Q', '3', 'D', 'A', 'U', 'D', '1', 0};
++      h.version = 1;
++      h.header_bytes = 256;
++      h.slots = 50;
++      h.slot_bytes = 4096;
++      h.rate = 48000;
++      h.channels = 2;
++      h.format = 1;
++      h.producer_pid = 1;
++      h.producer_creation = 1;
++      h.session[0] = 1;
++      h.channel[0] = 2;
++      ASSERT_EQ(step(), result::scope_changed);
++    }
++
++    /** @brief Append a known stereo block. */
++    void add(unsigned count = 480, std::uint64_t due = now, unsigned offset = 0) {
++      auto &h = mapped.state;
++      auto &s = mapped.data[h.tail % slot_count];
++      s = {};
++      s.block_id = h.tail + 1;
++      s.due_ns = due;
++      s.total = count;
++      s.offset = s.consumed = offset;
++      s.count = count - offset;
++      s.sequence = h.tail++;
++      s.epoch = h.epoch;
++      s.generation = h.generation;
++      for (unsigned i = 0; i < s.count; ++i) {
++        s.samples[i * 2] = .2f;
++        s.samples[i * 2 + 1] = -.1f;
++      }
++      s.digest = digest(s);
++      h.buffered_samples += s.count;
++    }
++
++    /** @brief Execute an injected successful encoder without OS audio. */
++    result step(std::uint64_t clock = now, unsigned samples = 240, bool success = true) {
++      return reader.step(clock, samples, [&](const auto &pcm) {
++        ++calls;
++        last = pcm;
++        return success;
++      },
++                         [&] {
++                           ++stops;
++                         });
++    }
++  };
++}  // namespace
++
++TEST_F(QuestAudioRing, ExactWireAndInvalidSamplesFailBeforeEncode) {
++  add();
++  ASSERT_TRUE(valid(mapped));
++  mapped.data[0].samples[3] = std::numeric_limits<float>::quiet_NaN();
++  EXPECT_EQ(step(), result::failed);
++  EXPECT_EQ(calls, 0U);
++  EXPECT_EQ(mapped.data[0].consumed, 0U);
++}
++
++TEST_F(QuestAudioRing, CorruptDigestPaddingAndRingBoundsAreRejected) {
++  add();
++  const auto original = mapped;
++  mapped.data[0].digest[0] ^= 1;
++  EXPECT_FALSE(valid(mapped));
++  mapped = original;
++  mapped.data[0].padding[0] = 1;
++  EXPECT_FALSE(valid(mapped));
++  mapped = original;
++  mapped.state.tail = 51;
++  EXPECT_FALSE(valid(mapped));
++  mapped = original;
++  mapped.state.buffered_samples++;
++  EXPECT_FALSE(valid(mapped));
++}
++
++TEST_F(QuestAudioRing, HeaderOnlyGenerationChangeCannotRelabelOldPcm) {
++  add();
++  mapped.state.generation = 1;
++  EXPECT_EQ(step(), result::failed);
++  EXPECT_EQ(calls, 0U);
++  EXPECT_EQ(mapped.data[0].consumed, 0U);
++}
++
++TEST_F(QuestAudioRing, EmptyNewScopeResetsBeforeFirstPullAndRejectsReversal) {
++  mapped.state.generation = 1;
++  EXPECT_EQ(step(), result::scope_changed);
++  EXPECT_EQ(calls, 0U);
++  add();
++  EXPECT_EQ(step(), result::encoded);
++  mapped.state.head = mapped.state.tail = 0;
++  mapped.state.buffered_samples = 0;
++  mapped.state.generation = 0;
++  EXPECT_EQ(step(), result::failed);
++  EXPECT_EQ(calls, 1U);
++}
++
++TEST_F(QuestAudioRing, DeadlineAndPartialCumulativeCursorAreExact) {
++  add();
++  EXPECT_EQ(step(now - 1), result::waiting);
++  EXPECT_EQ(calls, 0U);
++  EXPECT_EQ(step(), result::encoded);
++  EXPECT_EQ(mapped.data[0].consumed, 240U);
++  EXPECT_EQ(step(now + 4999999), result::waiting);
++  EXPECT_EQ(step(now + 5000000), result::encoded);
++  EXPECT_EQ(mapped.data[0].consumed, 480U);
++  EXPECT_EQ(mapped.state.encoded_samples, 480U);
++  EXPECT_EQ(mapped.state.encoded_packets, 2U);
++}
++
++TEST_F(QuestAudioRing, PreviouslyObservedPartialPayloadCannotBeRewrittenEvenWithNewDigest) {
++  add();
++  ASSERT_EQ(step(), result::encoded);
++  mapped.data[0].samples[600] = .9f;
++  mapped.data[0].digest = digest(mapped.data[0]);
++  EXPECT_EQ(step(now + 5000000), result::failed);
++  EXPECT_EQ(mapped.data[0].consumed, 240U);
++  EXPECT_EQ(calls, 1U);
++}
++
++TEST_F(QuestAudioRing, ReapedOriginalBlockCannotBeAppendedAgainInSameScope) {
++  add();
++  ASSERT_EQ(step(now, 480), result::encoded);
++  mapped.state.head = mapped.state.tail;
++  mapped.state.buffered_samples = 0;
++  add(480, now + 10000000);
++  mapped.data[1].block_id = 1;
++  mapped.data[1].digest = digest(mapped.data[1]);
++  EXPECT_EQ(step(now + 10000000), result::failed);
++  EXPECT_EQ(calls, 1U);
++  EXPECT_EQ(mapped.data[1].consumed, 0U);
++}
++
++TEST_F(QuestAudioRing, FailureIsStickyNeverRetriedAndFlushReturnsKnownCursor) {
++  add();
++  EXPECT_EQ(step(now, 240, false), result::failed);
++  EXPECT_EQ(step(now + 5000000), result::failed);
++  EXPECT_EQ(calls, 1U);
++  EXPECT_EQ(mapped.data[0].consumed, 0U);
++  mapped.state.flush_request = 1;
++  EXPECT_EQ(step(), result::flushed);
++  EXPECT_EQ(mapped.state.flush_ack, 1U);
++  EXPECT_TRUE(mapped.state.flags & consumer_stopped);
++}
++
++TEST_F(QuestAudioRing, FlushPreservesPartialCursorAndNewGenerationResetsPacketState) {
++  add();
++  ASSERT_EQ(step(), result::encoded);
++  mapped.state.flush_request = 1;
++  EXPECT_EQ(step(), result::flushed);
++  EXPECT_EQ(mapped.data[0].consumed, 240U);
++  EXPECT_EQ(step(now + 5000000), result::waiting);
++  mapped.state.generation++;
++  mapped.state.head = mapped.state.tail = 0;
++  mapped.state.buffered_samples = 0;
++  mapped.state.flags = 0;
++  EXPECT_EQ(step(), result::scope_changed);
++  add(480, now + 100000000);
++  EXPECT_EQ(step(now + 100000000), result::encoded);
++}
++
++TEST_F(QuestAudioRing, VariableBlocksCombineAndEofPadsOnlyWithoutClaimingPaddingConsumed) {
++  add(100);
++  add(150, now + sample_ns(100));
++  EXPECT_EQ(step(), result::encoded);
++  EXPECT_EQ(mapped.data[1].consumed, 140U);
++  EXPECT_EQ(step(now + 5000000), result::waiting);
++  mapped.state.flags |= quest3d::pcm::eof;
++  EXPECT_EQ(step(now + 5000000), result::encoded);
++  EXPECT_EQ(mapped.state.encoded_samples, 250U);
++  EXPECT_TRUE(std::all_of(last.begin() + 20, last.end(), [](float v) {
++    return v == 0;
++  }));
++  EXPECT_EQ(step(now + 10000000), result::drained);
++}
++
++TEST_F(QuestAudioRing, GapOverlapAndExcessiveLatenessNeverConsumeSamples) {
++  add(120);
++  add(120, now + 10000000);
++  EXPECT_EQ(step(), result::failed);
++  EXPECT_EQ(mapped.state.encoded_samples, 0U);
++  mapped.state.fault = 0;
++  mapped.data[1].due_ns = now - 1;
++  mapped.data[1].digest = digest(mapped.data[1]);
++  EXPECT_EQ(step(), result::failed);
++  EXPECT_EQ(mapped.state.encoded_samples, 0U);
++  mapped.state.fault = 0;
++  EXPECT_EQ(step(now + 250000001), result::failed);
++}
++
++TEST_F(QuestAudioRing, FiftyUnconfirmedBlocksBackpressureWithoutErasingEncoderCursors) {
++  for (unsigned i = 0; i < 50; ++i) {
++    add(480, now + i * 10000000ULL);
++  }
++  ASSERT_TRUE(valid(mapped));
++  for (unsigned i = 0; i < 100; ++i) {
++    ASSERT_EQ(step(now + i * 5000000ULL), result::encoded);
++  }
++  EXPECT_EQ(mapped.state.buffered_samples, 24000U);
++  EXPECT_EQ(mapped.state.tail - mapped.state.head, 50U);
++  EXPECT_EQ(mapped.state.encoded_samples, 24000U);
++  EXPECT_EQ(mapped.data[0].consumed, 480U);
++}
++
++TEST_F(QuestAudioRing, ActualOpusEncodeDecodePreservesStereoSignalAndCounts) {
++  add();
++  unsigned char channels[] = {0, 1};
++  int error = 0;
++  auto encoder = opus_multistream_encoder_create(48000, 2, 1, 1, channels, OPUS_APPLICATION_RESTRICTED_LOWDELAY, &error);
++  ASSERT_EQ(error, OPUS_OK);
++  auto decoder = opus_multistream_decoder_create(48000, 2, 1, 1, channels, &error);
++  ASSERT_EQ(error, OPUS_OK);
++  opus_multistream_encoder_ctl(encoder, OPUS_SET_BITRATE(512000));
++  opus_multistream_encoder_ctl(encoder, OPUS_SET_VBR(0));
++  std::vector<float> decoded(960);
++  EXPECT_EQ(reader.step(now, 480, [&](const auto &pcm) {
++    std::array<unsigned char, 1400> encoded;
++    const auto bytes = opus_multistream_encode_float(encoder, pcm.data(), 480, encoded.data(), encoded.size());
++    EXPECT_GT(bytes, 0);
++    if (bytes <= 0) {
++      return false;
++    }
++    EXPECT_EQ(opus_multistream_decode_float(decoder, encoded.data(), bytes, decoded.data(), 480, 0), 480);
++    return true;
++  },
++                        [] {
++                        }),
++            result::encoded);
++  EXPECT_EQ(mapped.state.encoded_samples, 480U);
++  double left = 0, right = 0;
++  for (unsigned i = 240; i < 480; ++i) {
++    left += decoded[i * 2];
++    right += decoded[i * 2 + 1];
++  }
++  EXPECT_GT(left, 10);
++  EXPECT_LT(right, -5);
++  opus_multistream_encoder_destroy(encoder);
++  opus_multistream_decoder_destroy(decoder);
++}
++
++TEST(QuestAudioPacketGate, FlushWaitsForCurrentSendAndRejectsQueuedOldPacket) {
++  quest3d::pcm::packet_scope scope;
++  std::promise<void> started, release;
++  auto done = release.get_future();
++  std::jthread sender([&] {
++    std::lock_guard lock(scope.mutex);
++    started.set_value();
++    done.wait();
++  });
++  started.get_future().wait();
++  auto stopped = std::async(std::launch::async, [&] {
++    scope.stop();
++  });
++  EXPECT_EQ(stopped.wait_for(std::chrono::milliseconds(5)), std::future_status::timeout);
++  release.set_value();
++  stopped.get();
++  sender.join();
++  std::lock_guard lock(scope.mutex);
++  EXPECT_FALSE(scope.active);
++}
++
++TEST(QuestAudioPacketGate, NewScopeCannotRegenerateParityUsingAnOldFecGroup) {
++  EXPECT_EQ(quest3d::pcm::next_fec_sequence(0), 0);
++  EXPECT_EQ(quest3d::pcm::next_fec_sequence(1), 4);
++  EXPECT_EQ(quest3d::pcm::next_fec_sequence(3), 4);
++  EXPECT_EQ(quest3d::pcm::next_fec_sequence(4), 4);
++  EXPECT_EQ(quest3d::pcm::next_fec_sequence(65533), 0);
++  EXPECT_EQ(quest3d::pcm::next_fec_sequence(65535), 0);
++}
++
++TEST(QuestAudioQueue, CapacityIsReservedBeforeIrreversibleEncoding) {
++  safe::queue_t<int> queue(1);
++  unsigned calls = 0;
++  auto produce = [&]() -> std::optional<int> {
++    ++calls;
++    return 7;
++  };
++  EXPECT_TRUE(queue.try_produce(produce));
++  EXPECT_FALSE(queue.try_produce(produce));
++  EXPECT_EQ(calls, 1U);
++  EXPECT_EQ(*queue.pop(), 7);
++  EXPECT_FALSE(queue.try_produce([]() -> std::optional<int> {
++    return {};
++  }));
++  queue.stop();
++  EXPECT_FALSE(queue.try_produce(produce));
++  EXPECT_EQ(calls, 1U);
++}
+diff --git a/tests/integration/test_quest3d_audio_pipeline.cpp b/tests/integration/test_quest3d_audio_pipeline.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_quest3d_audio_pipeline.cpp
+@@ -0,0 +1,67 @@
++/** @file tests/integration/test_quest3d_audio_pipeline.cpp
++ * @brief Opt-in actual file PCM→production audio capture/Opus→decode, no audio device or network.
++ */
++#ifdef _WIN32
++  #include "src/audio.h"
++  #include "src/config.h"
++  #include "tests/tests_common.h"
++
++  #include <cstdlib>
++  #include <fstream>
++  #include <opus/opus_multistream.h>
++
++/** @brief Exercise the production entry point using a separately created private test producer. */
++TEST(Quest3DFileAudio, RealPublisherThroughProductionOpus) {
++  const auto output = std::getenv("QUEST3D_PCM_OUTPUT");
++  const auto channel = std::getenv("QUEST3D_FILE_AUDIO_CHANNEL");
++  if (!output || !channel) {
++    GTEST_SKIP() << "Private test producer and output path required";
++  }
++  const auto previous_capture = config::video.capture;
++  const auto previous_audio = config::audio.stream;
++  auto restore = util::fail_guard([&] {
++    config::video.capture = previous_capture;
++    config::audio.stream = previous_audio;
++  });
++  config::video.capture = "quest3d";
++  config::audio.stream = true;
++  auto local = std::make_shared<safe::mail_raw_t>();
++  auto shutdown = local->event<bool>(mail::shutdown);
++  auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
++  audio::config_t settings {};
++  settings.channels = 2;
++  settings.packetDuration = 5;
++  settings.flags[audio::config_t::HIGH_QUALITY] = true;
++  std::jthread capture([&] {
++    audio::capture(local, settings, nullptr);
++  });
++  auto stop = util::fail_guard([&] {
++    shutdown->raise(true);
++    capture.join();
++  });
++  unsigned char mapping[] = {0, 1};
++  int error = 0;
++  auto decoder = opus_multistream_decoder_create(48000, 2, 1, 1, mapping, &error);
++  ASSERT_EQ(error, OPUS_OK);
++  auto destroy = util::fail_guard([&] {
++    opus_multistream_decoder_destroy(decoder);
++  });
++  std::ofstream decoded_file(output, std::ios::binary);
++  ASSERT_TRUE(decoded_file.good());
++  unsigned count = 0;
++  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
++  while (count < 40 && std::chrono::steady_clock::now() < deadline) {
++    auto packet = packets->pop(std::chrono::milliseconds(20));
++    if (!packet) {
++      continue;
++    }
++    ASSERT_TRUE(packet->file_scope);
++    std::array<float, 480> pcm;
++    ASSERT_EQ(opus_multistream_decode_float(decoder, packet->second.begin(), packet->second.size(), pcm.data(), 240, 0), 240);
++    decoded_file.write(reinterpret_cast<const char *>(pcm.data()), pcm.size() * sizeof(float));
++    ++count;
++  }
++  EXPECT_EQ(count, 40U);
++  EXPECT_TRUE(decoded_file.good());
++}
++#endif
+diff --git a/tests/integration/test_quest3d_file_transport.cpp b/tests/integration/test_quest3d_file_transport.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_quest3d_file_transport.cpp
+@@ -0,0 +1,136 @@
++/** @file tests/integration/test_quest3d_file_transport.cpp
++ * @brief Actual private PCM/Opus and production worker-join boundaries without network or device side effects.
++ */
++#ifdef _WIN32
++  #include "src/rtsp.h"
++  #include "src/stream.h"
++  #include "tests/tests_common.h"
++  #include "tests/unit/platform/windows/quest3d_pcm_fixture.h"
++
++  #include <atomic>
++  #include <thread>
++
++/** @brief Each actual join/control boundary must finish before a sealed exact closure can appear. */
++TEST(Quest3DFileTransport, ProductionCaptureGateReaderAndJoinBoundaries) {
++  quest3d_test::pcm_fixture producer;
++  producer.append_block(1, producer.now_ns());
++  const auto result = stream::session::test_file_transport_barrier(producer.channel);
++  EXPECT_TRUE(result.encoded);
++  EXPECT_TRUE(result.before_stop_unconfirmed);
++  EXPECT_TRUE(result.inflight_gate_blocks);
++  EXPECT_TRUE(result.reader_released);
++  EXPECT_TRUE(result.video_join_blocks);
++  EXPECT_TRUE(result.audio_join_blocks);
++  EXPECT_TRUE(result.control_wait_blocks);
++  EXPECT_TRUE(result.video_send_blocks_closure);
++  EXPECT_TRUE(result.other_transport_unblocked);
++  EXPECT_TRUE(result.late_video_send_denied);
++  EXPECT_TRUE(result.closed_after_joins);
++  EXPECT_TRUE(result.identity_matches);
++  EXPECT_TRUE(result.queued_old_send_denied);
++  EXPECT_TRUE(result.retained_after_session_release);
++  const auto final = producer.snapshot();
++  EXPECT_GT(final.encoded_packets, 0U);
++  EXPECT_TRUE(final.flags & quest3d::pcm::consumer_stopped);
++  EXPECT_EQ(final.ready, 0U);
++}
++
++/** @brief Joining workers cannot manufacture a PCM closure after native initialization failed. */
++TEST(Quest3DFileTransport, MissingReaderDoesNotBecomeClosureAfterJoins) {
++  const auto result = stream::session::test_file_transport_barrier("not-a-valid-private-channel", true);
++  EXPECT_TRUE(result.missing_reader_refused);
++  EXPECT_FALSE(result.closed_after_joins);
++}
++
++/** @brief An actual Opus initialization error cannot be converted into a successful host closure. */
++TEST(Quest3DFileTransport, ActualOpusInitializationFailureDoesNotIssueClosure) {
++  quest3d_test::pcm_fixture producer;
++  auto &layout = audio::stream_configs[audio::HIGH_STEREO];
++  const auto previous_rate = layout.sampleRate;
++  auto restore = util::fail_guard([&] {
++    layout.sampleRate = previous_rate;
++  });
++  layout.sampleRate = 123;  // An actual invalid Opus rate; the native constructor must fail.
++  const auto result = stream::session::test_file_transport_barrier(producer.channel, true, true);
++  EXPECT_TRUE(result.missing_reader_refused);
++  EXPECT_FALSE(result.closed_after_joins);
++  const auto final = producer.snapshot();
++  EXPECT_NE(final.flags & quest3d::pcm::consumer_stopped, 0U);
++  EXPECT_EQ(final.ready, 0U);
++  EXPECT_EQ(final.encoded_packets, 0U);
++}
++
++/** @brief Queued packet owns encoder replacement bytes and retains the original gate across later enqueue. */
++TEST(Quest3DFileTransport, VideoPacketOwnsReplacementBytesAndOriginalGate) {
++  auto mail = std::make_shared<safe::mail_raw_t>();
++  auto packets = mail->queue<video::packet_t>("private-video-ownership");
++  auto gate = std::make_shared<quest3d::pcm::packet_scope>();
++  {
++    std::string old_bytes(300, 'a'), new_bytes(500, 'b');
++    std::vector<video::packet_raw_t::replace_t> replacements;
++    replacements.emplace_back(old_bytes, new_bytes);
++    auto packet = std::make_unique<video::packet_raw_generic>(std::vector<std::uint8_t> {1}, 1, true);
++    packet->replacements = &replacements;
++    video::publish_packet(std::move(packet), packets, nullptr, gate);
++    old_bytes.assign(300, 'x');
++    new_bytes.assign(500, 'y');
++  }
++  auto packet = packets->pop(std::chrono::milliseconds(10));
++  ASSERT_TRUE(packet);
++  ASSERT_EQ(packet->file_transport_gate, gate);
++  ASSERT_EQ(packet->replacements->size(), 1U);
++  EXPECT_EQ(packet->replacements->at(0).old, std::string(300, 'a'));
++  EXPECT_EQ(packet->replacements->at(0)._new, std::string(500, 'b'));
++  gate->stop();
++  EXPECT_FALSE(packet->file_transport_gate->acquire_send().owns_lock());
++  // A different stream's packet can still acquire its own gate.
++  auto other = std::make_shared<quest3d::pcm::packet_scope>();
++  EXPECT_TRUE(other->acquire_send().owns_lock());
++}
++
++/** @brief Production teardown cannot detach a FilePCM encoder that still owns resources. */
++TEST(Quest3DFileTransport, FileEncoderDestructionBlocksActualTeardownReturn) {
++  struct blocked_encoder final: video::encode_session_t {
++    std::atomic_bool &entered, &release;  ///< Explicit test-owned native destruction barriers.
++
++    blocked_encoder(std::atomic_bool &entered, std::atomic_bool &release):
++        entered(entered),
++        release(release) {}
++
++    ~blocked_encoder() override {
++      entered = true;
++      while (!release) {
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
++      }
++    }
++
++    int convert(platf::img_t &) override {
++      return 0;
++    }
++
++    void request_idr_frame() override {}
++
++    void request_normal_frame() override {}
++
++    void invalidate_ref_frames(int64_t, int64_t) override {}
++  };
++
++  std::atomic_bool entered = false, release = false, completed = false;
++  std::unique_ptr<video::encode_session_t> encoder = std::make_unique<blocked_encoder>(entered, release);
++  auto gate = std::make_shared<quest3d::pcm::packet_scope>();
++  std::jthread worker([&] {
++    video::retire_encode_session(encoder, true, gate);
++    completed = true;
++  });
++  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
++  while (!entered && std::chrono::steady_clock::now() < deadline) {
++    std::this_thread::sleep_for(std::chrono::milliseconds(1));
++  }
++  const bool blocked = entered && !completed;
++  release = true;
++  worker.join();
++  EXPECT_TRUE(blocked);
++  EXPECT_TRUE(completed);
++  EXPECT_FALSE(encoder);
++}
++#endif
+diff --git a/tests/unit/platform/windows/quest3d_pcm_fixture.h b/tests/unit/platform/windows/quest3d_pcm_fixture.h
+new file mode 100644
+--- /dev/null
++++ b/tests/unit/platform/windows/quest3d_pcm_fixture.h
+@@ -0,0 +1,180 @@
++/** @file tests/unit/platform/windows/quest3d_pcm_fixture.h
++ * @brief Private real Windows PCM mapping with the test process as its producer.
++ */
++#pragma once
++#include "src/platform/windows/quest3d_audio_reader.h"
++
++#include <atomic>
++#include <iomanip>
++#include <sstream>
++#include <stdexcept>
++
++namespace quest3d_test {
++  /** @brief Own only one isolated PCM channel; never open an endpoint or the live producer. */
++  class pcm_fixture {
++  public:
++    std::string channel;  ///< Unique lowercase hexadecimal channel accepted by the production reader.
++    std::wstring prefix;  ///< Exact private mapping name, also used for Mutex and Consumer objects.
++    HANDLE mapping = nullptr, mutex = nullptr;  ///< Producer-owned handles, kept alive through reader retirement.
++    quest3d::pcm::memory *mapped = nullptr;  ///< Producer view; all reads and writes must use mutate or snapshot.
++
++    /** @brief Create a valid empty channel bound to this process's actual PID and creation time. */
++    pcm_fixture() {
++      static std::atomic<std::uint32_t> serial = 0;
++      const auto birth = quest3d::pcm::creation_time(GetCurrentProcess());
++      if (!birth) {
++        throw std::runtime_error("PCM fixture cannot obtain producer creation time");
++      }
++      std::ostringstream name;
++      name << std::hex << std::setfill('0') << std::setw(16) << birth
++           << std::setw(8) << GetCurrentProcessId() << std::setw(8) << ++serial;
++      channel = name.str();
++      prefix = L"Local\\Quest3D.Audio.v1." + std::wstring(channel.begin(), channel.end());
++      try {
++        SetLastError(0);
++        mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(quest3d::pcm::memory), prefix.c_str());
++        const auto mapping_error = GetLastError();
++        if (!mapping || mapping_error == ERROR_ALREADY_EXISTS) {
++          throw std::runtime_error("PCM fixture mapping creation was not exclusive");
++        }
++        SetLastError(0);
++        mutex = CreateMutexW(nullptr, FALSE, (prefix + L".Mutex").c_str());
++        const auto mutex_error = GetLastError();
++        if (!mutex || mutex_error == ERROR_ALREADY_EXISTS) {
++          throw std::runtime_error("PCM fixture mutex creation was not exclusive");
++        }
++        mapped = static_cast<quest3d::pcm::memory *>(MapViewOfFile(mapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(quest3d::pcm::memory)));
++        if (!mapped) {
++          throw std::runtime_error("PCM fixture cannot map producer view");
++        }
++        mutate([&](auto &memory) {
++          memory = {};
++          auto &h = memory.state;
++          h.magic = {'Q', '3', 'D', 'A', 'U', 'D', '1', 0};
++          h.version = 1;
++          h.header_bytes = sizeof(quest3d::pcm::header);
++          h.slots = quest3d::pcm::slot_count;
++          h.slot_bytes = sizeof(quest3d::pcm::slot);
++          h.rate = 48000;
++          h.channels = 2;
++          h.format = 1;
++          h.producer_pid = GetCurrentProcessId();
++          h.producer_creation = birth;
++          for (unsigned i = 0; i < h.channel.size(); ++i) {
++            h.channel[i] = static_cast<std::uint8_t>(std::stoul(channel.substr(i * 2, 2), nullptr, 16));
++          }
++          h.session = h.channel;
++          h.session[0] ^= 0x80;
++          h.epoch = 17;
++          h.generation = 3;
++          if (!quest3d::pcm::valid(memory)) {
++            throw std::runtime_error("PCM fixture initialized an invalid channel");
++          }
++        });
++      } catch (...) {
++        close();
++        throw;
++      }
++    }
++
++    pcm_fixture(const pcm_fixture &) = delete;  ///< Kernel ownership must not be copied.
++    pcm_fixture &operator=(const pcm_fixture &) = delete;  ///< Kernel ownership must not be assigned.
++
++    /** @brief Release only this fixture's producer view and handles. Readers must finish first. */
++    ~pcm_fixture() {
++      close();
++    }
++
++    /**
++     * @brief Run a producer transaction under the actual named mutex, including exceptional paths.
++     * @param change Synchronous action; it must not retain references or call a reader while locked.
++     */
++    void mutate(const std::function<void(quest3d::pcm::memory &)> &change) {
++      const auto wait = WaitForSingleObject(mutex, 5000);
++      if (wait == WAIT_ABANDONED) {
++        ReleaseMutex(mutex);
++        throw std::runtime_error("PCM fixture producer mutex was abandoned");
++      }
++      if (wait != WAIT_OBJECT_0) {
++        throw std::runtime_error("PCM fixture producer mutex acquisition failed");
++      }
++      try {
++        change(*mapped);
++      } catch (...) {
++        ReleaseMutex(mutex);
++        throw;
++      }
++      if (!ReleaseMutex(mutex)) {
++        throw std::runtime_error("PCM fixture producer mutex release failed");
++      }
++    }
++
++    /** @brief Copy the shared header under its transaction mutex. @return Consistent current header. */
++    quest3d::pcm::header snapshot() {
++      quest3d::pcm::header h {};
++      mutate([&](const auto &memory) {
++        h = memory.state;
++      });
++      return h;
++    }
++
++    /**
++     * @brief Publish one real digest-validated stereo block in the current media scope.
++     * @param block_id Monotonically increasing original block token within the scope.
++     * @param due_ns QPC deadline in nanoseconds, used by the actual reader.
++     * @param sample_count Number of stereo sample frames, from 1 through 480.
++     */
++    void append_block(std::uint64_t block_id, std::uint64_t due_ns, unsigned sample_count = 480) {
++      mutate([&](auto &memory) {
++        auto &h = memory.state;
++        if (!sample_count || sample_count > 480 || h.tail - h.head >= quest3d::pcm::slot_count ||
++            (h.tail != h.head && block_id <= memory.data[(h.tail - 1) % quest3d::pcm::slot_count].block_id) || !quest3d::pcm::valid(memory)) {
++          throw std::runtime_error("PCM fixture cannot append this block");
++        }
++        auto &s = memory.data[h.tail % quest3d::pcm::slot_count];
++        s = {};
++        s.block_id = block_id;
++        s.due_ns = due_ns;
++        s.total = s.count = sample_count;
++        s.sequence = h.tail++;
++        s.epoch = h.epoch;
++        s.generation = h.generation;
++        for (unsigned i = 0; i < sample_count; ++i) {
++          s.samples[i * 2] = 0.125f;
++          s.samples[i * 2 + 1] = -0.25f;
++        }
++        s.digest = quest3d::pcm::digest(s);
++        h.buffered_samples += sample_count;
++        if (!quest3d::pcm::valid(memory)) {
++          throw std::runtime_error("PCM fixture appended an invalid block");
++        }
++      });
++    }
++
++    /** @brief Return actual host QPC nanoseconds without overflowing the intermediate product. */
++    static std::uint64_t now_ns() {
++      LARGE_INTEGER counter {}, frequency {};
++      if (!QueryPerformanceCounter(&counter) || !QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0) {
++        throw std::runtime_error("PCM fixture cannot obtain QPC time");
++      }
++      const auto ticks = static_cast<std::uint64_t>(counter.QuadPart);
++      const auto hz = static_cast<std::uint64_t>(frequency.QuadPart);
++      return (ticks / hz) * 1000000000ULL + (ticks % hz) * 1000000000ULL / hz;
++    }
++
++  private:
++    /** @brief Best-effort fixture cleanup, also safe after partial construction. */
++    void close() {
++      if (mapped) {
++        UnmapViewOfFile(mapped);
++        mapped = nullptr;
++      }
++      for (auto *handle : {&mapping, &mutex}) {
++        if (*handle) {
++          CloseHandle(*handle);
++          *handle = nullptr;
++        }
++      }
++    }
++  };
++}  // namespace quest3d_test
+diff --git a/tests/unit/platform/windows/test_quest3d_reader_retirement.cpp b/tests/unit/platform/windows/test_quest3d_reader_retirement.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/unit/platform/windows/test_quest3d_reader_retirement.cpp
+@@ -0,0 +1,238 @@
++/** @file tests/unit/platform/windows/test_quest3d_reader_retirement.cpp
++ * @brief Real Windows reader lifetime, accepted media scope, and kernel-resource retirement checks.
++ */
++#ifdef _WIN32
++  #include "quest3d_pcm_fixture.h"
++  #include "tests/tests_common.h"
++
++  #include <thread>
++  #include <type_traits>
++
++namespace {
++  using quest3d_test::pcm_fixture;
++  using namespace quest3d::pcm;
++
++  static_assert(!std::is_default_constructible_v<reader_retirement>);
++  static_assert(!std::is_constructible_v<reader_retirement, header, std::optional<std::pair<std::uint64_t, std::uint64_t>>>);
++
++  /** @brief Probe object existence without retaining a handle that would keep Consumer alive. */
++  bool consumer_exists(const pcm_fixture &f) {
++    const auto consumer = OpenMutexW(SYNCHRONIZE, FALSE, (f.prefix + L".Consumer").c_str());
++    if (consumer) {
++      EXPECT_TRUE(CloseHandle(consumer));
++      return true;
++    }
++    EXPECT_EQ(GetLastError(), ERROR_FILE_NOT_FOUND);
++    return false;
++  }
++
++  /** @brief Enter or poll the actual ring without claiming that the PCM was played or transmitted. */
++  result step(reader &consumer, std::uint64_t due_ns = 1000000000) {
++    return consumer.step(due_ns, 480, [](const auto &) {
++      return true;
++    },
++                         [] {
++                         });
++  }
++}  // namespace
++
++TEST(Quest3DReaderRetirement, RealReaderClosesConsumerBeforeProducerOrProcessExit) {
++  pcm_fixture f;
++  const auto producer = f.snapshot();
++  reader consumer;
++  ASSERT_TRUE(consumer.open(f.channel));
++  ASSERT_TRUE(consumer_exists(f));
++  ASSERT_EQ(step(consumer), result::scope_changed);
++  const auto opened = f.snapshot();
++  ASSERT_EQ(opened.consumer_pid, GetCurrentProcessId());
++  ASSERT_EQ(opened.consumer_creation, creation_time(GetCurrentProcess()));
++  ASSERT_EQ(opened.ready, 1U);
++  const auto token = consumer.retire();
++  ASSERT_TRUE(token.has_value());
++  EXPECT_FALSE(consumer_exists(f));
++  EXPECT_EQ(WaitForSingleObject(GetCurrentProcess(), 0), WAIT_TIMEOUT);
++  EXPECT_EQ(token->identity().producer_pid, producer.producer_pid);
++  EXPECT_EQ(token->identity().producer_creation, producer.producer_creation);
++  EXPECT_EQ(token->identity().consumer_pid, opened.consumer_pid);
++  EXPECT_EQ(token->identity().consumer_creation, opened.consumer_creation);
++  EXPECT_EQ(token->identity().session, producer.session);
++  EXPECT_EQ(token->identity().channel, producer.channel);
++  ASSERT_TRUE(token->media_scope().has_value());
++  EXPECT_EQ(*token->media_scope(), (std::pair {producer.epoch, producer.generation}));
++  EXPECT_EQ(step(consumer), result::failed);
++  EXPECT_FALSE(consumer.retire().has_value());
++
++  // The producer remains live with its original channel. Retiring cannot authorize a second consumer.
++  reader replacement;
++  EXPECT_FALSE(replacement.open(f.channel));
++  EXPECT_FALSE(replacement.retire().has_value());
++  EXPECT_FALSE(consumer_exists(f));
++  EXPECT_EQ(f.snapshot().consumer_pid, opened.consumer_pid);
++}
++
++TEST(Quest3DReaderRetirement, OpenWithoutAcceptedStepHasNoInventedMediaScope) {
++  pcm_fixture f;
++  reader consumer;
++  ASSERT_TRUE(consumer.open(f.channel));
++  f.mutate([](auto &memory) {
++    memory.state.epoch = 999;
++    memory.state.generation = 700;
++  });
++  const auto token = consumer.retire();
++  ASSERT_TRUE(token.has_value());
++  EXPECT_FALSE(token->media_scope().has_value());
++  EXPECT_EQ(token->identity().epoch, 17U);
++  EXPECT_EQ(token->identity().generation, 3U);
++  EXPECT_FALSE(consumer_exists(f));
++}
++
++TEST(Quest3DReaderRetirement, AcceptedScopeChangesOnlyAfterSuccessfulRingValidation) {
++  pcm_fixture f;
++  reader consumer;
++  ASSERT_TRUE(consumer.open(f.channel));
++  ASSERT_EQ(step(consumer), result::scope_changed);
++  f.mutate([](auto &memory) {
++    memory.state.epoch = 18;
++    memory.state.generation = 4;
++  });
++  ASSERT_EQ(step(consumer), result::scope_changed);
++  f.mutate([](auto &memory) {
++    memory.state.epoch = 19;
++    memory.state.generation = 5;
++    memory.state.reserved[0] = 1;
++  });
++  ASSERT_EQ(step(consumer), result::failed);
++  const auto token = consumer.retire();
++  ASSERT_TRUE(token.has_value());
++  ASSERT_TRUE(token->media_scope().has_value());
++  EXPECT_EQ(*token->media_scope(), (std::pair<std::uint64_t, std::uint64_t> {18, 4}));
++  EXPECT_EQ(token->identity().epoch, 17U);
++  EXPECT_EQ(token->identity().generation, 3U);
++  EXPECT_FALSE(consumer_exists(f));
++}
++
++TEST(Quest3DReaderRetirement, ImmutableOwnerSurvivesUnacceptedIdentityReplacement) {
++  pcm_fixture f;
++  reader consumer;
++  ASSERT_TRUE(consumer.open(f.channel));
++  const auto original = f.snapshot();
++  ASSERT_EQ(step(consumer), result::scope_changed);
++  f.mutate([](auto &memory) {
++    memory.state.channel[0] ^= 1;
++    memory.state.session[0] ^= 1;
++    ++memory.state.producer_creation;
++    ++memory.state.consumer_creation;
++    ++memory.state.epoch;
++  });
++  ASSERT_EQ(step(consumer), result::failed);
++  const auto token = consumer.retire();
++  ASSERT_TRUE(token.has_value());
++  EXPECT_EQ(token->identity().channel, original.channel);
++  EXPECT_EQ(token->identity().session, original.session);
++  EXPECT_EQ(token->identity().producer_creation, original.producer_creation);
++  EXPECT_EQ(token->identity().consumer_creation, original.consumer_creation);
++  ASSERT_TRUE(token->media_scope().has_value());
++  EXPECT_EQ(*token->media_scope(), (std::pair {original.epoch, original.generation}));
++}
++
++TEST(Quest3DReaderRetirement, DuplicateOpenNeverRetiresOrReleasesTheFirstReader) {
++  pcm_fixture f;
++  reader first, duplicate;
++  ASSERT_TRUE(first.open(f.channel));
++  EXPECT_FALSE(first.open(f.channel));
++  EXPECT_FALSE(duplicate.open(f.channel));
++  EXPECT_FALSE(duplicate.retire().has_value());
++  EXPECT_TRUE(consumer_exists(f));
++  EXPECT_EQ(step(first), result::scope_changed);
++  EXPECT_TRUE(first.retire().has_value());
++  EXPECT_FALSE(consumer_exists(f));
++  EXPECT_FALSE(duplicate.retire().has_value());
++}
++
++TEST(Quest3DReaderRetirement, UnopenedAndFailedValidationCannotProduceRetirement) {
++  reader unopened;
++  EXPECT_FALSE(unopened.retire().has_value());
++  EXPECT_FALSE(unopened.open("not-a-private-channel"));
++  EXPECT_FALSE(unopened.retire().has_value());
++  for (unsigned failure = 0; failure < 3; ++failure) {
++    SCOPED_TRACE(failure);
++    pcm_fixture f;
++    f.mutate([&](auto &memory) {
++      if (failure == 0) {
++        ++memory.state.producer_creation;
++      } else if (failure == 1) {
++        memory.state.channel[0] ^= 1;
++      } else {
++        memory.state.magic[0] = 'X';
++      }
++    });
++    reader consumer;
++    EXPECT_FALSE(consumer.open(f.channel));
++    EXPECT_FALSE(consumer.retire().has_value());
++    EXPECT_FALSE(consumer_exists(f));
++    EXPECT_EQ(f.snapshot().consumer_pid, 0U);
++    EXPECT_EQ(f.snapshot().ready, 0U);
++  }
++}
++
++TEST(Quest3DReaderRetirement, ConsumedPcmThenStopPreservesCursorsBeforeHandleRelease) {
++  pcm_fixture f;
++  constexpr std::uint64_t due = 1000000000;
++  f.append_block(61, due);
++  reader consumer;
++  ASSERT_TRUE(consumer.open(f.channel));
++  ASSERT_EQ(step(consumer, due), result::scope_changed);
++  unsigned encoded = 0;
++  unsigned stopped = 0;
++  ASSERT_EQ(consumer.step(due, 480, [&](const auto &pcm) {
++    ++encoded;
++    EXPECT_EQ(pcm.size(), 960U);
++    EXPECT_EQ(pcm.front(), 0.125f);
++    EXPECT_EQ(pcm.back(), -0.25f);
++    return true;
++  },
++                          [&] {
++                            ++stopped;
++                          }),
++            result::encoded);
++  EXPECT_EQ(encoded, 1U);
++  EXPECT_EQ(stopped, 0U);
++  f.mutate([](auto &memory) {
++    ++memory.state.flush_request;
++  });
++  consumer.stop([&] {
++    ++stopped;
++  });
++  const auto stopped_state = f.snapshot();
++  EXPECT_EQ(stopped, 1U);
++  EXPECT_EQ(stopped_state.ready, 0U);
++  EXPECT_NE(stopped_state.flags & consumer_stopped, 0U);
++  EXPECT_EQ(stopped_state.flush_ack, stopped_state.flush_request);
++  EXPECT_EQ(stopped_state.encoded_samples, 480U);
++  EXPECT_EQ(stopped_state.encoded_packets, 1U);
++  const auto token = consumer.retire();
++  ASSERT_TRUE(token.has_value());
++  EXPECT_FALSE(consumer_exists(f));
++  const auto retired_state = f.snapshot();
++  EXPECT_EQ(retired_state.encoded_samples, stopped_state.encoded_samples);
++  EXPECT_EQ(retired_state.encoded_packets, stopped_state.encoded_packets);
++  EXPECT_EQ(retired_state.flush_ack, stopped_state.flush_ack);
++}
++
++TEST(Quest3DReaderRetirement, WrongThreadCannotClaimSuccessfulMutexOwnershipRelease) {
++  pcm_fixture f;
++  reader consumer;
++  ASSERT_TRUE(consumer.open(f.channel));
++  ASSERT_EQ(step(consumer), result::scope_changed);
++  std::optional<reader_retirement> token;
++  std::thread other([&] {
++    token = consumer.retire();
++  });
++  other.join();
++  EXPECT_FALSE(token.has_value());
++  EXPECT_FALSE(consumer.retire().has_value());
++  reader replacement;
++  EXPECT_FALSE(replacement.open(f.channel));
++  EXPECT_FALSE(replacement.retire().has_value());
++}
++#endif
+diff --git a/tests/unit/platform/windows/test_quest3d_file_transport_identity.cpp b/tests/unit/platform/windows/test_quest3d_file_transport_identity.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/unit/platform/windows/test_quest3d_file_transport_identity.cpp
+@@ -0,0 +1,209 @@
++/** @file tests/unit/platform/windows/test_quest3d_file_transport_identity.cpp
++ * @brief Bind actual private-reader retirement to the exact host transport without inventing a worker join.
++ */
++#ifdef _WIN32
++  #include "quest3d_pcm_fixture.h"
++  #include "src/quest3d_file_transport.h"
++  #include "tests/tests_common.h"
++
++  #include <future>
++
++namespace {
++  using namespace quest3d::pcm;
++  using quest3d_test::pcm_fixture;
++
++  /** @brief Build a test transport tuple using the real process lifetime and fixture-owned channel. */
++  file_transport_identity fixture_identity(const pcm_fixture &fixture) {
++    return {
++      "isolated-identity-test-certificate",
++      "1234567890abcdef1234567890abcdef",
++      fixture.channel,
++      52,
++      GetCurrentProcessId(),
++      creation_time(GetCurrentProcess())
++    };
++  }
++
++  /**
++   * @brief Obtain only a real reader token after accepting a scope and stopping the tracker's real gate.
++   * @param fixture Actual Windows mapping whose producer remains alive throughout the check.
++   * @param transport Tracker receiving the real packet gate used by the stop callback.
++   * @return Reader-issued retirement, absent on any failed open, step, or native close.
++   */
++  std::optional<reader_retirement> retire_fixture_reader(pcm_fixture &fixture, file_transport &transport) {
++    reader source;
++    if (!source.open(fixture.channel)) {
++      ADD_FAILURE() << "Fixture's real reader did not open";
++      return std::nullopt;
++    }
++    const auto outcome = source.step(pcm_fixture::now_ns(), 480, [](const auto &) {
++      ADD_FAILURE() << "Empty fixture must enter scope before any encoder callback";
++      return false;
++    },
++                                     [] {
++                                     });
++    if (outcome != result::scope_changed) {
++      ADD_FAILURE() << "Fixture's real reader did not accept its scope";
++      return std::nullopt;
++    }
++    const auto gate = transport.replace_packet_scope();
++    if (!gate) {
++      ADD_FAILURE() << "Fixture transport did not create its real packet gate";
++      return std::nullopt;
++    }
++    source.stop([&] {
++      gate->stop();
++    });
++    auto denied = gate->acquire_send();
++    EXPECT_FALSE(denied.owns_lock());
++    if (denied.owns_lock()) {
++      return std::nullopt;
++    }
++    const auto state = fixture.snapshot();
++    EXPECT_EQ(state.ready, 0U);
++    EXPECT_NE(state.flags & consumer_stopped, 0U);
++    return source.retire();
++  }
++}  // namespace
++
++TEST(Quest3DFileTransportIdentity, ValidTupleAcceptsReaderButDoesNotInventWorkerJoin) {
++  pcm_fixture fixture;
++  file_transport transport(fixture_identity(fixture));
++  EXPECT_FALSE(transport.reader_retired());
++  EXPECT_FALSE(transport.closed().has_value());
++  const auto token = retire_fixture_reader(fixture, transport);
++  ASSERT_TRUE(token.has_value());
++  transport.capture_retired(*token);
++  EXPECT_TRUE(transport.reader_retired());
++  EXPECT_FALSE(transport.closed().has_value());
++  transport.capture_retired(*token);
++  EXPECT_TRUE(transport.reader_retired());
++  EXPECT_FALSE(transport.closed().has_value());
++}
++
++TEST(Quest3DFileTransportIdentity, UnavailableHostCreationCannotBecomeExactLifetimeProof) {
++  pcm_fixture fixture;
++  auto identity = fixture_identity(fixture);
++  identity.host_creation = 0;
++  file_transport transport(identity);
++  const auto token = retire_fixture_reader(fixture, transport);
++  ASSERT_TRUE(token.has_value());
++  ASSERT_NE(token->identity().consumer_creation, 0U);
++  transport.capture_retired(*token);
++  EXPECT_FALSE(transport.reader_retired());
++  EXPECT_FALSE(transport.closed().has_value());
++}
++
++TEST(Quest3DFileTransportIdentity, WrongHostPidBirthOrChannelCannotBorrowActualReaderToken) {
++  for (unsigned mismatch = 0; mismatch < 3; ++mismatch) {
++    SCOPED_TRACE(mismatch);
++    pcm_fixture fixture;
++    auto identity = fixture_identity(fixture);
++    if (mismatch == 0) {
++      identity.host_pid ^= 1;
++    } else if (mismatch == 1) {
++      identity.host_creation ^= 1;
++    } else {
++      identity.channel.back() = identity.channel.back() == '0' ? '1' : '0';
++    }
++    file_transport transport(identity);
++    const auto token = retire_fixture_reader(fixture, transport);
++    ASSERT_TRUE(token.has_value());
++    transport.capture_retired(*token);
++    EXPECT_FALSE(transport.reader_retired());
++    EXPECT_FALSE(transport.closed().has_value());
++  }
++}
++
++TEST(Quest3DFileTransportIdentity, MissingPairedOwnerCannotAcceptResourceRetirement) {
++  pcm_fixture fixture;
++  auto identity = fixture_identity(fixture);
++  identity.client_certificate.clear();
++  file_transport transport(identity);
++  const auto token = retire_fixture_reader(fixture, transport);
++  ASSERT_TRUE(token.has_value());
++  transport.capture_retired(*token);
++  EXPECT_FALSE(transport.reader_retired());
++  EXPECT_FALSE(transport.closed().has_value());
++}
++
++TEST(Quest3DFileTransportIdentity, TransportNonceRequiresExactLowercaseHexadecimalShape) {
++  for (const std::string &malformed : {std::string {}, std::string(31, 'a'), std::string(33, 'a'), std::string(32, 'A'), std::string(32, 'g'), std::string(31, 'a') + " "}) {
++    SCOPED_TRACE(malformed);
++    pcm_fixture fixture;
++    auto identity = fixture_identity(fixture);
++    identity.transport_epoch = malformed;
++    file_transport transport(identity);
++    const auto token = retire_fixture_reader(fixture, transport);
++    ASSERT_TRUE(token.has_value());
++    transport.capture_retired(*token);
++    EXPECT_FALSE(transport.reader_retired());
++    EXPECT_FALSE(transport.closed().has_value());
++  }
++}
++
++TEST(Quest3DFileTransportIdentity, ConcurrentReplacementRetiresEveryPredecessorWithoutBlockingObservation) {
++  using namespace std::chrono_literals;
++  for (unsigned iteration = 0; iteration < 16; ++iteration) {
++    SCOPED_TRACE(iteration);
++    pcm_fixture fixture;
++    file_transport transport(fixture_identity(fixture));
++    const auto original = transport.replace_packet_scope();
++    ASSERT_TRUE(original);
++    auto sending = original->acquire_send();
++    ASSERT_TRUE(sending.owns_lock());
++
++    std::promise<void> first_entered, second_entered;
++    auto first_started = first_entered.get_future();
++    auto second_started = second_entered.get_future();
++    auto first = std::async(std::launch::async, [&] {
++      first_entered.set_value();
++      return transport.replace_packet_scope();
++    });
++    auto second = std::async(std::launch::async, [&] {
++      second_entered.set_value();
++      return transport.replace_packet_scope();
++    });
++
++    // Explicit entry markers establish that both workers have started their
++    // replacement attempt. Only the original real send lock is released below;
++    // a timed wait checks non-completion without guessing a sleep duration.
++    EXPECT_EQ(first_started.wait_for(2s), std::future_status::ready);
++    EXPECT_EQ(second_started.wait_for(2s), std::future_status::ready);
++    EXPECT_EQ(first.wait_for(5ms), std::future_status::timeout);
++    EXPECT_EQ(second.wait_for(5ms), std::future_status::timeout);
++
++    auto observation = std::async(std::launch::async, [&] {
++      return transport.closed().has_value();
++    });
++    const auto observed_while_blocked = observation.wait_for(250ms);
++    EXPECT_EQ(observed_while_blocked, std::future_status::ready);
++    if (observed_while_blocked == std::future_status::ready) {
++      EXPECT_FALSE(observation.get());
++    }
++
++    sending.unlock();
++    ASSERT_EQ(first.wait_for(2s), std::future_status::ready);
++    ASSERT_EQ(second.wait_for(2s), std::future_status::ready);
++    const auto first_gate = first.get();
++    const auto second_gate = second.get();
++    if (observation.valid()) {
++      ASSERT_EQ(observation.wait_for(2s), std::future_status::ready);
++      EXPECT_FALSE(observation.get());
++    }
++    ASSERT_TRUE(first_gate);
++    ASSERT_TRUE(second_gate);
++    ASSERT_NE(first_gate, second_gate);
++    ASSERT_NE(first_gate, original);
++    ASSERT_NE(second_gate, original);
++
++    auto original_send = original->acquire_send();
++    auto first_send = first_gate->acquire_send();
++    auto second_send = second_gate->acquire_send();
++    EXPECT_FALSE(original_send.owns_lock());
++    EXPECT_EQ(unsigned(first_send.owns_lock()) + unsigned(second_send.owns_lock()), 1U);
++    EXPECT_FALSE(transport.reader_retired());
++    EXPECT_FALSE(transport.closed().has_value());
++  }
++}
++#endif

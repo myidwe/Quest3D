@@ -1,0 +1,51 @@
+{
+  "baseline_apk_sha256": "e376237a9d5243e1ef6a44016770a7539cca4d15c8bdf89edebedafb86c36233",
+  "native_sha256": "831d8f5350aadc2994fd6e0458f44e734a8780b9c6539d9e74e86210192f91a7",
+  "base_overlay": "patches/quest-compact-settings-20260929",
+  "files": {
+    "main.gd": {
+      "baseline": "3b62afdbb992d696823ef23effb74589e23c9c8bb51f824d09e0bdfa94b61643",
+      "candidate": "5849e07ca4008e9f46e1972432fda5f1acb9ea89ec9ebbfb9f4da53b32f14400"
+    },
+    "src/precision_ui.gd": {
+      "baseline": "08ca654c2d5dcbdd278ec1e0b6fc8976696671db03ce4f6a3f49a770c96adda0",
+      "candidate": "73c05f0090c21fcc7724745d81c11e878201833fe2fd78ce5dd3ac141db81966"
+    },
+    "src/screen_manager.gd": {
+      "baseline": "a313f4dba0266bd16cd2372c48b27a1d9fd969a392ed9cfa9e456437e84aa5e3",
+      "candidate": "276c7cc9e4eb31d55296e75f4be4c7aecf07a282bb34672e2c4bbdcceeb7160b"
+    },
+    "src/state_manager.gd": {
+      "baseline": "f1a4981b876804a0ebb9b2d8cd3e2a710485f843946d9b22fd6052df2d53e7a3",
+      "candidate": "6e5899412d631aeac1e3d0329f173ed0935a90aef42aa317b8800e0cc50421b0"
+    },
+    "src/xr_interaction.gd": {
+      "baseline": "c6bb9c5935d9353dccd1964b10f329f46a6e998ed1845ac656d49a127f21a350",
+      "candidate": "498b66b5bef97b48db3a929c3a85fd2d09f87209c00daba648b0b6864e643b84"
+    },
+    "test/test_level_alignment.gd": {
+      "baseline": null,
+      "candidate": "cf0bd98771f79c2e7c611211bdea6b6d0b39ba34573ddc694ac79b0351f35586"
+    },
+    "test/test_display_view_settings.gd": {
+      "baseline": "3caf5474b2df0fba3ba944b5de3e96f2b9b1d3c7542a1b691fce146f78a0a34a",
+      "candidate": "4fa520d92eaca4510cbe99ba0d9c8157966cfae056ce91a1fe132e968f4954e2"
+    },
+    "test/test_compact_settings.gd": {
+      "baseline": "58ccce0c861a5db0a4e2009d4fbb9dd77675d4b3c3fe61659b13e16267f7e609",
+      "candidate": "ee96543acc28c230d02a8c405882218e48ed9ad13ac65b2a347eadffb9483795"
+    },
+    "test/test_precision_ui.gd": {
+      "baseline": "ce7d41c91fbaa1694348d4ca512a96619a1a42225dc286c2a2d77705ea1cb534",
+      "candidate": "69076fa85941d9e4738220c0bf7c560869bd349b3b7781f59288764d36704510"
+    },
+    "test/test_usability_regression.gd": {
+      "baseline": "cbdc4fd060233857fedfa3ebcfd9116ef7cadce90da7f2b87a5e86621b915c8d",
+      "candidate": "2164caf977f29403ee11c0d08db653f2b6ce45cdd725d222b49784e177bf29fd"
+    },
+    "test/render_product_ui.gd": {
+      "baseline": "622246776942d92c74903449621f6fdeb3713fce4fcefb783b6eaac1cee8cc57",
+      "candidate": "4fc2def7c09e858ec57cb17f2c15f3f7b666e1e2da3dec06132b9099e1652df8"
+    }
+  }
+}

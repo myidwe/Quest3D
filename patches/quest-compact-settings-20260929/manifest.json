@@ -1,0 +1,35 @@
+{
+  "baseline_apk_sha256": "7e2b7c0b1af349d683467faf7fc171c0083a3a0739bf2dcfb04dc0801a037838",
+  "native_sha256": "831d8f5350aadc2994fd6e0458f44e734a8780b9c6539d9e74e86210192f91a7",
+  "base_overlay": "patches/quest-display-settings-20260929",
+  "files": {
+    "main.gd": {
+      "baseline": "ff5fe59b1848ca86d2a357bbf460bf928b91dbdd967c07875591e1882a6a9ae6",
+      "candidate": "3b62afdbb992d696823ef23effb74589e23c9c8bb51f824d09e0bdfa94b61643"
+    },
+    "src/precision_ui.gd": {
+      "baseline": "d1bf41ca8ebcd131cb78bc16a2a4d9cc176fb0219bb0dc9d3e04b5ff2f70e0f2",
+      "candidate": "08ca654c2d5dcbdd278ec1e0b6fc8976696671db03ce4f6a3f49a770c96adda0"
+    },
+    "test/test_compact_settings.gd": {
+      "baseline": null,
+      "candidate": "58ccce0c861a5db0a4e2009d4fbb9dd77675d4b3c3fe61659b13e16267f7e609"
+    },
+    "test/test_precision_ui.gd": {
+      "baseline": "85457def678f2eba2dbad36c16c955ea4d548861f07b0323a9d893af70e80592",
+      "candidate": "ce7d41c91fbaa1694348d4ca512a96619a1a42225dc286c2a2d77705ea1cb534"
+    },
+    "test/test_usability_regression.gd": {
+      "baseline": "e087b1bd9c5b7ca6f16eec7e1fb652d34d11dcbdd56c41b69459119fda4d4de2",
+      "candidate": "cbdc4fd060233857fedfa3ebcfd9116ef7cadce90da7f2b87a5e86621b915c8d"
+    },
+    "test/test_menu_pointer_visibility.gd": {
+      "baseline": "ffdbfd109b0de3069862e7897668047fa62b9ae71d59d93f3f95ab309dbf87e3",
+      "candidate": "414cac1d15e86798a0deebffe7baa1338e173e4f3cad5ba323c75dd0bbcfb0d5"
+    },
+    "test/render_product_ui.gd": {
+      "baseline": "376ff5cb2ed6a30de4626ba51e6ee80a20d2e2a15a16e4e7f41421363af48f94",
+      "candidate": "622246776942d92c74903449621f6fdeb3713fce4fcefb783b6eaac1cee8cc57"
+    }
+  }
+}

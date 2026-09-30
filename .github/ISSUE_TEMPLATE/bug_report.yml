@@ -1,0 +1,30 @@
+name: Bug report
+description: 설치·연결·화질·소리 오류
+body:
+  - type: markdown
+    attributes:
+      value: "개인 주소·기기 ID·계정·인증서·서명키를 제거한 자료만 첨부해 주세요"
+  - type: input
+    id: version
+    attributes:
+      label: App version
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows 빌드, GPU·VRAM·드라이버, Quest 모델, 연결 방식
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps / expected / actual
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: 새 3D FPS와 반복 송출 빈도를 구분

@@ -1,0 +1,918 @@
+--- a/main.gd
++++ b/main.gd
+@@ -531,8 +531,8 @@
+ var _log_lines: PackedStringArray = []
+ var _log_file_initialized: bool = false
+ var _log_flush_timer: float = 0.0
+-var _ui_viewport_size := Vector2i(1200, 580)
+-var _ui_mesh_size := Vector2(1.20, 0.58)
++var _ui_viewport_size := Vector2i(840, 820)
++var _ui_mesh_size := Vector2(0.84, 0.82)
+ var _ui_host_label: Label
+ var _ui_status_label: Label
+ var _ui_pt_btn: Button
+--- a/src/precision_ui.gd
++++ b/src/precision_ui.gd
+@@ -14,6 +14,9 @@
+ var depth_buttons: Array[Button] = []
+ var pc_notes: Array[Label] = []
+ var _status: Label
++var _stream_info: Label
++var _tint_buttons: Dictionary = {}
++var _tint_values: Array[Label] = []
+ var _last_pc_visual: String = ""
+ var _queued_depth: Dictionary = {}
+ var view_panels: Dictionary = {}
+@@ -66,7 +69,7 @@
+ 	var line := ColorRect.new()
+ 	line.color = ProductTheme.BORDER
+ 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(line, parent, Rect2(0, y, 1104, 1))
++	_rect(line, parent, Rect2(0, y, 776, 1))
+ 
+ func _style_button(button: Button, selected: bool = false, border: bool = false):
+ 	var key := Vector2i(int(selected), int(border))
+@@ -90,60 +93,60 @@
+ 	var legacy: Control = panel.get_node("MenuLayout/VBox")
+ 	legacy.visible = false
+ 	var brand_old := root.get_node_or_null("Brand")
+-	if brand_old:
+-		brand_old.visible = false
++	if brand_old: brand_old.visible = false
++	var shell := ProductTheme.surface(ProductTheme.BG, 28, 0)
++	shell.border_color = ProductTheme.BORDER.darkened(0.3)
++	shell.set_border_width_all(1)
++	panel.add_theme_stylebox_override("panel", shell)
+ 	var layout: Control = panel.get_node("MenuLayout")
+ 	var header := Control.new()
+ 	header.name = "PrecisionHeader"
+ 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(header, layout, Rect2(32, 14, 1136, 72))
++	_rect(header, layout, Rect2(32, 18, 776, 56))
+ 	var logo := TextureRect.new()
+ 	logo.texture = preload("res://src/assets/precision/quest3d-mark.png")
+ 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+ 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+ 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(logo, header, Rect2(0, 2, 62, 62))
+-	_label(header, "Quest3D", Rect2(68, 2, 360, 66), 36, true)
+-	_rect(main._ui_close_btn, header, Rect2(1072, 2, 60, 60))
++	_rect(logo, header, Rect2(0, 6, 44, 44))
++	_label(header, "Quest3D", Rect2(58, 0, 260, 56), 28, true)
++	_rect(main._ui_close_btn, header, Rect2(724, 2, 52, 52))
+ 	main._ui_close_btn.text = ""
+ 	main._ui_close_btn.icon = ProductTheme.icon("x")
+ 	main._ui_close_btn.expand_icon = true
+-	main._ui_close_btn.add_theme_constant_override("icon_max_width", 30)
++	main._ui_close_btn.add_theme_constant_override("icon_max_width", 26)
+ 	main._ui_close_btn.tooltip_text = "메뉴 닫기"
+ 	_style_button(main._ui_close_btn)
+ 	var tab_bar := Control.new()
+ 	tab_bar.name = "PrecisionTabs"
+ 	tab_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(tab_bar, layout, Rect2(28, 92, 1144, 64))
++	_rect(tab_bar, layout, Rect2(24, 92, 792, 64))
+ 	var specs := [[ui._tab_btn_display, "Display", "monitor", 0], [ui._tab_btn_ai3d, "3D", "box", 3], [ui._tab_btn_picture, "Quality", "sliders-horizontal", 4], [ui._tab_btn_stream, "Connect", "wifi", 1]]
+ 	for i in specs.size():
+ 		var button: Button = specs[i][0]
+-		_rect(button, tab_bar, Rect2(i * 286, 0, 272, 64))
++		_rect(button, tab_bar, Rect2(i * 198, 0, 192, 64))
+ 		button.text = ""
+ 		var tab_icon := TextureRect.new()
+ 		tab_icon.name = "TabIcon"
+ 		tab_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ 		tab_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+-		_rect(tab_icon, button, Rect2(51, 17, 30, 30))
+-		var tab_label := _label(button, specs[i][1], Rect2(102, 0, 156, 64), 28, true)
++		var label_width := ProductTheme.MEDIUM.get_string_size(specs[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
++		var start := (192.0 - 26.0 - 12.0 - label_width) * 0.5
++		_rect(tab_icon, button, Rect2(start, 19, 26, 26))
++		var tab_label := _label(button, specs[i][1], Rect2(start + 38, 0, label_width + 2, 64), 24, true)
+ 		tab_label.name = "TabLabel"
+ 		button.set_meta("precision_icon", specs[i][2])
+ 		button.set_meta("precision_tab", specs[i][3])
+-		button.expand_icon = true
+-		button.add_theme_constant_override("icon_max_width", 30)
+-		button.add_theme_constant_override("h_separation", 22)
+-		button.add_theme_font_size_override("font_size", 28)
+-		button.add_theme_font_override("font", ProductTheme.MEDIUM)
+ 		tabs.append(button)
+ 	var header_rule := ColorRect.new()
+ 	header_rule.color = ProductTheme.BORDER
+ 	header_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(header_rule, layout, Rect2(48, 167, 1104, 1))
++	_rect(header_rule, layout, Rect2(32, 171, 776, 1))
+ 	for id in [0, 1, 2, 3, 4, 6]:
+ 		var page := Control.new()
+ 		page.name = "PrecisionPage%d" % id
+ 		page.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-		_rect(page, layout, Rect2(48, 180, 1104, 340))
++		_rect(page, layout, Rect2(32, 188, 776, 554))
+ 		pages[id] = page
+ 	ui._tab_display = pages[0]
+ 	ui._tab_stream = pages[1]
+@@ -158,25 +161,30 @@
+ 	_build_controller(pages[2])
+ 	_build_advanced(pages[6])
+ 	_status = main._ui_status_label
+-	_rect(_status, pages[1], Rect2(0, 292, 1104, 34))
++	_rect(_status, pages[1], Rect2(0, 498, 776, 48))
+ 	_status.add_theme_color_override("font_color", ProductTheme.MUTED)
+ 	_status.add_theme_font_size_override("font_size", 20)
+-	_status.max_lines_visible = 1
+-	var handle: PanelContainer = layout.get_node("MenuMoveRow/CompGrabBar")
++	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
++	_status.max_lines_visible = 2
++	var row: Control = layout.get_node("MenuMoveRow")
++	row.offset_top = -64
++	row.offset_bottom = -8
++	var handle: PanelContainer = row.get_node("CompGrabBar")
++	handle.custom_minimum_size = Vector2(320, 52)
+ 	handle.add_theme_stylebox_override("panel", ProductTheme.surface(Color.TRANSPARENT, 18, 0))
+-	var text: Label = handle.get_node("MenuMoveLabel")
+-	text.text = "메뉴 이동"
+-	text.add_theme_color_override("font_color", ProductTheme.MUTED)
+-	text.add_theme_font_size_override("font_size", 20)
+-	text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
++	var label: Label = handle.get_node("MenuMoveLabel")
++	label.text = "메뉴 이동"
++	label.add_theme_color_override("font_color", ProductTheme.MUTED)
++	label.add_theme_font_size_override("font_size", 18)
++	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
++	var grip_layer := Control.new()
++	grip_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	handle.add_child(grip_layer)
+ 	var grip := Panel.new()
+ 	grip.name = "PrecisionGrip"
+ 	grip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ 	grip.add_theme_stylebox_override("panel", ProductTheme.surface(Color("#ADB3BA"), 4, 0))
+-	var grip_layer := Control.new()
+-	grip_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	handle.add_child(grip_layer)
+-	_rect(grip, grip_layer, Rect2(254, 3, 92, 7))
++	_rect(grip, grip_layer, Rect2(124, 8, 72, 6))
+ 	var timer := Timer.new()
+ 	timer.wait_time = 0.25
+ 	timer.autostart = true
+@@ -190,19 +198,19 @@
+ 	refresh_labels()
+ 
+ func _mode_depth(parent: Control, y: float):
+-	_label(parent, "Mode", Rect2(0, y, 150, 46), 24, true)
+-	var a := _button(parent, "2D", Rect2(138, y + 20, 134, 60))
+-	var b := _button(parent, "3D", Rect2(272, y + 20, 134, 60))
++	_label(parent, "Mode", Rect2(0, y, 240, 60), 24, true)
++	var a := _button(parent, "2D", Rect2(488, y, 138, 60))
++	var b := _button(parent, "3D", Rect2(638, y, 138, 60))
+ 	a.button_down.connect(func(): main.pc_control.set_mode("2d"))
+ 	b.button_down.connect(func(): main.pc_control.set_mode("3d"))
+ 	mode_sets.append([a, b])
+-	var divider := ColorRect.new()
+-	divider.color = ProductTheme.BORDER
+-	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(divider, parent, Rect2(442, y, 1, 86))
+-	_label(parent, "Depth", Rect2(480, y, 200, 38), 24, true)
+-	var minus := _button(parent, "", Rect2(480, y + 40, 60, 60), "minus")
+-	var plus := _button(parent, "", Rect2(1044, y + 40, 60, 60), "plus")
++	_line(parent, y + 88)
++	_label(parent, "Depth", Rect2(0, y + 116, 300, 52), 28, true)
++	var depth := _label(parent, "—", Rect2(536, y + 108, 240, 60), 38, true)
++	depth.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
++	depth_labels.append(depth)
++	var minus := _button(parent, "", Rect2(0, y + 188, 60, 60), "minus")
++	var plus := _button(parent, "", Rect2(716, y + 188, 60, 60), "plus")
+ 	minus.tooltip_text = "입체감 0.05% 감소"
+ 	plus.tooltip_text = "입체감 0.05% 증가"
+ 	minus.button_down.connect(func(): main.pc_control.change_depth(-PcControl.DEPTH_STEP_FRACTION))
+@@ -211,41 +219,40 @@
+ 	depth_buttons.append(plus)
+ 	var slider := PrecisionDepthSlider.new()
+ 	slider.name = "DepthSlider"
+-	_rect(slider, parent, Rect2(556, y + 40, 300, 60))
++	_rect(slider, parent, Rect2(76, y + 188, 624, 60))
+ 	slider.depth_selected.connect(_queue_depth)
+ 	depth_sliders.append(slider)
+-	var depth := _label(parent, "—", Rect2(870, y + 40, 160, 60), 30, true)
+-	depth.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+-	depth_labels.append(depth)
+ 
+ func _build_overview(page: Control):
+ 	var overview := _view_panel(page, "Overview")
+-	_label(overview, "Mode", Rect2(0, 0, 100, 56), 24, true)
+-	var two := _button(overview, "2D", Rect2(112, 0, 116, 56))
+-	var three := _button(overview, "3D", Rect2(236, 0, 116, 56))
++	_label(overview, "Mode", Rect2(0, 0, 240, 60), 24, true)
++	var two := _button(overview, "2D", Rect2(488, 0, 138, 60))
++	var three := _button(overview, "3D", Rect2(638, 0, 138, 60))
+ 	two.button_down.connect(func(): main.pc_control.set_mode("2d"))
+ 	three.button_down.connect(func(): main.pc_control.set_mode("3d"))
+ 	mode_sets.append([two, three])
+-	_view_action(overview, "Center", Rect2(644, 0, 218, 56), "Center", func(): main.screen_manager.center_view())
+-	view_controls.lock = _view_action(overview, "Lock · Off", Rect2(880, 0, 224, 56), "Lock", func(): main.screen_manager.set_view_locked(not main.screen_manager.view_locked), false)
+-	_line(overview, 76)
+-	_label(overview, "Size", Rect2(0, 88, 200, 36), 26, true)
+-	view_controls.size_value = _label(overview, "", Rect2(700, 88, 404, 36), 24)
++	_line(overview, 88)
++	_label(overview, "Size", Rect2(0, 108, 160, 42), 28, true)
++	view_controls.size_value = _label(overview, "", Rect2(180, 108, 596, 42), 24)
+ 	view_controls.size_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+-	_view_action(overview, "−", Rect2(0, 132, 66, 60), "SizeMinus", func(): main.screen_manager.scale_primary_screen(1.0 / 1.05), true, true)
+-	view_controls.size_slider = _view_slider(overview, Rect2(82, 132, 940, 60), "SizeSlider", 0.6, 12, 0.05, func(v): main.screen_manager.set_view_width(v))
+-	_view_action(overview, "+", Rect2(1038, 132, 66, 60), "SizePlus", func(): main.screen_manager.scale_primary_screen(1.05), true, true)
+-	_label(overview, "가상 화면 크기 · 영상 해상도 유지", Rect2(0, 198, 1104, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_view_action(overview, "−", Rect2(0, 164, 60, 60), "SizeMinus", func(): main.screen_manager.scale_primary_screen(1.0 / 1.05), true, true)
++	view_controls.size_slider = _view_slider(overview, Rect2(76, 164, 624, 60), "SizeSlider", 0.6, 12, 0.05, func(v): main.screen_manager.set_view_width(v))
++	_view_action(overview, "+", Rect2(716, 164, 60, 60), "SizePlus", func(): main.screen_manager.scale_primary_screen(1.05), true, true)
++	_label(overview, "화면 너비 · 영상 해상도 유지", Rect2(0, 234, 776, 28), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_view_action(overview, "Center", Rect2(0, 284, 380, 58), "Center", func(): main.screen_manager.center_view())
++	view_controls.lock = _view_action(overview, "Lock · Off", Rect2(396, 284, 380, 58), "Lock", func(): main.screen_manager.set_view_locked(not main.screen_manager.view_locked), false)
++	var names := ["Position", "Views", "Environment", "Framing"]
++	var hints := ["거리 · 위치 · 기울기", "프리셋 · 내 화면 저장", "곡률 · 배경 · 조명", "상하 여백 자르기"]
+ 	for i in 4:
+-		var names := ["Position", "Views", "Environment", "Framing"]
+-		var action := _view_action(overview, names[i], Rect2(i * 280, 246, 264, 58), names[i] + "Open", func(): _show_view_panel(names[i]), false)
+-		action.set_meta("view_navigation", names[i])
+-	view_controls.note = _label(overview, "", Rect2(0, 309, 1104, 30), 20)
++		var tile := _view_action(overview, "", Rect2((i % 2) * 396, 362 + floori(i / 2.0) * 86, 380, 76), names[i] + "Open", func(): _show_view_panel(names[i]), false)
++		_tile_labels(tile, names[i], hints[i])
++		tile.set_meta("view_navigation", names[i])
++	view_controls.note = _label(overview, "", Rect2(0, 530, 776, 24), 19)
+ 	view_controls.note.add_theme_color_override("font_color", ProductTheme.MUTED)
+-	_build_view_position(_view_panel(page, "Position", "위치와 가상 거리"))
+-	_build_view_presets(_view_panel(page, "Views", "보기 저장"))
+-	_build_view_environment(_view_panel(page, "Environment", "화면 형태와 주변 환경"))
+-	_build_view_framing(_view_panel(page, "Framing", "검은 여백 자르기"))
++	_build_view_position(_view_panel(page, "Position", "거리와 위치"))
++	_build_view_presets(_view_panel(page, "Views", "화면 배치"))
++	_build_view_environment(_view_panel(page, "Environment", "형태와 주변 환경"))
++	_build_view_framing(_view_panel(page, "Framing", "상하 여백"))
+ 	_show_view_panel("Overview")
+ 	var repeat := Timer.new()
+ 	repeat.wait_time = 0.1
+@@ -254,19 +261,24 @@
+ 	page.add_child(repeat)
+ 	page.tree_exiting.connect(_stop_view_repeat)
+ 
++func _tile_labels(button: Button, title: String, hint: String):
++	_label(button, title, Rect2(18, 9, button.size.x - 36, 30), 23, true)
++	_label(button, hint, Rect2(18, 42, button.size.x - 36, 26), 19).add_theme_color_override("font_color", ProductTheme.MUTED)
++
+ func _view_panel(parent: Control, key: String, title: String = "") -> Control:
+ 	var panel := Control.new()
+ 	panel.name = "View" + key
+ 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(panel, parent, Rect2(0, 0, 1104, 340))
++	_rect(panel, parent, Rect2(0, 0, 776, 554))
+ 	view_panels[key] = panel
+ 	if not title.is_empty():
+-		var back := _view_action(panel, "Display", Rect2(0, 0, 172, 48), key + "Back", func(): _show_view_panel("Overview"), false)
++		var back := _view_action(panel, "", Rect2(0, 0, 56, 56), key + "Back", func(): _show_view_panel("Overview"), false)
+ 		back.icon = ProductTheme.icon("arrow-left")
+ 		back.expand_icon = true
+ 		back.add_theme_constant_override("icon_max_width", 24)
+-		back.add_theme_constant_override("h_separation", 10)
+-		_label(panel, title, Rect2(202, 0, 750, 48), 26, true)
++		back.tooltip_text = "Display로 돌아가기"
++		_label(panel, key, Rect2(76, 0, 350, 32), 28, true)
++		_label(panel, title, Rect2(76, 34, 500, 26), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 	return panel
+ 
+ func _show_view_panel(key: String):
+@@ -330,54 +342,62 @@
+ 	return slider
+ 
+ func _build_view_position(page: Control):
+-	_label(page, "Distance", Rect2(0, 66, 226, 58), 24, true)
+-	_view_action(page, "−", Rect2(230, 66, 66, 58), "DistanceMinus", func(): main.screen_manager.move_primary_screen(-0.1), true, true)
+-	view_controls.distance_slider = _view_slider(page, Rect2(304, 66, 496, 58), "DistanceSlider", 0.5, 10, 0.1, func(v): main.screen_manager.set_view_distance(v))
+-	view_controls.distance_value = _label(page, "", Rect2(808, 66, 208, 58), 26, true)
+-	view_controls.distance_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+-	_view_action(page, "+", Rect2(1038, 66, 66, 58), "DistancePlus", func(): main.screen_manager.move_primary_screen(0.1), true, true)
+-	view_controls.keep = _view_action(page, "", Rect2(0, 137, 520, 50), "KeepSize", func(): main.screen_manager.set_keep_view_size(not main.screen_manager.keep_view_size), false)
+-	_label(page, "거리 변경 시 가상 크기도 함께 조절", Rect2(552, 137, 552, 50), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+-	_label(page, "Move · 10 cm", Rect2(0, 202, 500, 28), 22, true)
+-	_label(page, "Tilt · 2°", Rect2(568, 202, 536, 28), 22, true)
++	_label(page, "Distance", Rect2(0, 88, 350, 36), 24, true)
++	view_controls.distance_value = _label(page, "", Rect2(488, 84, 288, 44), 30, true)
++	view_controls.distance_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
++	_view_action(page, "−", Rect2(0, 138, 60, 60), "DistanceMinus", func(): main.screen_manager.move_primary_screen(-0.1), true, true)
++	view_controls.distance_slider = _view_slider(page, Rect2(76, 138, 624, 60), "DistanceSlider", 0.5, 10, 0.1, func(v): main.screen_manager.set_view_distance(v))
++	_view_action(page, "+", Rect2(716, 138, 60, 60), "DistancePlus", func(): main.screen_manager.move_primary_screen(0.1), true, true)
++	view_controls.keep = _view_action(page, "", Rect2(0, 218, 380, 58), "KeepSize", func(): main.screen_manager.set_keep_view_size(not main.screen_manager.keep_view_size), false)
++	_label(page, "거리 변경 시\n화면 크기도 함께 조절", Rect2(404, 218, 372, 58), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_line(page, 306)
++	_label(page, "Move · 10 cm", Rect2(0, 330, 376, 32), 22, true)
++	_label(page, "Tilt · 2°", Rect2(416, 330, 360, 32), 22, true)
+ 	var moves := [Vector2(-0.1, 0), Vector2(0.1, 0), Vector2(0, 0.1), Vector2(0, -0.1)]
+ 	var labels := ["←", "→", "↑", "↓"]
+ 	for i in 4:
+-		_view_action(page, labels[i], Rect2(i * 134, 241, 118, 58), "Move%d" % i, func(): main.screen_manager.shift_view(moves[i]), true, true)
+-	_view_action(page, "−", Rect2(568, 241, 106, 58), "TiltMinus", func(): main.screen_manager.tilt_view(-2), true, true)
+-	_view_action(page, "+", Rect2(690, 241, 106, 58), "TiltPlus", func(): main.screen_manager.tilt_view(2), true, true)
+-	_view_action(page, "Level · 수평", Rect2(812, 241, 292, 58), "Level", func(): main.screen_manager.level_view())
+-	view_controls.position_note = _label(page, "", Rect2(0, 310, 1104, 28), 20)
++		_view_action(page, labels[i], Rect2(i * 94, 378, 80, 60), "Move%d" % i, func(): main.screen_manager.shift_view(moves[i]), true, true)
++	_view_action(page, "−", Rect2(416, 378, 80, 60), "TiltMinus", func(): main.screen_manager.tilt_view(-2), true, true)
++	_view_action(page, "+", Rect2(510, 378, 80, 60), "TiltPlus", func(): main.screen_manager.tilt_view(2), true, true)
++	_view_action(page, "Level", Rect2(604, 378, 172, 60), "Level", func(): main.screen_manager.level_view())
++	view_controls.position_note = _label(page, "", Rect2(0, 464, 776, 30), 20)
++	_label(page, "Size · 화면 너비   /   Distance · 가상 거리", Rect2(0, 516, 776, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 
+ func _build_view_presets(page: Control):
+ 	var names := ["Standard", "Cinema", "Reclined", "My view"]
++	var hints := ["평면 · 너비 2.4 m", "완만한 곡면 · 너비 4 m", "현재 시선에 배치", "저장한 화면 불러오기"]
+ 	for i in 4:
+-		var button := _view_action(page, names[i], Rect2((i % 2) * 568, 74 + floori(i / 2.0) * 76, 536, 60), "Preset%d" % i, func(): main.screen_manager.apply_view_preset(names[i]))
++		var button := _view_action(page, "", Rect2((i % 2) * 396, 100 + floori(i / 2.0) * 100, 380, 86), "Preset%d" % i, func(): main.screen_manager.apply_view_preset(names[i]))
++		_tile_labels(button, names[i], hints[i])
+ 		view_controls["preset_%d" % i] = button
+-	_view_action(page, "Save view", Rect2(0, 238, 264, 58), "SaveView", func(): main.screen_manager.save_view(), false)
+-	view_controls.saved_note = _label(page, "", Rect2(288, 238, 816, 58), 22)
+-	_label(page, "Reclined · 현재 시선에 배치   /   Depth·색감 유지", Rect2(0, 308, 1104, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_line(page, 314)
++	_view_action(page, "Save view", Rect2(0, 340, 248, 60), "SaveView", func(): main.screen_manager.save_view(), false)
++	_label(page, "현재 배치를 My view에 저장", Rect2(272, 340, 504, 60), 22)
++	view_controls.saved_note = _label(page, "", Rect2(0, 426, 776, 36), 20)
++	_label(page, "화면 배치만 적용 · Depth와 색감 유지", Rect2(0, 508, 776, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 
+ func _build_view_environment(page: Control):
+-	_label(page, "Curve", Rect2(0, 66, 170, 58), 24, true)
++	_label(page, "Curve", Rect2(0, 84, 776, 36), 24, true)
+ 	for i in 3:
+ 		var labels := ["Flat", "Gentle", "Curved"]
+-		view_controls["curve_%d" % i] = _view_action(page, labels[i], Rect2(190 + i * 304, 66, 288, 58), "Curve%d" % i, func(): main.screen_manager.set_view_curve(i))
++		view_controls["curve_%d" % i] = _view_action(page, labels[i], Rect2(i * 264, 132, 248, 58), "Curve%d" % i, func(): main.screen_manager.set_view_curve(i))
+ 	var options := Control.new()
+ 	options.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(options, page, Rect2(0, 134, 1104, 206))
++	_rect(options, page, Rect2(0, 220, 776, 330))
+ 	var definitions := [[main._ui_bezel_btn, "Bezel"], [main._ui_pt_btn, "Passthrough"], [main._ui_bg_btn, "Background"], [main._ui_ambient_btn, "Ambient"], [main._ui_ambient_color_btn, "조명 색"]]
+-	for i in definitions.size(): _option(options, definitions[i][0], definitions[i][1], i)
++	for i in definitions.size(): _option(options, definitions[i][0], definitions[i][1], i, 66)
+ 
+ func _build_view_framing(page: Control):
+-	_label(page, "좌우 눈 동일 적용 · 영상 안 자막도 잘림", Rect2(0, 62, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(page, "좌우 눈 동일 적용 · 영상 안 자막도 잘림", Rect2(0, 88, 776, 32), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 	for i in 2:
+ 		var key := "crop_top" if i == 0 else "crop_bottom"
+-		_label(page, "Top" if i == 0 else "Bottom", Rect2(0, 112 + i * 76, 180, 60), 24, true)
+-		view_controls[key] = _view_slider(page, Rect2(188, 112 + i * 76, 700, 60), key, 0, 25, 0.5, func(v): main.screen_manager.set_view_crop(v / 100.0 if i == 0 else main.screen_manager.crop_top, v / 100.0 if i == 1 else main.screen_manager.crop_bottom))
+-		view_controls[key + "_value"] = _label(page, "", Rect2(924, 112 + i * 76, 180, 60), 26, true)
+-	_view_action(page, "Fit · 원본 복원", Rect2(0, 274, 284, 58), "RestoreFraming", func(): main.screen_manager.set_view_crop(0, 0))
+-	view_controls.framing_note = _label(page, "", Rect2(308, 274, 796, 58), 20)
++		var y := 152 + i * 128
++		_label(page, "Top" if i == 0 else "Bottom", Rect2(0, y, 350, 36), 24, true)
++		view_controls[key + "_value"] = _label(page, "", Rect2(536, y, 240, 36), 28, true)
++		view_controls[key + "_value"].horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
++		view_controls[key] = _view_slider(page, Rect2(0, y + 44, 776, 60), key, 0, 25, 0.5, func(v): main.screen_manager.set_view_crop(v / 100.0 if i == 0 else main.screen_manager.crop_top, v / 100.0 if i == 1 else main.screen_manager.crop_bottom))
++	_view_action(page, "Fit · 원본 복원", Rect2(0, 424, 280, 60), "RestoreFraming", func(): main.screen_manager.set_view_crop(0, 0))
++	view_controls.framing_note = _label(page, "", Rect2(308, 424, 468, 60), 20)
+ 
+ func _refresh_view():
+ 	var sm = main.screen_manager
+@@ -418,6 +438,10 @@
+ 	for key in ["menu_size", "pointer_size", "pointer_contrast"]:
+ 		if not view_controls.has(key): continue
+ 		view_controls[key].text = ("%.0f%%" % (sm.menu_scale * 100.0)) if key == "menu_size" else (("%.0f%%" % (sm.pointer_scale * 100.0)) if key == "pointer_size" else ("High" if sm.pointer_contrast else "Normal"))
++	for key in ["preset_0", "preset_1", "preset_2", "preset_3"]:
++		if view_controls.has(key):
++			for child in view_controls[key].get_children():
++				if child is Label: child.modulate.a = 0.45 if view_controls[key].disabled else 1.0
+ 	for key in ["size_slider", "distance_slider", "crop_top", "crop_bottom"]:
+ 		if view_controls.has(key) and view_controls[key].disabled:
+ 			view_controls[key].dragging = false
+@@ -436,20 +460,22 @@
+ func _subpages(page: Control, labels: Array, titles: Array) -> Array:
+ 	var bodies: Array = []
+ 	var buttons: Array[Button] = []
++	var width := 600.0 if page == pages[2] or page == pages[6] else 776.0
+ 	var bar := Panel.new()
+ 	bar.name = "SubnavSurface"
+ 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ 	bar.add_theme_stylebox_override("panel", ProductTheme.surface(ProductTheme.PANEL, 12, 0))
+-	_rect(bar, page, Rect2(0, 0, 1104, 54))
+-	var heading := _label(page, titles[0], Rect2(0, 68, 1104, 30), 24, true)
++	_rect(bar, page, Rect2(0, 0, width, 60))
++	var heading := _label(page, titles[0], Rect2(0, 84, 776, 32), 24, true)
+ 	heading.name = "SectionHeading"
+ 	for i in labels.size():
+ 		var body := Control.new()
+ 		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-		_rect(body, page, Rect2(0, 112, 1104, 224))
++		_rect(body, page, Rect2(0, 140, 776, 414))
+ 		body.visible = i == 0
+ 		bodies.append(body)
+-		var button := _button(page, labels[i], Rect2(6 + i * 202, 5, 196, 44))
++		var slot := (width - 8.0) / labels.size()
++		var button := _button(page, labels[i], Rect2(4 + i * slot, 4, slot - 4, 52))
+ 		button.add_theme_font_size_override("font_size", 22)
+ 		button.set_meta("precision_subpage", i)
+ 		buttons.append(button)
+@@ -463,16 +489,14 @@
+ 		_style_subtab(button, i == 0)
+ 	return bodies
+ 
+-func _option(parent: Control, button: Button, caption: String, index: int):
+-	var x := float(index % 2) * 568
+-	var y := floorf(float(index) / 2.0) * 74
+-	var label := _label(parent, caption, Rect2(x, y, 172, 58), 22)
++func _option(parent: Control, button: Button, caption: String, index: int, stride: float = 76):
++	var y := index * stride
++	var label := _label(parent, caption, Rect2(0, y, 302, 58), 22)
+ 	button.set_meta("precision_caption", label)
+ 	button.set_meta("precision_caption_fixed", caption)
+ 	var pieces := button.text.split("\n")
+-	if pieces.size() >= 2:
+-		button.text = ProductTheme.text(pieces[1])
+-	_rect(button, parent, Rect2(x + 176, y, 360, 58))
++	if pieces.size() >= 2: button.text = ProductTheme.text(pieces[1])
++	_rect(button, parent, Rect2(326, y, 450, 58))
+ 	button.add_theme_font_size_override("font_size", 22)
+ 	button.add_theme_color_override("font_color", ProductTheme.TEXT)
+ 	button.add_theme_color_override("font_hover_color", ProductTheme.ACCENT)
+@@ -485,69 +509,95 @@
+ 	return main.PC_SBS_BUILD or main.settings.host.pc_profile_resolution != Vector2i.ZERO
+ 
+ func _build_spatial(page: Control):
+-	_label(page, "Depth · 입체감", Rect2(0, 0, 1104, 42), 26, true)
+-	var body := Control.new()
+-	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(body, page, Rect2(0, 64, 1104, 264))
+-	_mode_depth(body, 0)
+-	if not _is_pc_profile():
+-		_option(body, main._ui_sbs_btn, "SBS", 4)
+-	var note := _label(body, "윤곽이 겹치면 Depth 낮추기", Rect2(480, 108, 624, 32), 20)
++	_mode_depth(page, 0)
++	var note := _label(page, "윤곽이 겹치면 Depth 낮추기", Rect2(0, 270, 776, 32), 20)
+ 	note.name = "DepthHelp"
+ 	note.add_theme_color_override("font_color", ProductTheme.MUTED)
+-	_label(body, "윤곽 안정화 · PC Display에서 조절", Rect2(0, 202, 1104, 42), 22).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_line(page, 344)
++	_label(page, "윤곽 안정화", Rect2(0, 370, 776, 40), 24, true)
++	_label(page, "PC → Display에서 조절", Rect2(0, 416, 776, 32), 22).add_theme_color_override("font_color", ProductTheme.MUTED)
++	if not _is_pc_profile():
++		_option(page, main._ui_sbs_btn, "SBS", 6)
+ 
+ func _build_quality(page: Control):
+ 	var parts := _subpages(page, ["Sharpness", "Color", "Tint", "Stream"], ["선명도와 샘플링", "밝기와 명암", "색온도와 색조", "영상 전송"])
+ 	_option(parts[0], main._ui_sharpen_btn, "Sharpening", 0)
+ 	_option(parts[0], main.settings_controller._video_sampling_button, "Sampling", 1)
+-	_rect(ui._stream_resolution_note, parts[0], Rect2(0, 74, 1104, 40))
++	_rect(ui._stream_resolution_note, parts[0], Rect2(0, 168, 776, 40))
+ 	ui._stream_resolution_note.add_theme_color_override("font_color", ProductTheme.TEXT)
+ 	ui._stream_resolution_note.add_theme_font_size_override("font_size", 24)
+-	_label(parts[0], "Quality: 영상 보정 · Runtime Quality: Quest 화면 합성", Rect2(0, 128, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+-	_label(parts[0], "Current: 현재 선명도 유지 · Supersample: 확대 샘플링", Rect2(0, 174, 1104, 32), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	ui._stream_resolution_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
++	_label(parts[0], "Quality · 영상 보정", Rect2(0, 244, 776, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(parts[0], "Runtime Quality · Quest 화면 합성", Rect2(0, 282, 776, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(parts[0], "Current · 현재 샘플링   /   Supersample · 확대 샘플링", Rect2(0, 340, 776, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 	var color_controls := [[main._ui_brightness_btn, "Brightness"], [main._ui_contrast_btn, "Contrast"], [main._ui_gamma_btn, "Gamma"]]
+-	for i in color_controls.size():
+-		_option(parts[1], color_controls[i][0], color_controls[i][1], i)
+-	# Reuse actual color buttons with their original pressed bindings.
+-	var root := main.get_node("%UIRoot")
+-	for i in 5:
+-		var names := ["ColorCooler", "ColorWarmer", "ColorGreener", "ColorMagenta", "ColorReset"]
+-		var captions := ["색온도 −", "색온도 +", "초록빛", "자홍빛", "색조 복원"]
+-		var button: Button = root.find_child(names[i], true, false)
+-		_option(parts[2], button, captions[i], i)
++	for i in color_controls.size(): _option(parts[1], color_controls[i][0], color_controls[i][1], i)
++	_build_tint(parts[2])
+ 	for i in 4:
+ 		var buttons := [main._ui_res_btn, main._ui_fps_btn, main._ui_bitrate_btn, main._ui_codec_btn]
+ 		var captions := ["Eye Resolution", "FPS", "Bitrate", "Codec"]
+ 		_option(parts[3], buttons[i], captions[i], i)
+-	_label(parts[3], "전송 설정 변경 시 영상 재연결 가능", Rect2(0, 180, 1104, 38), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_stream_info = _label(parts[3], "", Rect2(0, 310, 776, 40), 24)
++	_stream_info.name = "StreamEyeInfo"
++	_label(parts[3], "전송 설정 변경 시 영상 재연결 가능", Rect2(0, 366, 776, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++
++func _build_tint(body: Control):
++	var root := main.get_node("%UIRoot")
++	for i in 2:
++		var y := i * 148
++		_label(body, "Temperature" if i == 0 else "Tint", Rect2(0, y, 536, 36), 24, true)
++		var value := _label(body, "+0", Rect2(536, y, 240, 36), 28, true)
++		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
++		_tint_values.append(value)
++		var names := ["ColorCooler", "ColorWarmer"] if i == 0 else ["ColorGreener", "ColorMagenta"]
++		var captions := ["차갑게", "따뜻하게"] if i == 0 else ["초록빛", "자홍빛"]
++		for j in 2:
++			var button: Button = root.find_child(names[j], true, false)
++			_rect(button, body, Rect2(j * 396, y + 50, 380, 60))
++			_style_button(button, false, true)
++			button.pressed.connect(refresh_labels)
++			_tint_buttons[button] = captions[j]
++	var reset: Button = root.find_child("ColorReset", true, false)
++	_rect(reset, body, Rect2(0, 318, 280, 60))
++	_style_button(reset, false, true)
++	reset.pressed.connect(refresh_labels)
++	_tint_buttons[reset] = "Reset · 색조 복원"
++	_label(body, "밝기와 명암 유지", Rect2(308, 318, 468, 60), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 
+ func _build_connection(page: Control):
+-	_rect(main._ui_host_label, page, Rect2(0, 0, 1104, 48))
++	_rect(main._ui_host_label, page, Rect2(0, 0, 776, 52))
+ 	main._ui_host_label.add_theme_color_override("font_color", ProductTheme.TEXT)
+ 	main._ui_host_label.add_theme_font_size_override("font_size", 28)
++	main._ui_host_label.clip_text = true
+ 	var center := _button(page, "Center", Rect2())
+ 	center.button_down.connect(func(): main.screen_manager.center_view())
+ 	geometry_buttons.append(center)
+ 	var actions := [[center, "화면 정렬"], [main._ui_stats_btn, "성능 표시"], [main._ui_disconnect_btn, "연결 해제"], [main._ui_exit_btn, "앱 종료"]]
+ 	for i in actions.size():
+ 		var button: Button = actions[i][0]
+-		_rect(button, page, Rect2(i * 278, 66, 258, 62))
++		_rect(button, page, Rect2((i % 2) * 396, 80 if i < 2 else 418, 380, 60))
+ 		button.text = actions[i][1]
+ 		button.add_theme_font_size_override("font_size", 24)
+ 		_style_button(button, false, true)
+-	_option(page, main._ui_quick_start_btn, "빠른 연결", 4)
+-	_option(page, main._ui_host_cursor_btn, "PC 마우스", 5)
+-	var controller := _button(page, "Menu / Pointer", Rect2(0, 244, 240, 48))
++	var options := Control.new()
++	options.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	_rect(options, page, Rect2(0, 174, 776, 134))
++	_option(options, main._ui_quick_start_btn, "빠른 연결", 0)
++	_option(options, main._ui_host_cursor_btn, "PC 마우스", 1)
++	var controller := _button(page, "Menu / Pointer", Rect2(0, 332, 380, 60))
+ 	controller.button_down.connect(ui.switch_tab.bind(2))
+-	var advanced := _button(page, "연결 설정", Rect2(258, 244, 240, 48))
++	_style_button(controller, false, true)
++	var advanced := _button(page, "연결 설정", Rect2(396, 332, 380, 60))
+ 	advanced.button_down.connect(ui.switch_tab.bind(6))
++	_style_button(advanced, false, true)
+ 
+ func _build_controller(page: Control):
+-	var back := _button(page, "Connect", Rect2(0, 0, 160, 48), "arrow-left")
++	var back := _button(page, "Connect", Rect2(0, 0, 160, 56), "arrow-left")
+ 	back.button_down.connect(ui.switch_tab.bind(1))
+ 	var parts := _subpages(page, ["Pointer", "Menu", "Input"], ["포인터", "설정창 크기와 위치", "컨트롤러"])
+-	back.position.x = 944
++	back.position.x = 616
++	back.add_theme_constant_override("h_separation", 8)
++	back.add_theme_font_size_override("font_size", 22)
+ 	page.move_child(back, -1)
+ 	_option(parts[0], main._ui_cursor_btn, "모양", 0)
+ 	_option(parts[0], main._ui_steady_btn, "떨림 보정", 1)
+@@ -559,38 +609,40 @@
+ 		var sm = main.screen_manager
+ 		sm.set_pointer_style(sm.pointer_scale, not sm.pointer_contrast), false)
+ 	_option(parts[0], view_controls.pointer_contrast, "대비", 3)
+-	_label(parts[0], "설정창 포인터 · PC 마우스와 별도", Rect2(0, 178, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(parts[0], "설정창 포인터 · PC 마우스와 별도", Rect2(0, 328, 776, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 	view_controls.menu_size = _view_action(parts[1], "", Rect2(), "MenuSize", func():
+ 		var sm = main.screen_manager
+ 		sm.set_menu_scale(0.85 if sm.menu_scale >= 1.2 else (1.2 if sm.menu_scale >= 1.0 else 1.0)), false)
+ 	_option(parts[1], view_controls.menu_size, "크기", 0)
+ 	var recenter := _view_action(parts[1], "Center", Rect2(), "MenuCenter", func(): main.screen_manager.center_menu(), false)
+ 	_option(parts[1], recenter, "정면 배치", 1)
+-	_label(parts[1], "위치 이동 · 설정창 하단 손잡이", Rect2(0, 110, 1104, 36), 22).add_theme_color_override("font_color", ProductTheme.MUTED)
+-	_label(parts[1], "PC 영상 크기와 별도", Rect2(0, 162, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(parts[1], "위치 이동 · 설정창 하단 손잡이", Rect2(0, 192, 776, 36), 22).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(parts[1], "PC 영상 크기와 별도", Rect2(0, 244, 776, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 	_option(parts[2], main._ui_hand_tracking_btn, "손 추적", 0)
+ 	_option(parts[2], main._ui_primary_btn, "주 사용 손", 1)
+ 	if not _is_pc_profile():
+-		var more := _button(parts[2], "버튼 설정", Rect2(0, 176, 240, 58))
++		var more := _button(parts[2], "버튼 설정", Rect2(0, 240, 240, 58))
+ 		more.button_down.connect(func():
+ 			main.controller_mapper.check_toggle_ui()
+ 		)
+ 
+ func _build_advanced(page: Control):
+-	var back := _button(page, "Connect", Rect2(0, 0, 160, 48), "arrow-left")
++	var back := _button(page, "Connect", Rect2(0, 0, 160, 56), "arrow-left")
+ 	back.button_down.connect(ui.switch_tab.bind(1))
+ 	if _is_pc_profile():
+-		var title := _label(page, "연결 설정", Rect2(0, 76, 1104, 40), 26, true)
++		var title := _label(page, "연결 설정", Rect2(0, 88, 776, 40), 26, true)
+ 		title.name = "ConnectionSettingsTitle"
+ 		var body := Control.new()
+ 		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-		_rect(body, page, Rect2(0, 134, 1104, 196))
++		_rect(body, page, Rect2(0, 156, 776, 196))
+ 		_option(body, main._ui_reconnect_btn, "자동 재연결", 0)
+ 		_option(body, main._ui_idle_btn, "미사용 연결 해제", 1)
+ 		return
+ 	var parts := _subpages(page, ["Reconnect", "Input"], ["자동 연결", "컨트롤러 입력"])
+ 	# The ordinary-host input settings retain the original controls and behavior.
+-	back.position.x = 938
++	back.position.x = 616
++	back.add_theme_constant_override("h_separation", 8)
++	back.add_theme_font_size_override("font_size", 22)
+ 	page.move_child(back, -1)
+ 	_option(parts[0], main._ui_reconnect_btn, "자동 재연결", 0)
+ 	_option(parts[0], main._ui_idle_btn, "미사용 연결 해제", 1)
+@@ -641,6 +693,14 @@
+ 		ui.refresh_ui_buttons()
+ 
+ func refresh_labels():
++	for button in _tint_buttons:
++		if is_instance_valid(button): button.text = _tint_buttons[button]
++	if _tint_values.size() == 2:
++		_tint_values[0].text = "%+d" % main.settings.host.picture_temperature
++		_tint_values[1].text = "%+d" % main.settings.host.picture_tint
++	if is_instance_valid(_stream_info):
++		_stream_info.text = ui._stream_resolution_note.text
++		_stream_info.tooltip_text = ui._stream_resolution_note.tooltip_text
+ 	for button in option_buttons:
+ 		if not is_instance_valid(button):
+ 			continue
+--- /dev/null
++++ b/test/test_compact_settings.gd
+@@ -0,0 +1,169 @@
++extends SceneTree
++
++# Full production UI and real panel collider, with networking/startup omitted.
++class QuietMain extends "res://main.gd":
++	func _ready(): pass
++	func _process(_delta): pass
++	func _notification(_what): pass
++
++class RecordedState extends StateManager:
++	var saves := 0
++	func save_state(): saves += 1
++
++var app
++var ray: RayCast3D
++var checks := 0
++var pages_checked := 0
++
++func _init(): _run.call_deferred()
++
++func check(condition: bool, message: String):
++	checks += 1
++	assert(condition, message)
++
++func hit(pixel: Vector2) -> Vector3:
++	return app.ui_panel_3d.to_global(Vector3(
++		(pixel.x / app._ui_viewport_size.x - 0.5) * app._ui_mesh_size.x,
++		(0.5 - pixel.y / app._ui_viewport_size.y) * app._ui_mesh_size.y, 0))
++
++func click(button: Button):
++	check(button.is_visible_in_tree() and not button.disabled, "Navigation is available: " + str(button.name))
++	var target := hit(button.get_global_rect().get_center())
++	app.xr_interaction._route_menu_pointer(target, true, ray)
++	await process_frame
++	app.xr_interaction._route_menu_pointer(target, false, ray)
++	await process_frame
++
++func inspect_page():
++	pages_checked += 1
++	var visible: Array[Button] = []
++	var root: Control = app.get_node("%UIRoot")
++	var bounds := Rect2(Vector2.ZERO, app._ui_viewport_size)
++	var footer: Control = app.ui_viewport.find_child("CompGrabBar", true, false)
++	var content_bounds := Rect2(0, 0, 840, footer.get_global_rect().position.y)
++	for node in root.find_children("*", "Control", true, false):
++		if not node.is_visible_in_tree(): continue
++		if node is Label or node is Button:
++			check(bounds.encloses(node.get_global_rect()), "Visible control remains in panel: " + str(node.get_path()))
++		if node is Label:
++			check(node.get_theme_font_size("font_size") >= 18, "Readable helper text: " + str(node.get_path()))
++		if node is Button:
++			check(content_bounds.encloses(node.get_global_rect()), "Button never overlaps fixed drag footer: " + str(node.name))
++			check(node.size.x >= 48 and node.size.y >= 48, "Controller target has useful size: " + str(node.name))
++			visible.append(node)
++	for i in visible.size():
++		for j in range(i + 1, visible.size()):
++			check(not visible[i].get_global_rect().intersects(visible[j].get_global_rect()), "No overlapping interactive targets: %s / %s" % [visible[i].name, visible[j].name])
++		# Verify actual physics hit and inverse coordinate mapping at centre plus
++		# opposite inset corners, including controls at the new panel extremities.
++		var rect := visible[i].get_global_rect()
++		for pixel in [rect.get_center(), rect.position + Vector2(8, 8), rect.end - Vector2(8, 8)]:
++			var target := hit(pixel)
++			ray.global_position = app.xr_camera.global_position
++			ray.target_position = ray.to_local(target) * 1.05
++			ray.force_raycast_update()
++			check(ray.is_colliding(), "Physics target reachable: " + str(visible[i].name))
++			check(app.xr_interaction._menu_pixel_from_hit(target).is_equal_approx(pixel), "Visible and logical target agree: " + str(visible[i].name))
++	check(footer.get_global_rect().size.x >= 300 and footer.size.y >= 48, "Bottom handle remains easy to grab")
++
++func _run():
++	app = load("res://main.tscn").instantiate()
++	app.set_script(QuietMain)
++	root.add_child(app)
++	app.screen_mesh.setup(app)
++	app.screen_mesh.curvature = 0
++	app.screen_mesh.create_corner_handles()
++	app.screen_registry.initialize(app.screen_mesh)
++	app.layout = ScreenLayout.new()
++	app.screen_manager = ScreenManager.new(app)
++	app.settings_controller = SettingsController.new(app)
++	app.controller_mapper = ControllerMapper.new(app)
++	app.add_child(app.controller_mapper)
++	app.state_manager = RecordedState.new(app)
++	app.pc_control = PcControl.new(app)
++	app.xr_interaction = XRInteraction.new(app)
++	app.xr_camera = XRCamera3D.new()
++	app.add_child(app.xr_camera)
++	app.ui_controller = UIController.new(app)
++	app.settings.host.pc_profile_resolution = Vector2i(4096, 1152)
++	app.ui_panel_3d.position = Vector3(0.1, 0.1, -1.5)
++	app.ui_panel_3d.rotation = Vector3(0.06, 0.1, 0.0)
++	app.ui_visible = true
++	app.ui_panel_3d.show()
++	ray = RayCast3D.new()
++	ray.collide_with_areas = true
++	ray.collide_with_bodies = false
++	ray.collision_mask = 2
++	app.add_child(ray)
++	app.mouse_raycast = ray
++	app.ui_controller.build_ui()
++	await process_frame
++	await physics_frame
++	check(app.ui_viewport.size == Vector2i(840, 820), "Compact nearly square viewport")
++	check(app.ui_viewport.size.x * app.ui_viewport.size.y <= 1200 * 580, "Settings texture does not grow")
++	check((Vector2(app.ui_viewport.size) / app._ui_mesh_size).is_equal_approx(Vector2(1000, 1000)), "Original pixel density and non-stretched geometry")
++	check(app.ui_panel_3d.mesh.size == app._ui_mesh_size, "Actual scene mesh uses compact aspect")
++	var precision: PrecisionUI = app.ui_controller.precision
++	var current_width: float = app.primary_screen.mesh_size.x
++	for scale_value in [0.85, 1.0, 1.2]:
++		app.screen_manager.set_menu_scale(scale_value)
++		await physics_frame
++		for tab in [0, 3, 4, 1, 2, 6]:
++			app.ui_controller.switch_tab(tab)
++			await process_frame
++			inspect_page()
++			for child in precision.pages[tab].get_children():
++				if child is Button and child.has_meta("precision_subpage"):
++					await click(child)
++					inspect_page()
++		app.ui_controller.switch_tab(0)
++		for panel in ["Position", "Views", "Environment", "Framing"]:
++			precision._show_view_panel("Overview")
++			await process_frame
++			await click(precision.view_panels.Overview.get_node(panel + "Open"))
++			check(precision.view_panels[panel].is_visible_in_tree(), "Real ray opens " + panel)
++			inspect_page()
++			await click(precision.view_panels[panel].get_node(panel + "Back"))
++			check(precision.view_panels.Overview.is_visible_in_tree(), "Real ray returns to Display")
++	check(app.primary_screen.mesh_size.x == current_width, "Browsing and menu scale never resize the video")
++	check(not app.controller_mapper.active, "Navigation never enables excluded PC input")
++	# Long host names and status messages must not widen the shell or shift its footer.
++	app.ui_controller.switch_tab(1)
++	app._ui_host_label.text = "PC-" + "LongHostName".repeat(8)
++	app._ui_status_label.text = "연결 상태와 실제 영상 수신 정보를 확인하는 중 ".repeat(10)
++	await process_frame
++	inspect_page()
++	check(app.ui_viewport.find_child("Panel", true, false).size == Vector2(840, 820), "Dynamic text cannot widen the panel")
++	# The stream information shown under Sharpness is also available in Stream.
++	app.ui_controller._stream_resolution_note.text = "Eye 2048×1152 · 16:9 · Native"
++	precision.refresh_labels()
++	check(precision._stream_info.text == app.ui_controller._stream_resolution_note.text, "Stream reports the same observed eye information")
++	# Tint's paired actions retain the original settings-controller bindings,
++	# step size, limits and reset scope while the value is shown only once.
++	app.ui_controller.switch_tab(4)
++	for button in precision.pages[4].get_children():
++		if button is Button and button.get_meta("precision_subpage", -1) == 2:
++			await click(button)
++	var warmer: Button = app.ui_viewport.find_child("ColorWarmer", true, false)
++	var cooler: Button = app.ui_viewport.find_child("ColorCooler", true, false)
++	var magenta: Button = app.ui_viewport.find_child("ColorMagenta", true, false)
++	var reset: Button = app.ui_viewport.find_child("ColorReset", true, false)
++	var old_temperature: int = app.settings.host.picture_temperature
++	await click(warmer)
++	check(app.settings.host.picture_temperature == old_temperature + PictureColor.STEP, "Actual warmer action keeps original step")
++	check(precision._tint_values[0].text == "%+d" % app.settings.host.picture_temperature and warmer.text == "따뜻하게", "Immediate readout and action caption remain distinct")
++	await click(cooler)
++	check(app.settings.host.picture_temperature == old_temperature, "Paired temperature action reverses")
++	await click(magenta)
++	check(app.settings.host.picture_tint == PictureColor.STEP, "Tint action changes tint only")
++	app.settings.brightness_pct = 10
++	await click(reset)
++	check(app.settings.host.picture_temperature == 0 and app.settings.host.picture_tint == 0 and app.settings.brightness_pct == 10, "Reset preserves brightness and resets only temperature/tint")
++	app.settings.host.picture_temperature = PictureColor.LIMIT
++	app.settings_controller.refresh_color_balance_controls()
++	precision.refresh_labels()
++	check(warmer.disabled and not cooler.disabled, "Limit disables only the exhausted direction")
++	inspect_page()
++	app.free()
++	print("COMPACT_SETTINGS PASS pages=", pages_checked, " checks=", checks, " real ray navigation, target bounds and preserved video settings")
++	quit()
+--- a/test/test_precision_ui.gd
++++ b/test/test_precision_ui.gd
+@@ -51,7 +51,7 @@
+ 			_check_bounds(child, bounds)
+ 
+ func _run():
+-	# Instantiate the real complete 1200x580 menu scene, without startup/network.
++	# Instantiate the real complete 840x820 menu scene, without startup/network.
+ 	var app = load("res://main.tscn").instantiate()
+ 	app.set_script(QuietMain)
+ 	root.add_child(app)
+@@ -85,26 +85,26 @@
+ 
+ 	var bar: Control = app.ui_viewport.find_child("CompGrabBar", true, false)
+ 	var initial_rect := bar.get_global_rect()
+-	assert(initial_rect == Rect2(300, 530, 600, 44))
++	assert(initial_rect == Rect2(260, 756, 320, 56))
+ 	assert(bar.get_node("MenuMoveLabel").text == "메뉴 이동")
+ 	var panel: Control = app.ui_viewport.find_child("Panel", true, false)
+-	assert(panel.size == Vector2(1200, 580))
++	assert(panel.size == Vector2(840, 820))
+ 	var precision = app.ui_controller.precision
+ 	for id in [0, 1, 2, 3, 4, 6]:
+ 		app.ui_controller.switch_tab(id)
+ 		await process_frame
+-		_check_bounds(precision.pages[id], Rect2(0, 0, 1200, 530))
++		_check_bounds(precision.pages[id], Rect2(0, 0, 840, 756))
+ 		for child in precision.pages[id].get_children():
+ 			if child is Button and child.has_meta("precision_subpage"):
+ 				child.button_down.emit()
+ 				await process_frame
+-				_check_bounds(precision.pages[id], Rect2(0, 0, 1200, 530))
++				_check_bounds(precision.pages[id], Rect2(0, 0, 840, 756))
+ 	assert(precision.tabs.size() == 4)
+ 	app.ui_controller.switch_tab(0)
+ 	for name in precision.view_panels:
+ 		precision._show_view_panel(name)
+ 		await process_frame
+-		_check_bounds(precision.pages[0], Rect2(0, 0, 1200, 530))
++		_check_bounds(precision.pages[0], Rect2(0, 0, 840, 756))
+ 	precision._show_view_panel("Overview")
+ 	assert(ProductTheme.BG.r < 0.15 and ProductTheme.TEXT.r > 0.9, "Menu dark theme only")
+ 	var expected_tabs := ["Display", "3D", "Quality", "Connect"]
+@@ -130,7 +130,7 @@
+ 		if child is Button and child.get_meta("precision_subpage", -1) == 0:
+ 			child.button_down.emit()
+ 	var depth_help: Label = precision.pages[3].find_child("DepthHelp", true, false)
+-	assert(depth_help.position.x == 480 and depth_help.position.y >= 100, "Depth hint belongs immediately below the Depth column")
++	assert(depth_help.position.x == precision.depth_buttons[0].position.x and depth_help.position.y >= precision.depth_sliders[0].get_rect().end.y, "Depth hint belongs immediately below the Depth controls")
+ 	assert(not app._ui_sbs_btn.is_visible_in_tree(), "PC SBS format is not an actionable button")
+ 	assert(precision.pages[3].find_child("SbsFormatStatus", true, false) == null, "PC page has no redundant format status row")
+ 	for id in [2, 6]:
+@@ -170,7 +170,7 @@
+ 	var slider = precision.depth_sliders[0]
+ 	var event := InputEventMouseButton.new()
+ 	event.button_index = MOUSE_BUTTON_LEFT
+-	event.position = Vector2(150, 30)
++	event.position = slider.size * 0.5
+ 	event.pressed = true
+ 	slider.gui_input.emit(event)
+ 	assert(cm.requests.size() == 1)
+@@ -219,7 +219,7 @@
+ 	assert(pointer._is_ui_grab_bar(pixel))
+ 	assert(not pointer._is_ui_grab_bar(initial_rect.position - Vector2(1, 1)))
+ 	assert(not pointer._is_ui_grab_bar(Vector2(NAN, 1)))
+-	assert(not pointer._is_ui_grab_bar(Vector2(600, 581)))
++	assert(not pointer._is_ui_grab_bar(Vector2(420, 821)))
+ 	var style: StyleBoxFlat = bar.get_theme_stylebox("panel")
+ 	var idle_alpha: float = style.bg_color.a
+ 	app.set_comp_grab_bar_color(app.ui_viewport, Color(1, 1, 1, .25))
+--- a/test/test_usability_regression.gd
++++ b/test/test_usability_regression.gd
+@@ -62,7 +62,7 @@
+ 			_check_bounds(child, bounds)
+ 
+ func _run():
+-	# Instantiate the real complete 1200x580 menu scene, without startup/network.
++	# Instantiate the real complete 840x820 menu scene, without startup/network.
+ 	var app = load("res://main.tscn").instantiate()
+ 	app.set_script(QuietMain)
+ 	root.add_child(app)
+@@ -117,7 +117,7 @@
+ 	info["saves_after_click"] = state.saves
+ 	print("USABILITY_PROBE ", JSON.stringify(info))
+ 	if "--expect-fixed" in OS.get_cmdline_user_args():
+-		assert(info.depth_hint_x == 480.0)
++		assert(info.depth_hint_x == precision.depth_buttons[0].position.x)
+ 		app.ui_controller.switch_tab(3)
+ 		await process_frame
+ 		var hint_rect := hint.get_global_rect()
+@@ -125,7 +125,7 @@
+ 		var minus_row: Rect2 = precision.depth_buttons[0].get_global_rect()
+ 		assert(hint_rect.position.x == minus_row.position.x, "Help aligns to its Depth control column")
+ 		assert(hint_rect.position.y >= maxf(depth_row.end.y, minus_row.end.y), "Help sits below the real Depth controls")
+-		_check_bounds(precision.pages[3], Rect2(0, 0, 1200, 530))
++		_check_bounds(precision.pages[3], Rect2(0, 0, 840, 756))
+ 
+ 		assert(not info.sbs_clickable_visible)
+ 		assert(not info.mapping_button_visible)
+--- a/test/test_menu_pointer_visibility.gd
++++ b/test/test_menu_pointer_visibility.gd
+@@ -41,6 +41,11 @@
+ 	root.add_child(app)
+ 	app.screen_registry.initialize(app.screen_mesh)
+ 	app.screen_manager = ScreenManager.new(app)
++	# Mirror build_ui's geometry setup for this isolated compositor fixture.
++	# The complete real settings scene is covered by test_compact_settings.
++	app.ui_viewport.size = app._ui_viewport_size
++	app.ui_panel_3d.mesh.size = app._ui_mesh_size
++	app.ui_panel_3d.get_node("Area3D/CollisionShape3D").shape.size = Vector3(app._ui_mesh_size.x + 0.2, app._ui_mesh_size.y + 0.2, 0.05)
+ 	app.screen_mesh.position = Vector3(0, 0, -3)
+ 	app.composition_environment = AvailableEnvironment.new()
+ 	app.virtual_keyboard = VirtualKeyboard.new(app)
+--- a/test/render_product_ui.gd
++++ b/test/render_product_ui.gd
+@@ -42,7 +42,7 @@
+ 	return app.ui_panel_3d.to_global(local)
+ 
+ func _run():
+-	# Instantiate the real complete 1200x580 menu scene, without startup/network.
++	# Instantiate the real complete 840x820 menu scene, without startup/network.
+ 	var app = load("res://main.tscn").instantiate()
+ 	app.set_script(QuietMain)
+ 	root.add_child(app)

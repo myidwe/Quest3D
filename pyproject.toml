@@ -1,0 +1,51 @@
+[project]
+name = "quest3d"
+version = "0.1.0"
+description = "Local Windows to Quest stereo desktop and media host"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch==2.7.1+cu126",
+    "torchvision==0.22.1+cu126",
+    "numpy==2.2.6",
+    "opencv-python-headless==4.11.0.86",
+    "pillow==11.2.1",
+    "av==15.0.0",
+    "mss==10.1.0",
+    "psutil==7.0.0",
+    "PySide6-Essentials==6.8.3",
+    "safetensors==0.6.2",
+]
+
+[project.optional-dependencies]
+gpu-capture = ["wc-cuda==0.1.2+quest1"]
+
+[project.scripts]
+quest3d = "quest3d.cli:main"
+
+[dependency-groups]
+dev = ["pytest==8.4.2"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quest3d"]
+
+[tool.uv]
+environments = ["sys_platform == 'win32' and platform_machine == 'AMD64'"]
+cache-dir = ".cache/uv"
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }
+wc-cuda = { path = "vendor/wheels/wc_cuda-0.1.2+quest1-cp310-abi3-win_amd64.whl" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["gpu: requires the local CUDA GPU", "capture: reads the real Windows desktop"]

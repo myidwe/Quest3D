@@ -1,0 +1,6 @@
+[configuration]
+entry_symbol = "stream_retirement_probe_init"
+compatibility_minimum = "4.7"
+[libraries]
+linux.debug.x86_64 = "res://libstream_retirement_probe.so"
+linux.release.x86_64 = "res://libstream_retirement_probe.so"

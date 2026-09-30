@@ -1,0 +1,14 @@
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.patch text eol=lf
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.qml text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.otf binary
+*.ttf binary

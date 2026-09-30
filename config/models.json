@@ -1,0 +1,31 @@
+{
+  "depth_anything_v2_small": {
+    "repository": "depth-anything/Depth-Anything-V2-Small",
+    "revision": "03876f8651c73a60fe4c2c48294e09fcb6838fcf",
+    "filename": "depth_anything_v2_vits.pth",
+    "sha256": "715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378",
+    "bytes": 99218434,
+    "license": "Apache-2.0",
+    "license_url": "https://huggingface.co/depth-anything/Depth-Anything-V2-Small/blob/03876f8651c73a60fe4c2c48294e09fcb6838fcf/README.md",
+    "source_repository": "https://github.com/DepthAnything/Depth-Anything-V2.git",
+    "source_commit": "a561b849ebae10a6f5ef49e26c83cbbcd36c71bf"
+  },
+  "distill_any_depth_small": {
+    "display_name": "Distill Any Depth Small",
+    "repository": "xingyang1/Distill-Any-Depth",
+    "revision": "38095a41cca1e28a28e8bb6372c68df721455a2d",
+    "repository_filename": "small/model.safetensors",
+    "filename": "distill_any_depth_small.safetensors",
+    "weight_format": "safetensors",
+    "sha256": "56a173c0e1b5045bf6296a5c1fb16eace0bbde2eddc24b37532cb1774ac09caa",
+    "bytes": 99165428,
+    "license": "Apache-2.0",
+    "license_url": "https://huggingface.co/xingyang1/Distill-Any-Depth/blob/38095a41cca1e28a28e8bb6372c68df721455a2d/README.md",
+    "source_repository": "https://github.com/Westlake-AGI-Lab/Distill-Any-Depth.git",
+    "source_commit": "6d8f415392eafb49c96a38cc4dedbd09a1607f50",
+    "source_license": "MIT",
+    "runtime_source_model_id": "depth_anything_v2_small",
+    "depth_kind": "inverse_depth",
+    "notice": "Official DAD Small weights. Runtime uses the pinned, structurally compatible Depth Anything V2 Small DPT implementation; it does not estimate metric distance. Lower contour separation can also reduce apparent volume."
+  }
+}

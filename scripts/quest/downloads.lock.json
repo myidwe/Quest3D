@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "name": "libcurl4-openssl-dev_7.81.0-1ubuntu1.27_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/c/curl/libcurl4-openssl-dev_7.81.0-1ubuntu1.27_amd64.deb",
+      "sha256": "c9290dc2c88bb677a90e4ffc2d1f0f9f27b9910d8f26370e7a1dc8c62bf630d9",
+      "bytes": 386874
+    },
+    {
+      "name": "libssl-dev_3.0.2-0ubuntu1.29_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl-dev_3.0.2-0ubuntu1.29_amd64.deb",
+      "sha256": "e428c7420a895179506a453391ab8530c8a473959745a5158021b5a52d82687a",
+      "bytes": 2376146
+    },
+    {
+      "name": "android-ndk-r29-linux.zip",
+      "url": "https://dl.google.com/android/repository/android-ndk-r29-linux.zip",
+      "sha256": "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf",
+      "bytes": 783549481
+    },
+    {
+      "name": "commandlinetools-linux-13114758_latest.zip",
+      "url": "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip",
+      "sha256": "7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee",
+      "bytes": 164760899
+    },
+    {
+      "name": "Godot_v4.7-stable_export_templates.tpz",
+      "url": "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz",
+      "sha256": "9714459dc071907c0f3d5f17d608faf69e7cda21331fc5d39c4503ffa4e99eec",
+      "bytes": 1279207690
+    },
+    {
+      "name": "Godot_v4.7-stable_linux.x86_64.zip",
+      "url": "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip",
+      "sha256": "0b1a6c54c2c619c12e169fe9241edda4b81080b519451cec2984bf0d2c6cb73c",
+      "bytes": 75664355
+    },
+    {
+      "name": "godotopenxrvendorsaddon.zip",
+      "url": "https://github.com/GodotVR/godot_openxr_vendors/releases/download/5.0.0-stable/godotopenxrvendorsaddon.zip",
+      "sha256": "b68135657f64fea782cac3efe3e5cef7a4de13e4215f1b621ce6a49fe32592eb",
+      "bytes": 44331695
+    },
+    {
+      "name": "OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+      "url": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz",
+      "sha256": "3808d1d15e3ec6bd5b84057fb5d84c33d8a1536a258146bcea2e603fc726e08e",
+      "bytes": 193252603
+    },
+    {
+      "name": "uv-x86_64-unknown-linux-gnu.tar.gz",
+      "url": "https://github.com/astral-sh/uv/releases/download/0.8.22/uv-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "741ff1f5742c5a4a25d2f829e8395355e43f7a5ae2ebc6368e9ae2df0efb69cf",
+      "bytes": 21291955
+    },
+    {
+      "name": "autoconf_2.71-2_all.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/a/autoconf/autoconf_2.71-2_all.deb",
+      "sha256": "96b528889794c4134015a63c75050f93d8aecdf5e3f2a20993c1433f4c61b80e",
+      "bytes": 337608
+    },
+    {
+      "name": "automake_1%3a1.16.5-1.3_all.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/a/automake-1.16/automake_1.16.5-1.3_all.deb",
+      "sha256": "59e3890fc8407bcf8ccc9f709d6513156346d5c942e8c624dc90435e58f6f978",
+      "bytes": 557936
+    },
+    {
+      "name": "libltdl-dev_2.4.6-15build2_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libt/libtool/libltdl-dev_2.4.6-15build2_amd64.deb",
+      "sha256": "36e1d9ad79d7682bfa585cac5d159b68d29bea0f8dc44ba26ca1556add737ffc",
+      "bytes": 169174
+    },
+    {
+      "name": "libtool_2.4.6-15build2_all.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libt/libtool/libtool_2.4.6-15build2_all.deb",
+      "sha256": "fb994bc0152f4e77a791b51bc54fd5e38963aa6473e60c45369ef373b6119124",
+      "bytes": 163940
+    },
+    {
+      "name": "m4_1.4.18-5ubuntu2_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/m/m4/m4_1.4.18-5ubuntu2_amd64.deb",
+      "sha256": "572a544d2c18bf49d25c465720c570cd8e6e38731386ac9c0a7f29bed2486f3e",
+      "bytes": 198836
+    },
+    {
+      "name": "pkg-config_0.29.2-1ubuntu3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/pkg-config/pkg-config_0.29.2-1ubuntu3_amd64.deb",
+      "sha256": "69da4190d948d0bf7444ead040791b7924bd1a08a10ec13cd7f0bb9baab09c53",
+      "bytes": 48218
+    },
+    {
+      "name": "zip_3.0-12build2_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/z/zip/zip_3.0-12build2_amd64.deb",
+      "sha256": "f4b43f651abf5f4835792f01d97410221403f14961d363dbd2864990b97620ce",
+      "bytes": 175730
+    },
+    {
+      "name": "unzip_6.0-26ubuntu3.2_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/u/unzip/unzip_6.0-26ubuntu3.2_amd64.deb",
+      "sha256": "4f274ffc6774d52878322ef1e3eb6d185003e1607448e62893849825bfae347d",
+      "bytes": 174540
+    }
+  ]
+}

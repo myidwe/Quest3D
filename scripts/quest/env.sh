@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+QUEST_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+QUEST_PROJECT="$(cd "$QUEST_SCRIPTS/../.." && pwd)"
+QUEST_TOOLS="$QUEST_PROJECT/.tools/quest"
+QUEST_CACHE="${QUEST_BUILD_CACHE:-$HOME/.cache/quest_to_3d-quest-build}"
+QUEST_ARTIFACTS="$QUEST_PROJECT/artifacts/quest"
+export QUEST_SCRIPTS QUEST_PROJECT QUEST_TOOLS QUEST_CACHE QUEST_ARTIFACTS
+export PATH="$QUEST_CACHE/venv/bin:$QUEST_CACHE/sysroot/usr/bin:$PATH"
+export JAVA_HOME="$QUEST_CACHE/linux/jdk-17.0.20.1+1"
+export ANDROID_HOME="$QUEST_CACHE/android-sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
+export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
+export ANDROID_ABI=arm64-v8a
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/19.0/bin:$PATH"
+export VCPKG_ROOT="$QUEST_CACHE/vcpkg"
+export VCPKG_DEFAULT_TRIPLET=arm64-android
+export VCPKG_MAX_CONCURRENCY=6
+export VCPKG_DISABLE_METRICS=1
+export VCPKG_REGISTRIES_CACHE="$QUEST_CACHE/vcpkg-registries"
+export VCPKG_BINARY_SOURCES="clear;files,$QUEST_CACHE/vcpkg-binaries,readwrite"
+export NIGHTFALL_NATIVE_XR_CACHE="$QUEST_CACHE/native-xr"
+export NIGHTFALL_BUILD_JOBS="${NIGHTFALL_BUILD_JOBS:-10}"
+export XDG_DATA_HOME="$QUEST_CACHE/xdg-data"
+export XDG_CONFIG_HOME="$QUEST_CACHE/xdg-config"
+export GRADLE_USER_HOME="$QUEST_CACHE/gradle"
+export UV_CACHE_DIR="$QUEST_CACHE/uv-cache"
+export NIGHTFALL_INSTALL=0

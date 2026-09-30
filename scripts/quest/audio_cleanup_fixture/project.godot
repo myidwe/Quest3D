@@ -1,0 +1,5 @@
+config_version=5
+[application]
+config/name="Quest3D isolated audio cleanup"
+[rendering]
+renderer/rendering_method="gl_compatibility"

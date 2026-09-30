@@ -1,0 +1,1448 @@
+--- a/main.gd
++++ b/main.gd
+@@ -1098,7 +1098,7 @@
+ 			var dist_scale = cursor_dist / screen_dist
+ 			var pointer = comp_cursor_viewport.get_node_or_null("PointerTexture")
+ 			var circle = comp_cursor_viewport.get_node_or_null("CircleTexture")
+-			var cursor_size = 0.035 * dist_scale if on_screen else 0.035
++			var cursor_size = 0.035 * dist_scale if on_screen else 0.035 * screen_manager.pointer_scale
+ 			if settings.cursor_mode == 0:
+ 				if pointer: pointer.visible = false
+ 				if circle: circle.visible = true
+@@ -1131,7 +1131,7 @@
+ 				if circle: circle.visible = true
+ 				if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+ 					comp_cursor_viewport.size = Vector2i(256, 256)
+-				comp_cursor.set_quad_size(Vector2(0.035, 0.035))
++				comp_cursor.set_quad_size(Vector2.ONE * 0.035 * screen_manager.pointer_scale)
+ 				comp_cursor.global_position = hit_point + surf_normal * 0.002
+ 				comp_cursor.look_at(comp_cursor.global_position + to_cam, Vector3.UP)
+ 				comp_cursor.rotate_object_local(Vector3.UP, PI)
+@@ -1280,7 +1280,7 @@
+ 		_update_corner_layers(s)
+ 		if not s.comp_grab_bar:
+ 			continue
+-		if not DEBUG_COMP_GRAB_BAR or not comp.in_use:
++		if not DEBUG_COMP_GRAB_BAR or not comp.in_use or screen_manager.view_locked:
+ 			# A rare, one-time transition (stereo mode / mesh-rendering
+ 			# fallback switch), not a per-frame toggle - safe, unlike the
+ 			# cursor/laser's old every-frame hide/show that caused the
+@@ -1326,7 +1326,7 @@
+ func _update_corner_layers(s: VRScreen):
+ 	if s.comp_corner_layers.is_empty():
+ 		return
+-	if not DEBUG_COMP_CORNERS or not comp.in_use:
++	if not DEBUG_COMP_CORNERS or not comp.in_use or screen_manager.view_locked:
+ 		for layer in s.comp_corner_layers:
+ 			if not layer:
+ 				continue
+@@ -2382,6 +2382,8 @@
+ 
+ func _init_post_xr():
+ 	state_manager.load_state()
++	screen_manager.apply_menu_scale()
++	screen_manager.apply_pointer_style()
+ 
+ 	if comp.available:
+ 		_switch_to_comp_layer()
+@@ -3137,6 +3139,9 @@
+ 	_debug_log_cyl("reposition")
+ 
+ func _reset_positions():
++	if screen_manager and screen_manager.view_locked:
++		screen_manager.center_menu()
++		return
+ 	if ui_visible:
+ 		_toggle_ui()
+ 	if virtual_keyboard and virtual_keyboard.visible:
+--- a/src/screen_manager.gd
++++ b/src/screen_manager.gd
+@@ -2,6 +2,17 @@
+ extends RefCounted
+ 
+ var main: Node3D
++
++var view_locked := false
++var keep_view_size := false
++var saved_view: Dictionary = {}
++var view_name := "Custom"
++var view_message := ""
++var menu_scale := 1.0
++var pointer_scale := 1.0
++var pointer_contrast := false
++var crop_top := 0.0
++var crop_bottom := 0.0
+ 
+ func _init(owner: Node3D):
+ 	main = owner
+@@ -32,7 +43,7 @@
+ func presentation_aspect(s: VRScreen) -> float:
+ 	var content := presentation_content_size(s)
+ 	if content.x > 0 and content.y > 0:
+-		return float(content.x) / content.y
++		return float(content.x) / (content.y * framing_height_fraction(s))
+ 	return s.mesh_size.x / s.mesh_size.y if s.mesh_size.y > 0.0 else 0.0
+ 
+ func ensure_pc_source_aspect() -> bool:
+@@ -45,11 +56,14 @@
+ 	var content := content_size_for_screen(s, main.settings.host.pc_profile_resolution)
+ 	if content == Vector2i.ZERO or not is_finite(s.mesh_size.x) or s.mesh_size.x <= 0.0:
+ 		return false
+-	var expected_height := s.mesh_size.x * float(content.y) / content.x
++	var expected_height := s.mesh_size.x * float(content.y) / content.x * framing_height_fraction(s)
+ 	if is_finite(s.mesh_size.y) and absf(s.mesh_size.y - expected_height) < 0.0001:
+ 		return false
+ 	_invalidate_presentation_input()
+-	s.resize_to_aspect(content.x, content.y)
++	s.mesh_size.y = expected_height
++	s.apply_curvature()
++	s.update_corner_positions()
++	s.update_bezel_size()
+ 	if main.comp != null and main.comp.available:
+ 		main.comp.update_cylinder_params()
+ 	return true
+@@ -67,47 +81,355 @@
+ 	if main.state_manager:
+ 		main.state_manager.save_host_state()
+ 
+-func scale_primary_screen(factor: float) -> bool:
+-	var s: VRScreen = main.primary_screen
+-	if not s or not is_finite(factor) or factor <= 0.0 or not is_finite(s.mesh_size.x) or s.mesh_size.x <= 0.0:
+-		return false
++func view_distance() -> float:
++	if not main.primary_screen or not main.xr_camera:
++		return 0.0
++	return main.primary_screen.global_position.distance_to(main.xr_camera.global_position)
++
++func view_width_limits(distance: float = -1.0, curve: int = -1) -> Vector2:
++	var s: VRScreen = main.primary_screen
++	if not s:
++		return Vector2.ZERO
+ 	var aspect := presentation_aspect(s)
+ 	if not is_finite(aspect) or aspect <= 0.0:
+-		return false
+-	var minimum := maxf(0.6, 0.4 * aspect)
+-	var maximum := minf(12.0, PI * s.get_cylinder_radius()) if s.curvature > 0 else 12.0
+-	if minimum > maximum:
+-		return false
+-	var width := clampf(s.mesh_size.x * factor, minimum, maximum)
++		return Vector2.ZERO
++	var mode := s.curvature if curve < 0 else curve
++	var maximum := 12.0
++	if mode > 0:
++		var radius := 10.0 if mode == 1 else 4.0
++		if main.comp and main.comp.in_use:
++			radius = maxf(0.5, view_distance() if distance < 0 else distance) * (3.0 if mode == 1 else 2.0)
++		maximum = minf(maximum, PI * radius)
++	return Vector2(maxf(0.6, 0.4 * aspect), maximum)
++
++func _view_changed(label: String = "Custom"):
++	var s: VRScreen = main.primary_screen
+ 	_invalidate_presentation_input()
+-	s.mesh_size = Vector2(width, width / aspect)
+ 	s.apply_curvature()
+ 	s.update_corner_positions()
+ 	s.update_bezel_size()
++	view_name = label
+ 	_finish_presentation_change()
+-	return true
++
++func set_view_width(width: float) -> bool:
++	if view_locked or not main.primary_screen or not is_finite(width):
++		return false
++	var bounds := view_width_limits()
++	if bounds.x <= 0 or bounds.x > bounds.y:
++		return false
++	var next := clampf(width, bounds.x, bounds.y)
++	view_message = "크기 한계" if not is_equal_approx(next, width) else ""
++	main.primary_screen.mesh_size = Vector2(next, next / presentation_aspect(main.primary_screen))
++	_view_changed()
++	return true
++
++func scale_primary_screen(factor: float) -> bool:
++	var s: VRScreen = main.primary_screen
++	if not s or not is_finite(factor) or factor <= 0.0 or not is_finite(s.mesh_size.x) or s.mesh_size.x <= 0.0:
++		return false
++	return set_view_width(s.mesh_size.x * factor)
+ 
+ func move_primary_screen(delta_metres: float) -> bool:
++	if not is_finite(delta_metres):
++		return false
++	return set_view_distance(view_distance() + delta_metres)
++
++func set_view_distance(metres: float) -> bool:
+ 	var s: VRScreen = main.primary_screen
+ 	var camera = main.xr_camera
+-	if not s or not camera or not is_finite(delta_metres):
++	if view_locked or not s or not camera or not is_finite(metres):
+ 		return false
+ 	var offset: Vector3 = s.global_position - camera.global_position
+ 	var distance := offset.length()
+-	if not is_finite(distance) or distance < 0.001:
++	if not is_finite(distance) or distance < 0.001 or not s.mesh_size.is_finite() or s.mesh_size.x <= 0 or presentation_aspect(s) <= 0:
+ 		return false
+ 	var minimum_distance := 0.5
+-	if s.curvature > 0 and main.comp != null and main.comp.in_use:
++	var maximum_distance := 10.0
++	if keep_view_size:
++		if s.curvature > 0 and (not main.comp or not main.comp.in_use):
++			view_message = "곡면 크기 고정 · PC 영상 연결 후 조절"
++			return false
++		# Scale the entire camera-relative geometry uniformly, including the
++		# cylinder radius (which is proportional to distance). Both eye poses
++		# remain independent; this preserves the centre-view apparent size.
++		var bounds := view_width_limits()
++		minimum_distance = maxf(minimum_distance, distance * bounds.x / s.mesh_size.x)
++		maximum_distance = minf(maximum_distance, distance * 12.0 / s.mesh_size.x)
++	elif s.curvature > 0 and main.comp != null and main.comp.in_use:
+ 		# Keep the cylinder under a half turn as distance changes its radius.
+ 		var radius_factor := 3.0 if s.curvature == 1 else 2.0
+ 		minimum_distance = maxf(minimum_distance, s.mesh_size.x / (PI * radius_factor))
+-	_invalidate_presentation_input()
+-	s.global_position = camera.global_position + offset / distance * clampf(distance + delta_metres, minimum_distance, 10.0)
+-	# Curved-screen collision and visible geometry share the new camera radius.
+-	s.apply_curvature()
+-	s.update_corner_positions()
+-	s.update_bezel_size()
+-	_finish_presentation_change()
++	if minimum_distance > maximum_distance:
++		return false
++	var next := clampf(metres, minimum_distance, maximum_distance)
++	var width := s.mesh_size.x * next / distance if keep_view_size else s.mesh_size.x
++	var limits := view_width_limits(next)
++	if width < limits.x - 0.0001 or width > limits.y + 0.0001:
++		view_message = "크기·거리 한계"
++		return false
++	view_message = "거리 한계" if not is_equal_approx(next, metres) else ""
++	s.global_position = camera.global_position + offset / distance * next
++	s.mesh_size = Vector2(width, width / presentation_aspect(s))
++	_view_changed()
++	return true
++
++func shift_view(step: Vector2) -> bool:
++	if view_locked or not step.is_finite() or not main.primary_screen or not main.xr_camera:
++		return false
++	var s: VRScreen = main.primary_screen
++	var basis: Basis = main.xr_camera.global_basis.orthonormalized()
++	var position: Vector3 = s.global_position + basis.x * step.x + basis.y * step.y
++	var distance: float = position.distance_to(main.xr_camera.global_position)
++	if distance < 0.5 or distance > 10.0 or s.mesh_size.x > view_width_limits(distance).y:
++		view_message = "위치 한계"
++		return false
++	s.global_position = position
++	view_message = ""
++	_view_changed()
++	return true
++
++func tilt_view(degrees: float) -> bool:
++	if view_locked or not is_finite(degrees) or not main.primary_screen:
++		return false
++	main.primary_screen.rotate_object_local(Vector3.RIGHT, deg_to_rad(clampf(degrees, -10, 10)))
++	view_message = ""
++	_view_changed()
++	return true
++
++func center_view() -> bool:
++	if view_locked or not main.primary_screen or not main.xr_camera:
++		return false
++	var camera: Transform3D = main.xr_camera.global_transform.orthonormalized()
++	main.primary_screen.global_transform = Transform3D(camera.basis, camera.origin - camera.basis.z * clampf(view_distance(), 0.5, 10.0))
++	view_message = "정면 배치"
++	_view_changed()
++	return true
++
++func level_view() -> bool:
++	if view_locked or not main.primary_screen or not main.xr_camera:
++		return false
++	var s: VRScreen = main.primary_screen
++	var forward := -s.global_basis.z.normalized()
++	forward.y = 0.0
++	if forward.length_squared() < 0.0001:
++		forward = -main.xr_camera.global_basis.z
++		forward.y = 0.0
++	if forward.length_squared() < 0.0001:
++		forward = Vector3.FORWARD
++	s.global_basis = Basis.looking_at(forward.normalized(), Vector3.UP)
++	view_message = "수평 맞춤"
++	_view_changed()
++	return true
++
++func set_view_curve(curve: int) -> bool:
++	if view_locked or curve < 0 or curve > 2 or not main.primary_screen:
++		return false
++	var bounds := view_width_limits(-1, curve)
++	if main.primary_screen.mesh_size.x > bounds.y:
++		view_message = "곡률 변경 전 크기 축소"
++		return false
++	main.curvature = curve
++	main.primary_screen.curvature = curve
++	view_message = ""
++	_view_changed()
++	return true
++
++func set_view_locked(value: bool):
++	view_locked = value
++	if value:
++		if main.grabbed_node is VRScreen:
++			main.grabbed_node = null
++			main.grabbed_bar = null
++			main.grab_group_start_transforms.clear()
++		if main.grabbed_corner_screen:
++			main.grabbed_corner_screen.end_corner_resize()
++			main.grabbed_corner_screen = null
++			main.grabbed_corner_idx = -1
++		if main.xr_interaction:
++			main.xr_interaction._corner_resize_started = false
++	view_message = "위치 잠금" if value else "잠금 해제"
++	_save_view_options()
++
++func set_keep_view_size(value: bool):
++	keep_view_size = value
++	_save_view_options()
++
++func _save_view_options():
++	if main.state_manager:
++		main.state_manager.save_host_state()
++
++func capture_view() -> Dictionary:
++	if not main.primary_screen or not main.xr_camera:
++		return {}
++	var relative: Transform3D = main.xr_camera.global_transform.orthonormalized().affine_inverse() * main.primary_screen.global_transform.orthonormalized()
++	return {"version": 1, "position": [relative.origin.x, relative.origin.y, relative.origin.z],
++		"rotation": [relative.basis.get_euler().x, relative.basis.get_euler().y, relative.basis.get_euler().z],
++		"width": main.primary_screen.mesh_size.x, "curvature": main.primary_screen.curvature, "locked": view_locked}
++
++func _finite_triplet(value: Variant) -> bool:
++	if not value is Array or value.size() != 3:
++		return false
++	for number in value:
++		if not (number is int or number is float) or not is_finite(float(number)):
++			return false
++	return true
++
++func valid_saved_view(value: Variant) -> bool:
++	if not value is Dictionary or value.get("version") != 1:
++		return false
++	if not _finite_triplet(value.get("position")) or not _finite_triplet(value.get("rotation")):
++		return false
++	var width: Variant = value.get("width")
++	var curve: Variant = value.get("curvature")
++	var p: Array = value.position
++	var distance := Vector3(p[0], p[1], p[2]).length()
++	return (width is int or width is float) and is_finite(float(width)) and width >= 0.6 and width <= 12 \
++		and curve is int and curve >= 0 and curve <= 2 and distance >= 0.5 and distance <= 10.0
++
++func save_view() -> bool:
++	var candidate := capture_view()
++	if not valid_saved_view(candidate):
++		return false
++	saved_view = candidate
++	view_message = "내 보기 저장됨"
++	_save_view_options()
++	return true
++
++func apply_view_preset(preset: String) -> bool:
++	if view_locked or not main.primary_screen or not main.xr_camera:
++		return false
++	var data: Dictionary
++	match preset:
++		"Standard": data = {"version": 1, "position": [0.0, 0.0, -2.5], "rotation": [0.0, 0.0, 0.0], "width": 2.4, "curvature": 0}
++		"Cinema": data = {"version": 1, "position": [0.0, 0.0, -3.0], "rotation": [0.0, 0.0, 0.0], "width": 4.0, "curvature": 1}
++		"Reclined":
++			if not center_view():
++				return false
++			view_name = preset
++			view_message = "현재 시선에 배치"
++			return true
++		"My view": data = saved_view.duplicate(true)
++		_: return false
++	if not valid_saved_view(data):
++		view_message = "저장된 보기 없음"
++		return false
++	var position: Array = data.position
++	var rotation: Array = data.rotation
++	var local := Transform3D(Basis.from_euler(Vector3(rotation[0], rotation[1], rotation[2])), Vector3(position[0], position[1], position[2]))
++	var bounds := view_width_limits(local.origin.length(), int(data.curvature))
++	if float(data.width) < bounds.x or float(data.width) > bounds.y:
++		view_message = "현재 화면비에 맞지 않는 보기"
++		return false
++	main.primary_screen.global_transform = main.xr_camera.global_transform.orthonormalized() * local
++	main.primary_screen.mesh_size = Vector2(data.width, data.width / presentation_aspect(main.primary_screen))
++	main.curvature = int(data.curvature)
++	main.primary_screen.curvature = main.curvature
++	view_message = ""
++	_view_changed(preset)
++	if data.get("locked") is bool and data.locked:
++		set_view_locked(true)
++	return true
++
++func view_options() -> Dictionary:
++	return {"version": 1, "locked": view_locked, "keep_size": keep_view_size, "saved": saved_view.duplicate(true),
++		"name": view_name,
++		"menu_scale": menu_scale, "pointer_scale": pointer_scale, "pointer_contrast": pointer_contrast,
++		"crop_top": crop_top, "crop_bottom": crop_bottom}
++
++func restore_view_options(value: Variant):
++	view_locked = false
++	keep_view_size = false
++	saved_view = {}
++	menu_scale = 1.0
++	pointer_scale = 1.0
++	pointer_contrast = false
++	crop_top = 0.0
++	crop_bottom = 0.0
++	view_name = "Custom"
++	view_message = ""
++	if value is Dictionary and value.get("version") == 1:
++		if value.get("name") in ["Custom", "Standard", "Cinema", "Reclined", "My view"]:
++			view_name = value.name
++		view_locked = value.get("locked") is bool and value.locked
++		keep_view_size = value.get("keep_size") is bool and value.keep_size
++		if valid_saved_view(value.get("saved")):
++			saved_view = value.saved.duplicate(true)
++		for key in ["menu_scale", "pointer_scale"]:
++			var number: Variant = value.get(key, 1.0)
++			if (number is int or number is float) and is_finite(float(number)):
++				set(key, clampf(float(number), 0.8, 1.5))
++		pointer_contrast = value.get("pointer_contrast") is bool and value.pointer_contrast
++		for key in ["crop_top", "crop_bottom"]:
++			var number: Variant = value.get(key, 0.0)
++			if (number is int or number is float) and is_finite(float(number)):
++				set(key, clampf(float(number), 0.0, 0.25))
++	apply_menu_scale()
++	apply_pointer_style()
++
++func set_menu_scale(value: float):
++	if not is_finite(value):
++		return
++	menu_scale = clampf(value, 0.8, 1.5)
++	apply_menu_scale()
++	_save_view_options()
++
++func apply_menu_scale():
++	if not main.ui_panel_3d:
++		return
++	# Scale the real panel/collider together. Ray mapping uses to_local(), so
++	# logical 1200x580 coordinates and the bottom move handle stay unchanged.
++	main.ui_panel_3d.scale = Vector3.ONE * menu_scale
++	if main.comp_ui:
++		main.comp_ui.set_quad_size(main._ui_mesh_size * menu_scale)
++
++func center_menu():
++	if not main.ui_panel_3d or not main.xr_camera:
++		return
++	var camera: Transform3D = main.xr_camera.global_transform.orthonormalized()
++	main.ui_panel_3d.global_transform = Transform3D(camera.basis.scaled(Vector3.ONE * menu_scale), camera.origin - camera.basis.z * 1.5)
++	main._save_ui_offset()
++
++func set_pointer_style(scale_value: float, contrast: bool):
++	if not is_finite(scale_value):
++		return
++	pointer_scale = clampf(scale_value, 0.8, 1.5)
++	pointer_contrast = contrast
++	apply_pointer_style()
++	_save_view_options()
++
++func apply_pointer_style():
++	for viewport in [main.comp_cursor_viewport, main.left_comp_cursor_viewport]:
++		if viewport:
++			var circle = viewport.get_node_or_null("CircleTexture")
++			if circle and circle.material is ShaderMaterial:
++				circle.material.set_shader_parameter("high_contrast", pointer_contrast)
++
++func framing_available() -> bool:
++	if not main.video_presentation or not main.video_presentation.is_native_active():
++		return false
++	var renderer = main.video_presentation.native_renderer.renderer
++	return renderer != null and renderer.has_method("supports_view_framing") and renderer.supports_view_framing()
++
++func framing_height_fraction(s: VRScreen) -> float:
++	if s != main.primary_screen or not framing_available():
++		return 1.0
++	var content := presentation_content_size(s)
++	if content.y <= 0: return 1.0
++	# The native swapchain has a fixed 8-pixel margin on each edge, even
++	# with Bezel off. Match its rounded sub-image rows exactly.
++	var height := content.y + 16
++	return float(height - roundi(height * crop_top) - roundi(height * crop_bottom)) / height
++
++func set_view_crop(top: float, bottom: float) -> bool:
++	if view_locked or not is_finite(top) or not is_finite(bottom): return false
++	if (top > 0 or bottom > 0) and not framing_available(): return false
++	crop_top = clampf(top, 0.0, 0.25)
++	crop_bottom = clampf(bottom, 0.0, 0.25)
++	if main.primary_screen:
++		main.primary_screen.mesh_size.y = main.primary_screen.mesh_size.x / presentation_aspect(main.primary_screen)
++		_view_changed()
++	else:
++		_save_view_options()
+ 	return true
+ 
+ func create_corner_handles():
+@@ -198,6 +520,8 @@
+ 		main.comp.update_cylinder_params()
+ 
+ func cycle_curvature():
++	if view_locked:
++		return
+ 	main.curvature = (main.curvature + 1) % 3
+ 	for s in main.screens:
+ 		s.curvature = main.curvature
+--- a/src/state_manager.gd
++++ b/src/state_manager.gd
+@@ -31,6 +31,11 @@
+ 		return
+ 	var host: HostSettings = main.settings.host
+ 	SettingsPersistence.write_host(save, ip, host)
++	# Keep unknown newer preference versions intact when rolling back an APK.
++	var previous_view: Variant = save.get_value(ip, "quest_view_v1", {})
++	var known_view: bool = not previous_view is Dictionary or not previous_view.get("version", 1) is int or previous_view.get("version", 1) <= 1
++	if main.screen_manager and known_view:
++		save.set_value(ip, "quest_view_v1", main.screen_manager.view_options())
+ 	save.set_value(ip, "screen_layout", JSON.stringify(main.layout.to_dict()))
+ 	var placements := []
+ 	for s in main.screens:
+@@ -50,6 +55,8 @@
+ 	if ip.is_empty():
+ 		return
+ 	# Reset this preference before looking up a new host, including unsaved hosts.
++	if main.screen_manager:
++		main.screen_manager.restore_view_options({})
+ 	main.settings.host.picture_temperature = 0
+ 	main.settings.host.picture_tint = 0
+ 	main.settings_controller.refresh_color_balance_controls()
+@@ -72,6 +79,8 @@
+ 		main.resolution_scale_options,
+ 		main.resolutions.size(),
+ 		main.settings_controller.ai_3d_models.size())
++	if main.screen_manager:
++		main.screen_manager.restore_view_options(save.get_value(ip, "quest_view_v1", {}))
+ 	main.settings_controller.refresh_color_balance_controls()
+ 	main.settings_controller.apply_filter()
+ 	# Model may not actually belong to the loaded Type (main.settings.host.ai_3d_backend_pref) -
+--- a/src/precision_ui.gd
++++ b/src/precision_ui.gd
+@@ -16,6 +16,12 @@
+ var _status: Label
+ var _last_pc_visual: String = ""
+ var _queued_depth: Dictionary = {}
++var view_panels: Dictionary = {}
++var view_controls: Dictionary = {}
++var geometry_buttons: Array[Button] = []
++var _repeat_button: Button
++var _repeat_action: Callable
++var _repeat_at := 0
+ 
+ func _init(controller: UIController):
+ 	_ui_ref = weakref(controller)
+@@ -63,6 +69,10 @@
+ 	_rect(line, parent, Rect2(0, y, 1104, 1))
+ 
+ func _style_button(button: Button, selected: bool = false, border: bool = false):
++	var key := Vector2i(int(selected), int(border))
++	if button.get_meta("precision_style", Vector2i(-1, -1)) == key:
++		return
++	button.set_meta("precision_style", key)
+ 	var normal := ProductTheme.surface(ProductTheme.PALE if selected else ProductTheme.RAISED, 12, 8)
+ 	if border or selected:
+ 		normal.border_color = ProductTheme.BORDER
+@@ -209,22 +219,208 @@
+ 	depth_labels.append(depth)
+ 
+ func _build_overview(page: Control):
+-	_mode_depth(page, 16)
+-	_line(page, 146)
+-	_label(page, "화면 크기", Rect2(0, 166, 400, 62), 24, true)
+-	_label(page, "거리", Rect2(0, 260, 400, 62), 24, true)
+-	_line(page, 242)
+-	var values := [["축소", "minus", 0, 170], ["확대", "plus", 1, 170], ["가까이", "minus", 2, 264], ["멀리", "plus", 3, 264]]
+-	for i in values.size():
+-		var button: Button = ui._presentation_buttons[i]
+-		_rect(button, page, Rect2(704 + (i % 2) * 210, values[i][3], 190, 60))
+-		button.text = values[i][0]
+-		button.icon = ProductTheme.icon(values[i][1])
+-		button.expand_icon = true
+-		button.add_theme_constant_override("icon_max_width", 28)
+-		button.add_theme_constant_override("h_separation", 24)
+-		button.add_theme_font_size_override("font_size", 24)
+-		_style_button(button, false, true)
++	var overview := _view_panel(page, "Overview")
++	_label(overview, "Mode", Rect2(0, 0, 100, 56), 24, true)
++	var two := _button(overview, "2D", Rect2(112, 0, 116, 56))
++	var three := _button(overview, "3D", Rect2(236, 0, 116, 56))
++	two.button_down.connect(func(): main.pc_control.set_mode("2d"))
++	three.button_down.connect(func(): main.pc_control.set_mode("3d"))
++	mode_sets.append([two, three])
++	_view_action(overview, "Center", Rect2(644, 0, 218, 56), "Center", func(): main.screen_manager.center_view())
++	view_controls.lock = _view_action(overview, "Lock · Off", Rect2(880, 0, 224, 56), "Lock", func(): main.screen_manager.set_view_locked(not main.screen_manager.view_locked), false)
++	_line(overview, 76)
++	_label(overview, "Size", Rect2(0, 88, 200, 36), 26, true)
++	view_controls.size_value = _label(overview, "", Rect2(700, 88, 404, 36), 24)
++	view_controls.size_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
++	_view_action(overview, "−", Rect2(0, 132, 66, 60), "SizeMinus", func(): main.screen_manager.scale_primary_screen(1.0 / 1.05), true, true)
++	view_controls.size_slider = _view_slider(overview, Rect2(82, 132, 940, 60), "SizeSlider", 0.6, 12, 0.05, func(v): main.screen_manager.set_view_width(v))
++	_view_action(overview, "+", Rect2(1038, 132, 66, 60), "SizePlus", func(): main.screen_manager.scale_primary_screen(1.05), true, true)
++	_label(overview, "가상 화면 크기 · 영상 해상도 유지", Rect2(0, 198, 1104, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	for i in 4:
++		var names := ["Position", "Views", "Environment", "Framing"]
++		var action := _view_action(overview, names[i], Rect2(i * 280, 246, 264, 58), names[i] + "Open", func(): _show_view_panel(names[i]), false)
++		action.set_meta("view_navigation", names[i])
++	view_controls.note = _label(overview, "", Rect2(0, 309, 1104, 30), 20)
++	view_controls.note.add_theme_color_override("font_color", ProductTheme.MUTED)
++	_build_view_position(_view_panel(page, "Position", "위치와 가상 거리"))
++	_build_view_presets(_view_panel(page, "Views", "보기 저장"))
++	_build_view_environment(_view_panel(page, "Environment", "화면 형태와 주변 환경"))
++	_build_view_framing(_view_panel(page, "Framing", "검은 여백 자르기"))
++	_show_view_panel("Overview")
++	var repeat := Timer.new()
++	repeat.wait_time = 0.1
++	repeat.autostart = true
++	repeat.timeout.connect(_repeat_view_action)
++	page.add_child(repeat)
++	page.tree_exiting.connect(_stop_view_repeat)
++
++func _view_panel(parent: Control, key: String, title: String = "") -> Control:
++	var panel := Control.new()
++	panel.name = "View" + key
++	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	_rect(panel, parent, Rect2(0, 0, 1104, 340))
++	view_panels[key] = panel
++	if not title.is_empty():
++		var back := _view_action(panel, "Display", Rect2(0, 0, 172, 48), key + "Back", func(): _show_view_panel("Overview"), false)
++		back.icon = ProductTheme.icon("arrow-left")
++		back.expand_icon = true
++		back.add_theme_constant_override("icon_max_width", 24)
++		back.add_theme_constant_override("h_separation", 10)
++		_label(panel, title, Rect2(202, 0, 750, 48), 26, true)
++	return panel
++
++func _show_view_panel(key: String):
++	_stop_view_repeat()
++	for name in view_panels:
++		view_panels[name].visible = name == key
++	_refresh_view()
++	ui.refresh_ui_buttons()
++
++func _view_action(parent: Control, text: String, rect: Rect2, key: String, action: Callable, geometry: bool = true, repeat: bool = false) -> Button:
++	var button := _button(parent, text, rect)
++	button.name = key
++	_style_button(button, false, true)
++	if geometry:
++		geometry_buttons.append(button)
++	button.button_down.connect(func():
++		if button.disabled: return
++		action.call()
++		_refresh_view()
++		if repeat:
++			_repeat_button = button
++			_repeat_action = action
++			_repeat_at = Time.get_ticks_msec() + 500
++	)
++	button.button_up.connect(func():
++		if _repeat_button == button: _stop_view_repeat()
++	)
++	button.mouse_exited.connect(func():
++		if _repeat_button == button: _stop_view_repeat()
++	)
++	return button
++
++func _stop_view_repeat():
++	_repeat_button = null
++	_repeat_action = Callable()
++	_repeat_at = 0
++
++func _repeat_view_action():
++	if not is_instance_valid(_repeat_button):
++		_stop_view_repeat()
++		return
++	if not main.ui_visible or not _repeat_button.is_visible_in_tree() or _repeat_button.disabled or not _repeat_button.button_pressed:
++		_stop_view_repeat()
++		return
++	if Time.get_ticks_msec() >= _repeat_at:
++		_repeat_action.call()
++		_repeat_at = Time.get_ticks_msec() + 150
++		_refresh_view()
++
++func _view_slider(parent: Control, rect: Rect2, key: String, low: float, high: float, step: float, action: Callable) -> PrecisionDepthSlider:
++	var slider := PrecisionDepthSlider.new()
++	slider.name = key
++	slider.minimum = low
++	slider.maximum = high
++	slider.step = step
++	_rect(slider, parent, rect)
++	slider.depth_selected.connect(func(v):
++		if not slider.disabled and slider.is_visible_in_tree(): action.call(v)
++		_refresh_view()
++	)
++	return slider
++
++func _build_view_position(page: Control):
++	_label(page, "Distance", Rect2(0, 66, 226, 58), 24, true)
++	_view_action(page, "−", Rect2(230, 66, 66, 58), "DistanceMinus", func(): main.screen_manager.move_primary_screen(-0.1), true, true)
++	view_controls.distance_slider = _view_slider(page, Rect2(304, 66, 496, 58), "DistanceSlider", 0.5, 10, 0.1, func(v): main.screen_manager.set_view_distance(v))
++	view_controls.distance_value = _label(page, "", Rect2(808, 66, 208, 58), 26, true)
++	view_controls.distance_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
++	_view_action(page, "+", Rect2(1038, 66, 66, 58), "DistancePlus", func(): main.screen_manager.move_primary_screen(0.1), true, true)
++	view_controls.keep = _view_action(page, "", Rect2(0, 137, 520, 50), "KeepSize", func(): main.screen_manager.set_keep_view_size(not main.screen_manager.keep_view_size), false)
++	_label(page, "거리 변경 시 가상 크기도 함께 조절", Rect2(552, 137, 552, 50), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(page, "Move · 10 cm", Rect2(0, 202, 500, 28), 22, true)
++	_label(page, "Tilt · 2°", Rect2(568, 202, 536, 28), 22, true)
++	var moves := [Vector2(-0.1, 0), Vector2(0.1, 0), Vector2(0, 0.1), Vector2(0, -0.1)]
++	var labels := ["←", "→", "↑", "↓"]
++	for i in 4:
++		_view_action(page, labels[i], Rect2(i * 134, 241, 118, 58), "Move%d" % i, func(): main.screen_manager.shift_view(moves[i]), true, true)
++	_view_action(page, "−", Rect2(568, 241, 106, 58), "TiltMinus", func(): main.screen_manager.tilt_view(-2), true, true)
++	_view_action(page, "+", Rect2(690, 241, 106, 58), "TiltPlus", func(): main.screen_manager.tilt_view(2), true, true)
++	_view_action(page, "Level · 수평", Rect2(812, 241, 292, 58), "Level", func(): main.screen_manager.level_view())
++	view_controls.position_note = _label(page, "", Rect2(0, 310, 1104, 28), 20)
++
++func _build_view_presets(page: Control):
++	var names := ["Standard", "Cinema", "Reclined", "My view"]
++	for i in 4:
++		var button := _view_action(page, names[i], Rect2((i % 2) * 568, 74 + floori(i / 2.0) * 76, 536, 60), "Preset%d" % i, func(): main.screen_manager.apply_view_preset(names[i]))
++		view_controls["preset_%d" % i] = button
++	_view_action(page, "Save view", Rect2(0, 238, 264, 58), "SaveView", func(): main.screen_manager.save_view(), false)
++	view_controls.saved_note = _label(page, "", Rect2(288, 238, 816, 58), 22)
++	_label(page, "Reclined · 현재 시선에 배치   /   Depth·색감 유지", Rect2(0, 308, 1104, 30), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++
++func _build_view_environment(page: Control):
++	_label(page, "Curve", Rect2(0, 66, 170, 58), 24, true)
++	for i in 3:
++		var labels := ["Flat", "Gentle", "Curved"]
++		view_controls["curve_%d" % i] = _view_action(page, labels[i], Rect2(190 + i * 304, 66, 288, 58), "Curve%d" % i, func(): main.screen_manager.set_view_curve(i))
++	var options := Control.new()
++	options.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	_rect(options, page, Rect2(0, 134, 1104, 206))
++	var definitions := [[main._ui_bezel_btn, "Bezel"], [main._ui_pt_btn, "Passthrough"], [main._ui_bg_btn, "Background"], [main._ui_ambient_btn, "Ambient"], [main._ui_ambient_color_btn, "조명 색"]]
++	for i in definitions.size(): _option(options, definitions[i][0], definitions[i][1], i)
++
++func _build_view_framing(page: Control):
++	_label(page, "좌우 눈 동일 적용 · 영상 안 자막도 잘림", Rect2(0, 62, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	for i in 2:
++		var key := "crop_top" if i == 0 else "crop_bottom"
++		_label(page, "Top" if i == 0 else "Bottom", Rect2(0, 112 + i * 76, 180, 60), 24, true)
++		view_controls[key] = _view_slider(page, Rect2(188, 112 + i * 76, 700, 60), key, 0, 25, 0.5, func(v): main.screen_manager.set_view_crop(v / 100.0 if i == 0 else main.screen_manager.crop_top, v / 100.0 if i == 1 else main.screen_manager.crop_bottom))
++		view_controls[key + "_value"] = _label(page, "", Rect2(924, 112 + i * 76, 180, 60), 26, true)
++	_view_action(page, "Fit · 원본 복원", Rect2(0, 274, 284, 58), "RestoreFraming", func(): main.screen_manager.set_view_crop(0, 0))
++	view_controls.framing_note = _label(page, "", Rect2(308, 274, 796, 58), 20)
++
++func _refresh_view():
++	var sm = main.screen_manager
++	if not sm or view_controls.is_empty(): return
++	var screen: VRScreen = main.primary_screen
++	var ready := screen != null and main.xr_camera != null
++	for button in geometry_buttons: button.disabled = not ready or sm.view_locked
++	if view_controls.has("size_slider"):
++		var bounds: Vector2 = sm.view_width_limits()
++		view_controls.size_slider.minimum = bounds.x
++		view_controls.size_slider.maximum = bounds.y
++		view_controls.size_slider.disabled = not ready or sm.view_locked
++		if ready:
++			view_controls.size_slider.set_percent(screen.mesh_size.x)
++			view_controls.size_value.text = "너비 %.2f m · 거리 %.2f m" % [screen.mesh_size.x, sm.view_distance()]
++		view_controls.lock.text = "Lock · On" if sm.view_locked else "Lock · Off"
++		_style_button(view_controls.lock, sm.view_locked, true)
++		view_controls.note.text = "위치 잠금 · 해제 후 화면 조절" if sm.view_locked else (sm.view_message if not sm.view_message.is_empty() else sm.view_name + " · ± 5% · 길게 눌러 연속 조절")
++	if view_controls.has("distance_slider"):
++		view_controls.distance_slider.disabled = not ready or sm.view_locked
++		view_controls.distance_slider.set_percent(sm.view_distance())
++		view_controls.distance_value.text = "%.2f m" % sm.view_distance()
++		view_controls.keep.text = "보이는 크기 고정 · " + ("On" if sm.keep_view_size else "Off")
++		_style_button(view_controls.keep, sm.keep_view_size, true)
++		view_controls.position_note.text = "위치 잠금 · Display에서 해제" if sm.view_locked else sm.view_message
++	if view_controls.has("saved_note"):
++		view_controls.saved_note.text = sm.view_message if not sm.view_message.is_empty() else "화면 배치만 저장 · 현재 PC별 보관"
++		view_controls.preset_3.disabled = not ready or sm.view_locked or sm.saved_view.is_empty()
++	for i in 3:
++		if view_controls.has("curve_%d" % i): _style_button(view_controls["curve_%d" % i], ready and screen.curvature == i, true)
++	for key in ["crop_top", "crop_bottom"]:
++		if view_controls.has(key):
++			view_controls[key].disabled = sm.view_locked or not sm.framing_available()
++			view_controls[key].set_percent(sm.get(key) * 100.0)
++			view_controls[key + "_value"].text = "%.1f%%" % (sm.get(key) * 100.0)
++	if view_controls.has("framing_note"):
++		view_controls.framing_note.text = "자르기 중 테두리 숨김" if sm.crop_top + sm.crop_bottom > 0 else ("원본 화면비 유지" if sm.framing_available() else "PC 영상 연결 후 조절")
++	for key in ["menu_size", "pointer_size", "pointer_contrast"]:
++		if not view_controls.has(key): continue
++		view_controls[key].text = ("%.0f%%" % (sm.menu_scale * 100.0)) if key == "menu_size" else (("%.0f%%" % (sm.pointer_scale * 100.0)) if key == "pointer_size" else ("High" if sm.pointer_contrast else "Normal"))
++	for key in ["size_slider", "distance_slider", "crop_top", "crop_bottom"]:
++		if view_controls.has(key) and view_controls[key].disabled:
++			view_controls[key].dragging = false
+ 
+ func _style_subtab(button: Button, selected: bool):
+ 	var style := ProductTheme.surface(ProductTheme.RAISED if selected else Color.TRANSPARENT, 9, 6)
+@@ -289,22 +485,17 @@
+ 	return main.PC_SBS_BUILD or main.settings.host.pc_profile_resolution != Vector2i.ZERO
+ 
+ func _build_spatial(page: Control):
+-	var parts := _subpages(page, ["Depth", "Screen", "Ambient"], ["입체감", "화면 형태와 배경", "주변 조명"])
+-	_mode_depth(parts[0], 0)
++	_label(page, "Depth · 입체감", Rect2(0, 0, 1104, 42), 26, true)
++	var body := Control.new()
++	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	_rect(body, page, Rect2(0, 64, 1104, 264))
++	_mode_depth(body, 0)
+ 	if not _is_pc_profile():
+-		_option(parts[0], main._ui_sbs_btn, "SBS", 4)
+-	var note := _label(parts[0], "윤곽이 겹치면 Depth 낮추기", Rect2(480, 108, 624, 32), 20)
++		_option(body, main._ui_sbs_btn, "SBS", 4)
++	var note := _label(body, "윤곽이 겹치면 Depth 낮추기", Rect2(480, 108, 624, 32), 20)
+ 	note.name = "DepthHelp"
+ 	note.add_theme_color_override("font_color", ProductTheme.MUTED)
+-	_option(parts[1], main._ui_curve_btn, "화면 곡률", 0)
+-	_option(parts[1], main._ui_bezel_btn, "화면 테두리", 1)
+-	_option(parts[1], main._ui_pt_btn, "주변 보기", 2)
+-	_option(parts[1], main._ui_bg_btn, "배경", 3)
+-	_option(parts[2], main._ui_ambient_btn, "주변 조명", 0)
+-	_option(parts[2], main._ui_ambient_color_btn, "조명 색", 1)
+-	_rect(ui._presentation_label, parts[1], Rect2(0, 178, 1104, 42))
+-	ui._presentation_label.add_theme_color_override("font_color", ProductTheme.MUTED)
+-	ui._presentation_label.add_theme_font_size_override("font_size", 20)
++	_label(body, "윤곽 안정화 · PC Display에서 조절", Rect2(0, 202, 1104, 42), 22).add_theme_color_override("font_color", ProductTheme.MUTED)
+ 
+ func _build_quality(page: Control):
+ 	var parts := _subpages(page, ["Sharpness", "Color", "Tint", "Stream"], ["선명도와 샘플링", "밝기와 명암", "색온도와 색조", "영상 전송"])
+@@ -335,7 +526,10 @@
+ 	_rect(main._ui_host_label, page, Rect2(0, 0, 1104, 48))
+ 	main._ui_host_label.add_theme_color_override("font_color", ProductTheme.TEXT)
+ 	main._ui_host_label.add_theme_font_size_override("font_size", 28)
+-	var actions := [[main._ui_center_btn, "정면 정렬"], [main._ui_stats_btn, "성능 표시"], [main._ui_disconnect_btn, "연결 해제"], [main._ui_exit_btn, "앱 종료"]]
++	var center := _button(page, "Center", Rect2())
++	center.button_down.connect(func(): main.screen_manager.center_view())
++	geometry_buttons.append(center)
++	var actions := [[center, "화면 정렬"], [main._ui_stats_btn, "성능 표시"], [main._ui_disconnect_btn, "연결 해제"], [main._ui_exit_btn, "앱 종료"]]
+ 	for i in actions.size():
+ 		var button: Button = actions[i][0]
+ 		_rect(button, page, Rect2(i * 278, 66, 258, 62))
+@@ -344,7 +538,7 @@
+ 		_style_button(button, false, true)
+ 	_option(page, main._ui_quick_start_btn, "빠른 연결", 4)
+ 	_option(page, main._ui_host_cursor_btn, "PC 마우스", 5)
+-	var controller := _button(page, "컨트롤러", Rect2(0, 244, 240, 48))
++	var controller := _button(page, "Menu / Pointer", Rect2(0, 244, 240, 48))
+ 	controller.button_down.connect(ui.switch_tab.bind(2))
+ 	var advanced := _button(page, "연결 설정", Rect2(258, 244, 240, 48))
+ 	advanced.button_down.connect(ui.switch_tab.bind(6))
+@@ -352,14 +546,32 @@
+ func _build_controller(page: Control):
+ 	var back := _button(page, "Connect", Rect2(0, 0, 160, 48), "arrow-left")
+ 	back.button_down.connect(ui.switch_tab.bind(1))
+-	var parts := Control.new()
+-	parts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	_rect(parts, page, Rect2(0, 74, 1104, 260))
+-	var definitions := [[main._ui_cursor_btn, "포인터 모양"], [main._ui_steady_btn, "포인터 보정"], [main._ui_hand_tracking_btn, "손 추적"], [main._ui_primary_btn, "주 사용 손"]]
+-	for i in definitions.size():
+-		_option(parts, definitions[i][0], definitions[i][1], i)
++	var parts := _subpages(page, ["Pointer", "Menu", "Input"], ["포인터", "설정창 크기와 위치", "컨트롤러"])
++	back.position.x = 944
++	page.move_child(back, -1)
++	_option(parts[0], main._ui_cursor_btn, "모양", 0)
++	_option(parts[0], main._ui_steady_btn, "떨림 보정", 1)
++	view_controls.pointer_size = _view_action(parts[0], "", Rect2(), "PointerSize", func():
++		var sm = main.screen_manager
++		sm.set_pointer_style(1.0 if sm.pointer_scale >= 1.5 else (1.5 if sm.pointer_scale >= 1.2 else 1.2), sm.pointer_contrast), false)
++	_option(parts[0], view_controls.pointer_size, "크기", 2)
++	view_controls.pointer_contrast = _view_action(parts[0], "", Rect2(), "PointerContrast", func():
++		var sm = main.screen_manager
++		sm.set_pointer_style(sm.pointer_scale, not sm.pointer_contrast), false)
++	_option(parts[0], view_controls.pointer_contrast, "대비", 3)
++	_label(parts[0], "설정창 포인터 · PC 마우스와 별도", Rect2(0, 178, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	view_controls.menu_size = _view_action(parts[1], "", Rect2(), "MenuSize", func():
++		var sm = main.screen_manager
++		sm.set_menu_scale(0.85 if sm.menu_scale >= 1.2 else (1.2 if sm.menu_scale >= 1.0 else 1.0)), false)
++	_option(parts[1], view_controls.menu_size, "크기", 0)
++	var recenter := _view_action(parts[1], "Center", Rect2(), "MenuCenter", func(): main.screen_manager.center_menu(), false)
++	_option(parts[1], recenter, "정면 배치", 1)
++	_label(parts[1], "위치 이동 · 설정창 하단 손잡이", Rect2(0, 110, 1104, 36), 22).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_label(parts[1], "PC 영상 크기와 별도", Rect2(0, 162, 1104, 36), 20).add_theme_color_override("font_color", ProductTheme.MUTED)
++	_option(parts[2], main._ui_hand_tracking_btn, "손 추적", 0)
++	_option(parts[2], main._ui_primary_btn, "주 사용 손", 1)
+ 	if not _is_pc_profile():
+-		var more := _button(parts, "버튼 설정", Rect2(0, 176, 240, 58))
++		var more := _button(parts[2], "버튼 설정", Rect2(0, 176, 240, 58))
+ 		more.button_down.connect(func():
+ 			main.controller_mapper.check_toggle_ui()
+ 		)
+@@ -387,6 +599,7 @@
+ 		_option(parts[1], definitions[i][0], definitions[i][1], i)
+ 
+ func refresh_tabs(tab: int):
++	_stop_view_repeat()
+ 	for button in tabs:
+ 		var selected: bool = int(button.get_meta("precision_tab")) == tab or (int(button.get_meta("precision_tab")) == 1 and tab in [2, 6])
+ 		var style := ProductTheme.surface(ProductTheme.PALE if selected else Color.TRANSPARENT, 15, 10)
+@@ -438,6 +651,7 @@
+ 		caption.text = button.get_meta("precision_caption_fixed")
+ 		button.add_theme_color_override("font_color", ProductTheme.TEXT)
+ 		button.size.y = 58
++	_refresh_view()
+ 
+ func _queue_depth(percent: float):
+ 	var pc = main.pc_control
+--- a/src/precision_depth_slider.gd
++++ b/src/precision_depth_slider.gd
+@@ -4,6 +4,9 @@
+ signal depth_selected(percent: float)
+ var percent := 0.0
+ var dragging := false
++var minimum := 0.0
++var maximum := 4.0
++var step := 0.05
+ 
+ func _ready():
+ 	mouse_filter = Control.MOUSE_FILTER_STOP
+@@ -15,6 +18,7 @@
+ 
+ func _input_depth(event: InputEvent):
+ 	if disabled:
++		dragging = false
+ 		return
+ 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+ 		if event.pressed:
+@@ -28,18 +32,18 @@
+ 		_preview(event.position.x)
+ 
+ func _preview(x: float):
+-	percent = snappedf(clampf((x - 16.0) / maxf(1.0, size.x - 32.0), 0.0, 1.0) * 4.0, 0.05)
++	percent = clampf(snappedf(lerpf(minimum, maximum, clampf((x - 16.0) / maxf(1.0, size.x - 32.0), 0.0, 1.0)), step), minimum, maximum)
+ 	queue_redraw()
+ 
+ func set_percent(value: float):
+ 	if not dragging:
+-		percent = clampf(value, 0.0, 4.0)
++		percent = clampf(value, minimum, maximum)
+ 		queue_redraw()
+ 
+ func _draw():
+ 	var left := Vector2(16, size.y / 2.0)
+ 	var right := Vector2(size.x - 16, size.y / 2.0)
+-	var thumb := left.lerp(right, percent / 4.0)
++	var thumb := left.lerp(right, clampf((percent - minimum) / maxf(0.001, maximum - minimum), 0.0, 1.0))
+ 	draw_line(left, right, ProductTheme.BORDER, 10, true)
+ 	draw_circle(left, 5, ProductTheme.BORDER)
+ 	draw_circle(right, 5, ProductTheme.BORDER)
+--- a/src/xr_interaction.gd
++++ b/src/xr_interaction.gd
+@@ -561,6 +561,8 @@
+ 		# Require a release (which clears _pinch_start_screen) before either
+ 		# gesture can start.
+ 		var mid_content_drag = main.was_clicking and _pinch_start_screen != null and not main.grabbed_node and main.grabbed_corner_idx < 0
++		if main.screen_manager and main.screen_manager.view_locked and t.role in [&"corner", &"grab_bar"] and t.screen is VRScreen:
++			return
+ 
+ 		if t.role == &"corner":
+ 			var corner_idx = t.corner_idx
+@@ -729,6 +731,7 @@
+ 	if main.left_contact_dot:
+ 		main.left_contact_dot.visible = false
+ 	if main.comp.in_use and main.left_comp_cursor_layer:
++		main.left_comp_cursor_layer.set_quad_size(Vector2.ONE * 0.035 * main.screen_manager.pointer_scale)
+ 		var to_cam = (main.xr_camera.global_position - hit_pos).normalized()
+ 		main.left_comp_cursor_layer.global_position = hit_pos + to_cam * 0.002
+ 		main.left_comp_cursor_layer.look_at(main.left_comp_cursor_layer.global_position + to_cam, Vector3.UP)
+@@ -827,6 +830,9 @@
+ func handle_grab():
+ 	if not main.grabbed_node:
+ 		return
++	if main.grabbed_node is VRScreen and main.screen_manager.view_locked:
++		main.screen_manager.set_view_locked(true)
++		return
+ 	if main.grabbed_node == main.ui_panel_3d and not main.ui_visible:
+ 		# Closing the menu stops its drag; a still-held trigger is not replayed.
+ 		main.grabbed_node = null
+@@ -926,6 +932,9 @@
+ 
+ func handle_corner_resize():
+ 	if main.grabbed_corner_idx < 0 or not main.grabbed_corner_screen:
++		return
++	if main.screen_manager.view_locked:
++		main.screen_manager.set_view_locked(true)
+ 		return
+ 	var s = main.grabbed_corner_screen
+ 	var active_raycast = get_active_raycast()
+--- a/src/native_xr_renderer.gd
++++ b/src/native_xr_renderer.gd
+@@ -225,8 +225,15 @@
+ 		transform.origin = screen.global_position - screen_forward * radius
+ 	var view_dist := maxf((screen.global_position - main.xr_camera.global_position).length(), 0.5)
+ 	var sort_order := clampi(int((10.0 - view_dist) * 10.0), 1, 100)
+-	renderer.set_geometry(transform, screen.mesh_size.x, screen.mesh_size.y,
+-			screen.curvature, radius, central_angle, sort_order, main.settings.bezel_enabled)
++	var framing: bool = renderer.has_method("supports_view_framing") and renderer.supports_view_framing()
++	if framing:
++		var sm = main.screen_manager
++		var cropped: bool = sm.crop_top + sm.crop_bottom > 0.0
++		renderer.set_geometry(transform, screen.mesh_size.x, screen.mesh_size.y,
++				screen.curvature, radius, central_angle, sort_order, main.settings.bezel_enabled and not cropped, sm.crop_top, sm.crop_bottom)
++	else:
++		renderer.set_geometry(transform, screen.mesh_size.x, screen.mesh_size.y,
++				screen.curvature, radius, central_angle, sort_order, main.settings.bezel_enabled)
+ 	renderer.set_compositor_sharpening(_native_compositor_sharpening())
+ 
+ func _disable_legacy_video() -> void:
+--- a/src/shaders/circle_cursor.gdshader
++++ b/src/shaders/circle_cursor.gdshader
+@@ -7,6 +7,7 @@
+ // vertex color, so node .modulate has no effect here - this uniform is the
+ // only way to control opacity from GDScript.
+ uniform float alpha_mult : hint_range(0.0, 1.0) = 1.0;
++uniform bool high_contrast = false;
+ 
+ void fragment() {
+ 	vec2 center = vec2(0.5, 0.5);
+@@ -14,5 +15,7 @@
+ 	float radius = 0.42;
+ 	float edge = 0.015;
+ 	float alpha = smoothstep(radius, radius - edge, dist);
+-	COLOR = vec4(1.0, 1.0, 1.0, alpha * 0.3 * alpha_mult);
++	float fill = smoothstep(0.33, 0.31, dist);
++	vec3 ink = high_contrast ? mix(vec3(0.03), vec3(1.0), fill) : vec3(1.0);
++	COLOR = vec4(ink, alpha * (high_contrast ? 1.0 : 0.3) * alpha_mult);
+ }
+--- /dev/null
++++ b/extensions/nightfall-xr/include/view_framing.h
+@@ -0,0 +1,16 @@
++#pragma once
++#include <algorithm>
++#include <cmath>
++
++namespace quest3d {
++struct ViewRect { int x, y, width, height; };
++inline float valid_crop(float value) {
++    return std::isfinite(value) ? std::clamp(value, 0.0f, 0.25f) : 0.0f;
++}
++// One already-separated eye; never crop the packed SBS canvas as a whole.
++inline ViewRect view_rect(int eye, int width, int height, float top, float bottom) {
++    const int first = int(std::lround(height * valid_crop(top)));
++    const int last = int(std::lround(height * valid_crop(bottom)));
++    return {eye * width, first, width, std::max(1, height - first - last)};
++}
++}
+--- a/extensions/nightfall-xr/include/fast_xr_renderer.h
++++ b/extensions/nightfall-xr/include/fast_xr_renderer.h
+@@ -105,7 +105,8 @@
+ 	bool consume_pending_resize_failure();
+ 	void set_geometry(const Transform3D &p_transform, float p_width, float p_height,
+ 			int p_curvature, float p_radius, float p_central_angle, int p_sort_order,
+-			bool p_bezel_enabled);
++			bool p_bezel_enabled, float p_crop_top = 0.0f, float p_crop_bottom = 0.0f);
++	bool supports_view_framing() const { return true; }
+ 	// 0=None, 1=normal sharpening, 2=quality sharpening. This is applied by
+ 	// the OpenXR runtime after composition, with no video-shader sampling cost.
+ 	void set_compositor_sharpening(int p_mode);
+@@ -461,6 +462,8 @@
+ 	float pending_central_angle = 0.75f;
+ 	int pending_sort_order = 1;
+ 	bool pending_bezel_enabled = true;
++	float pending_crop_top = 0.0f;
++	float pending_crop_bottom = 0.0f;
+ 	int pending_compositor_sharpening = 0;
+ 	int pending_compositor_sampling = 0;
+ 
+--- a/extensions/nightfall-xr/src/fast_xr_renderer.cpp
++++ b/extensions/nightfall-xr/src/fast_xr_renderer.cpp
+@@ -133,7 +133,8 @@
+ 	ClassDB::bind_method(D_METHOD("consume_pending_resize_failure"), &NightfallXrRenderer::consume_pending_resize_failure);
+ 	ClassDB::bind_method(D_METHOD("supports_cylinder"), &NightfallXrRenderer::supports_cylinder);
+ 	ClassDB::bind_method(D_METHOD("supports_compositor_sharpening"), &NightfallXrRenderer::supports_compositor_sharpening);
+-	ClassDB::bind_method(D_METHOD("set_geometry", "transform", "width", "height", "curvature", "radius", "central_angle", "sort_order", "bezel_enabled"), &NightfallXrRenderer::set_geometry);
++	ClassDB::bind_method(D_METHOD("set_geometry", "transform", "width", "height", "curvature", "radius", "central_angle", "sort_order", "bezel_enabled", "crop_top", "crop_bottom"), &NightfallXrRenderer::set_geometry, DEFVAL(0.0), DEFVAL(0.0));
++	ClassDB::bind_method(D_METHOD("supports_view_framing"), &NightfallXrRenderer::supports_view_framing);
+ 	ClassDB::bind_method(D_METHOD("set_compositor_sharpening", "mode"), &NightfallXrRenderer::set_compositor_sharpening);
+ 	ClassDB::bind_method(D_METHOD("set_compositor_sampling", "mode", "settings_enabled"), &NightfallXrRenderer::set_compositor_sampling);
+ 	ClassDB::bind_method(D_METHOD("get_compositor_sampling"), &NightfallXrRenderer::get_compositor_sampling);
+@@ -331,7 +332,7 @@
+ bool NightfallXrRenderer::consume_pending_resize_failure() { return false; }
+ bool NightfallXrRenderer::supports_cylinder() const { return false; }
+ bool NightfallXrRenderer::supports_compositor_sharpening() const { return false; }
+-void NightfallXrRenderer::set_geometry(const Transform3D &, float, float, int, float, float, int, bool) {}
++void NightfallXrRenderer::set_geometry(const Transform3D &, float, float, int, float, float, int, bool, float, float) {}
+ void NightfallXrRenderer::set_compositor_sharpening(int) {}
+ bool NightfallXrRenderer::set_compositor_sampling(int mode, bool) { return mode == 0; }
+ int NightfallXrRenderer::get_compositor_sampling() const { return 0; }
+--- a/extensions/nightfall-xr/src/fast_xr_renderer_android.cpp
++++ b/extensions/nightfall-xr/src/fast_xr_renderer_android.cpp
+@@ -1,6 +1,7 @@
+ #ifdef __ANDROID__
+ 
+ #include "fast_xr_renderer.h"
++#include "view_framing.h"
+ #include "video_sampling_policy.h"
+ 
+ #include <chrono>
+@@ -177,8 +178,10 @@
+ 	value["image_array_index"] = int64_t(image.imageArrayIndex);
+ 	const int inset = int64_t(cycle_frame_descriptor.get("rendered_viewport_inset", -1));
+ 	value["encoded_eye"] = image.imageRect.offset.x / output_width;
+-	value["content_rect_in_image"] = Rect2i(image.imageRect.offset.x + inset, inset,
+-			output_width - inset * 2, output_height - inset * 2);
++	const int content_top = std::max(inset, image.imageRect.offset.y);
++	const int content_bottom = std::min(output_height - inset, image.imageRect.offset.y + image.imageRect.extent.height);
++	value["content_rect_in_image"] = Rect2i(image.imageRect.offset.x + inset, content_top,
++			output_width - inset * 2, content_bottom - content_top);
+ 	value["position"] = Vector3(pose.position.x, pose.position.y, pose.position.z);
+ 	value["orientation"] = Quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+ 	return value;
+@@ -1355,12 +1358,15 @@
+ 
+ void NightfallXrRenderer::set_geometry(const Transform3D &p_transform, float p_width, float p_height,
+ 		int p_curvature, float p_radius, float p_central_angle, int p_sort_order,
+-		bool p_bezel_enabled) {
++		bool p_bezel_enabled, float p_crop_top, float p_crop_bottom) {
+ 	std::lock_guard<std::recursive_mutex> lock(frame_mutex);
++	p_crop_top = quest3d::valid_crop(p_crop_top);
++	p_crop_bottom = quest3d::valid_crop(p_crop_bottom);
+ 	const bool pixels_changed = pending_bezel_enabled != p_bezel_enabled;
+ 	if (pending_transform != p_transform || pending_width != p_width || pending_height != p_height
+ 			|| pending_curvature != p_curvature || pending_radius != p_radius || pending_central_angle != p_central_angle
+-			|| pending_sort_order != p_sort_order || pixels_changed) pointer_generation.change(pixels_changed);
++			|| pending_sort_order != p_sort_order || pixels_changed
++			|| pending_crop_top != p_crop_top || pending_crop_bottom != p_crop_bottom) pointer_generation.change(pixels_changed);
+ 	pending_transform = p_transform;
+ 	pending_width = p_width;
+ 	pending_height = p_height;
+@@ -1369,6 +1375,8 @@
+ 	pending_central_angle = p_central_angle;
+ 	pending_sort_order = p_sort_order;
+ 	pending_bezel_enabled = p_bezel_enabled;
++	pending_crop_top = p_crop_top;
++	pending_crop_bottom = p_crop_bottom;
+ }
+ 
+ void NightfallXrRenderer::set_compositor_sharpening(int p_mode) {
+@@ -2000,10 +2008,11 @@
+ 
+ 		XrSwapchainSubImage sub_image{};
+ 		sub_image.swapchain = swapchain;
+-		sub_image.imageRect.offset.x = half * output_width;
+-		sub_image.imageRect.offset.y = 0;
+-		sub_image.imageRect.extent.width = output_width;
+-		sub_image.imageRect.extent.height = output_height;
++		const auto visible = quest3d::view_rect(half, output_width, output_height, pending_crop_top, pending_crop_bottom);
++		sub_image.imageRect.offset.x = visible.x;
++		sub_image.imageRect.offset.y = visible.y;
++		sub_image.imageRect.extent.width = visible.width;
++		sub_image.imageRect.extent.height = visible.height;
+ 		sub_image.imageArrayIndex = 0;
+ 
+ 		Transform3D xf = cycle_world_to_play * pending_transform;
+--- /dev/null
++++ b/test/test_display_view_settings.gd
+@@ -0,0 +1,202 @@
++extends SceneTree
++
++class QuietMain extends "res://main.gd":
++	func _ready(): pass
++	func _process(_delta): pass
++	func _notification(_what): pass
++
++class NoRestart extends SettingsController:
++	var restarts := 0
++	func _schedule_stream_restart(): restarts += 1
++
++class RecordedRenderer extends RefCounted:
++	var calls: Array = []
++	func supports_view_framing() -> bool: return true
++	func set_geometry(pose, width, height, curve, radius, angle, order, bezel, top = 0.0, bottom = 0.0):
++		calls.append({"pose": pose, "width": width, "height": height, "curve": curve, "radius": radius, "angle": angle, "order": order, "bezel": bezel, "top": top, "bottom": bottom})
++	func set_compositor_sharpening(_value): pass
++
++var failures: Array[String] = []
++var checked := 0
++func check(value: bool, message: String):
++	checked += 1
++	if not value:
++		failures.append(message)
++		printerr("REGRESSION FAIL ", message)
++
++func _init(): _run.call_deferred()
++
++func click(ui, name: String):
++	var button: Button = ui.pages[0].find_child(name, true, false)
++	check(button != null and button.is_visible_in_tree(), name + " reachable")
++	if button and not button.disabled:
++		button.button_down.emit()
++		button.button_up.emit()
++
++func _run():
++	check(OS.get_environment("NIGHTFALL_FIRST_RUN_FIXTURE") == "1", "Isolated test profile required")
++	if not failures.is_empty():
++		quit(1)
++		return
++	if FileAccess.file_exists("user://host_state.cfg"):
++		check(DirAccess.remove_absolute("user://host_state.cfg") == OK, "Reset only isolated fixture config")
++	var app = load("res://main.tscn").instantiate()
++	app.set_script(QuietMain)
++	root.add_child(app)
++	app.screen_registry.initialize(app.screen_mesh)
++	app.layout = ScreenLayout.single(Vector2i(4096, 1152))
++	app.primary_screen.setup(app)
++	app.primary_screen.create_corner_handles()
++	app.primary_screen.apply_monitor(app.layout.monitors[0], app.layout.frame_size)
++	app.screen_manager = ScreenManager.new(app)
++	app.settings_controller = NoRestart.new(app)
++	app.controller_mapper = ControllerMapper.new(app)
++	app.add_child(app.controller_mapper)
++	app.state_manager = StateManager.new(app)
++	app.pc_control = PcControl.new(app)
++	app.xr_interaction = XRInteraction.new(app)
++	app.xr_camera = XRCamera3D.new()
++	app.add_child(app.xr_camera)
++	app.ui_controller = UIController.new(app)
++	app.settings.host.pc_profile_resolution = Vector2i(4096, 1152)
++	app.primary_screen.mesh_size = Vector2(2.4, 1.35)
++	app.primary_screen.position = Vector3(0, 0, -3)
++	app.primary_screen.curvature = 0
++	app.ui_visible = true
++	app.ui_panel_3d.show()
++	app.get_node("%IPInput").text = "view-fixture"
++	app.ui_controller.build_ui()
++	await process_frame
++	await process_frame
++	var sm: ScreenManager = app.screen_manager
++	var s: VRScreen = app.primary_screen
++	var ui: PrecisionUI = app.ui_controller.precision
++	var profile: Vector2i = app.settings.host.pc_profile_resolution
++	var host_before := ConfigFile.new()
++	SettingsPersistence.write_host(host_before, "host", app.settings.host)
++	var stable_host := host_before.encode_to_text()
++	var pose := s.global_transform
++	click(ui, "SizePlus")
++	check(is_equal_approx(s.mesh_size.x, 2.52) and s.global_transform == pose, "Size changes width by 5%, keeps pose")
++	click(ui, "SizeMinus")
++	check(s.mesh_size.is_equal_approx(Vector2(2.4, 1.35)), "Size round trip preserves per-eye aspect")
++	check(ui._repeat_button == null and not ui._repeat_action.is_valid(), "Release clears repeat callback ownership")
++	var repeat_button: Button = ui.view_panels.Overview.get_node("SizePlus")
++	repeat_button.button_down.emit()
++	app.ui_visible = false
++	ui._repeat_view_action()
++	check(ui._repeat_button == null and not ui._repeat_action.is_valid(), "Closing menu cancels held repeat callback")
++	app.ui_visible = true
++	repeat_button.button_down.emit()
++	var holding_ui: WeakRef = weakref(ui)
++	repeat_button.button_up.emit()
++	click(ui, "SizeMinus")
++	click(ui, "SizeMinus")
++	click(ui, "PositionOpen")
++	click(ui, "DistancePlus")
++	check(is_equal_approx(sm.view_distance(), 3.1) and is_equal_approx(s.mesh_size.x, 2.4), "Distance changes metres only")
++	click(ui, "KeepSize")
++	var ratio := s.mesh_size.x / sm.view_distance()
++	click(ui, "DistancePlus")
++	check(is_equal_approx(s.mesh_size.x / sm.view_distance(), ratio), "Keep size maintains centre-view angle")
++	click(ui, "Move2")
++	check(is_equal_approx(s.position.y, 0.1), "Move uses camera up")
++	var before_tilt := s.global_transform
++	click(ui, "TiltPlus")
++	check(s.position == before_tilt.origin and not s.basis.is_equal_approx(before_tilt.basis), "Tilt changes only rotation")
++	s.rotate_object_local(Vector3.FORWARD, 0.3)
++	click(ui, "Level")
++	check(absf(s.basis.x.y) < 0.0001, "Level removes roll without moving screen")
++	click(ui, "PositionBack")
++	click(ui, "Lock")
++	var locked_pose := s.global_transform
++	var locked_size := s.mesh_size
++	check(not sm.set_view_width(5) and not sm.move_primary_screen(1) and not sm.shift_view(Vector2.ONE) and not sm.tilt_view(2) and not sm.center_view() and not sm.set_view_curve(2), "Every screen geometry entry respects Lock")
++	app.grabbed_node = s
++	app.xr_interaction.handle_grab()
++	check(app.grabbed_node == null and s.global_transform == locked_pose, "Lock cancels an in-flight screen grab")
++	check(s.mesh_size == locked_size, "Locked size unchanged")
++	click(ui, "Lock")
++	app.xr_camera.position = Vector3(0.4, 0.8, 0.2)
++	app.xr_camera.rotation = Vector3(0.3, 0.4, 0)
++	var width_before := s.mesh_size.x
++	var distance_before := sm.view_distance()
++	click(ui, "Center")
++	check(is_equal_approx(sm.view_distance(), distance_before) and s.mesh_size.x == width_before, "Center preserves size and distance")
++	check(app.ui_visible, "Center leaves settings open")
++	click(ui, "ViewsOpen")
++	click(ui, "SaveView")
++	var saved := sm.saved_view.duplicate(true)
++	click(ui, "Preset1")
++	check(s.curvature == 1 and is_equal_approx(s.mesh_size.x, 4) and is_equal_approx(sm.view_distance(), 3), "Cinema changes geometry only")
++	app.xr_camera.position += Vector3(1, 0.3, 0.2)
++	click(ui, "Preset3")
++	check(is_equal_approx(s.mesh_size.x, saved.width), "My view restores width")
++	var relative: Transform3D = app.xr_camera.global_transform.orthonormalized().affine_inverse() * s.global_transform
++	check(relative.origin.is_equal_approx(Vector3(saved.position[0], saved.position[1], saved.position[2])), "My view restores relative to current tracking space")
++	click(ui, "Preset2")
++	check(app.ui_visible and s.basis.is_equal_approx(app.xr_camera.basis), "Reclined aligns once to gaze without closing menu")
++	var bad: Dictionary = saved.duplicate(true)
++	bad.position = [NAN, 0, -3]
++	check(not sm.valid_saved_view(bad), "Malformed preset rejected")
++	sm.restore_view_options({"version": 1, "menu_scale": NAN, "pointer_scale": INF, "saved": bad, "crop_top": "bad"})
++	check(sm.menu_scale == 1 and sm.pointer_scale == 1 and sm.saved_view.is_empty() and sm.crop_top == 0, "Invalid settings stay finite")
++	sm.restore_view_options({"version": 2, "menu_scale": 1.5})
++	check(sm.menu_scale == 1, "Unknown preference version not interpreted")
++	sm.set_menu_scale(1.2)
++	var logical := Vector3(0.2, 0.1, 0)
++	check(app.ui_panel_3d.to_local(app.ui_panel_3d.to_global(logical)).is_equal_approx(logical), "Menu scale preserves ray coordinate inverse")
++	check(app.ui_panel_3d.scale.is_equal_approx(Vector3.ONE * 1.2), "Menu mesh and collider scaled together")
++	sm.center_menu()
++	check(is_equal_approx(app.ui_panel_3d.global_position.distance_to(app.xr_camera.global_position), 1.5), "Menu recenter independent of video")
++	var native := NativeXrRendererManager.new(app)
++	native.active = true
++	native.renderer = RecordedRenderer.new()
++	app.native_xr_renderer = native
++	app.video_presentation = VideoPresentation.new(app.comp, native)
++	check(sm.set_view_crop(0.1, 0.05), "Native framing enabled")
++	native._sync_geometry()
++	var frame: Dictionary = native.renderer.calls[-1]
++	check(frame.top == 0.1 and frame.bottom == 0.05 and not frame.bezel, "Native receives atomic framing and geometry")
++	check(is_equal_approx(frame.width / frame.height, (2048.0 / 1152.0) / sm.framing_height_fraction(s)), "Cropped shape matches visible per-eye ratio")
++	check(sm.set_view_crop(0, 0), "Fit restores original")
++	native._sync_geometry()
++	check(is_equal_approx(s.mesh_size.x / s.mesh_size.y, 16.0 / 9.0), "Fit restores 16:9, never packed 32:9")
++	for resolution in [Vector2i(3840, 1080), Vector2i(4096, 1152), Vector2i(5120, 1080)]:
++		app.settings.host.pc_profile_resolution = resolution
++		sm.set_view_crop(0.25, 0.25)
++		native._sync_geometry()
++		check(is_equal_approx(s.mesh_size.x / s.mesh_size.y, (float(resolution.x / 2) / resolution.y) / sm.framing_height_fraction(s)), "Quest 2/3 and ultrawide crop aspect " + str(resolution))
++	app.settings.host.pc_profile_resolution = profile
++	sm.set_view_crop(0, 0)
++	sm.set_pointer_style(1.5, true)
++	sm.set_keep_view_size(true)
++	sm.save_view()
++	sm.set_view_locked(true)
++	app.state_manager.save_host_state()
++	var stored := ConfigFile.new()
++	check(stored.load("user://host_state.cfg") == OK, "Real config save succeeds")
++	var values: Variant = stored.get_value("view-fixture", "quest_view_v1")
++	sm.restore_view_options({})
++	sm.restore_view_options(values)
++	check(sm.view_locked and sm.keep_view_size and sm.menu_scale == 1.2 and sm.pointer_scale == 1.5 and sm.pointer_contrast and not sm.saved_view.is_empty(), "View preferences and preset survive disk round trip")
++	stored.set_value("view-fixture", "quest_view_v1", {"version": 9, "future": "keep"})
++	stored.set_value("unrelated-host", "private-value", "preserved")
++	stored.save("user://host_state.cfg")
++	app.state_manager.save_host_state()
++	stored.load("user://host_state.cfg")
++	check(stored.get_value("view-fixture", "quest_view_v1").version == 9 and stored.get_value("unrelated-host", "private-value") == "preserved", "Unknown future preferences and other hosts preserved")
++	var host_after := ConfigFile.new()
++	SettingsPersistence.write_host(host_after, "host", app.settings.host)
++	check(host_after.encode_to_text() == stable_host, "All video, depth, color and transport preferences unchanged")
++	check(app.settings_controller.restarts == 0, "No stream restart for local view controls")
++	check(not app.controller_mapper.is_input_mapping_supported(), "Remote PC input stays disabled")
++	native.active = false
++	app.video_presentation = null
++	app.native_xr_renderer = null
++	native.renderer = null
++	app.free()
++	ui = null
++	check(holding_ui.get_ref() == null, "Freeing menu releases PrecisionUI after repeat actions")
++	print("display_view_settings ", "PASS" if failures.is_empty() else "FAIL", " checks=", checked)
++	quit(0 if failures.is_empty() else 1)
+--- a/test/test_menu_pointer_visibility.gd
++++ b/test/test_menu_pointer_visibility.gd
+@@ -40,6 +40,7 @@
+ 	app.set_script(QuietMain)
+ 	root.add_child(app)
+ 	app.screen_registry.initialize(app.screen_mesh)
++	app.screen_manager = ScreenManager.new(app)
+ 	app.screen_mesh.position = Vector3(0, 0, -3)
+ 	app.composition_environment = AvailableEnvironment.new()
+ 	app.virtual_keyboard = VirtualKeyboard.new(app)
+@@ -139,6 +140,25 @@
+ 		"Primary pointer viewport updates while settings are open")
+ 	_check(app.left_comp_cursor_viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS,
+ 		"Secondary pointer viewport updates while settings are open")
++	for scale_value in [0.85, 1.0, 1.2]:
++		app.screen_manager.set_menu_scale(scale_value)
++		_check(app.comp_ui.get_quad_size().is_equal_approx(app._ui_mesh_size * scale_value), "Menu compositor matches scaled collider")
++		target = app.ui_panel_3d.to_global(Vector3((pixel.x / app._ui_viewport_size.x - 0.5) * app._ui_mesh_size.x, (0.5 - pixel.y / app._ui_viewport_size.y) * app._ui_mesh_size.y, 0))
++		await physics_frame
++		_aim(ray, target)
++		_check(ray.is_colliding(), "Scaled panel remains a real ray target")
++		if ray.is_colliding():
++			var previous_presses := presses
++			app.xr_interaction._route_menu_pointer(ray.get_collision_point(), true, ray)
++			app.xr_interaction._route_menu_pointer(ray.get_collision_point(), false, ray)
++			await process_frame
++			_check(presses == previous_presses + 1, "Scaled menu click reaches original logical button")
++	app.screen_manager.set_pointer_style(1.5, true)
++	app._update_cursor_layer()
++	_check(is_equal_approx(app.comp_cursor.get_quad_size().x, 0.035 * 1.5), "Pointer size reaches compositor")
++	for vp in [app.comp_cursor_viewport, app.left_comp_cursor_viewport]:
++		_check(vp.get_node("CircleTexture").material.get_shader_parameter("high_contrast") == true, "Both menu pointers receive contrast")
++	_check(app.comp_cursor.get_instance_id() == cursor_id and app.comp_cursor_viewport.get_instance_id() == viewport_id, "Scale and contrast reuse cursor resources")
+ 	app.ui_visible = false
+ 	app._sync_interaction_viewports()
+ 	_check(app.comp_cursor_viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED,
+--- a/test/test_precision_ui.gd
++++ b/test/test_precision_ui.gd
+@@ -100,11 +100,18 @@
+ 				await process_frame
+ 				_check_bounds(precision.pages[id], Rect2(0, 0, 1200, 530))
+ 	assert(precision.tabs.size() == 4)
++	app.ui_controller.switch_tab(0)
++	for name in precision.view_panels:
++		precision._show_view_panel(name)
++		await process_frame
++		_check_bounds(precision.pages[0], Rect2(0, 0, 1200, 530))
++	precision._show_view_panel("Overview")
+ 	assert(ProductTheme.BG.r < 0.15 and ProductTheme.TEXT.r > 0.9, "Menu dark theme only")
+ 	var expected_tabs := ["Display", "3D", "Quality", "Connect"]
+ 	for i in expected_tabs.size():
+ 		assert(precision.tabs[i].get_node("TabLabel").text == expected_tabs[i])
+-	for tab_id in [3, 4]:
++	assert(precision.pages[3].get_node_or_null("SubnavSurface") == null, "Depth has no unrelated display subtabs")
++	for tab_id in [2, 4]:
+ 		var page: Control = precision.pages[tab_id]
+ 		var nav: Control = page.get_node("SubnavSurface")
+ 		var heading: Control = page.get_node("SectionHeading")
+@@ -301,4 +308,4 @@
+ 	assert(not pointer._is_ui_grab_bar(pixel))
+ 	app.free()
+ 	print("Menu move handle PASS: fixed bottom footer/no content overlap, production ray routing/drag/release, button input, repeated gesture and hidden lifetime")
+-	quit()+	quit()
+--- a/test/test_usability_regression.gd
++++ b/test/test_usability_regression.gd
+@@ -121,8 +121,8 @@
+ 		app.ui_controller.switch_tab(3)
+ 		await process_frame
+ 		var hint_rect := hint.get_global_rect()
+-		var depth_row: Rect2 = precision.depth_sliders[1].get_global_rect()
+-		var minus_row: Rect2 = precision.depth_buttons[2].get_global_rect()
++		var depth_row: Rect2 = precision.depth_sliders[0].get_global_rect()
++		var minus_row: Rect2 = precision.depth_buttons[0].get_global_rect()
+ 		assert(hint_rect.position.x == minus_row.position.x, "Help aligns to its Depth control column")
+ 		assert(hint_rect.position.y >= maxf(depth_row.end.y, minus_row.end.y), "Help sits below the real Depth controls")
+ 		_check_bounds(precision.pages[3], Rect2(0, 0, 1200, 530))
+--- a/test/test_quest3_first_run.gd
++++ b/test/test_quest3_first_run.gd
+@@ -17,6 +17,10 @@
+ 	func apply_screen_layout(_layout): pass
+ class FakeScreen extends RefCounted:
+ 	func apply_curvature(): pass
++	# View persistence is exercised with the real ScreenManager in
++	# test_display_view_settings; this fixture isolates first-run defaults.
++	func restore_view_options(_value): pass
++	func view_options() -> Dictionary: return {"version": 1}
+ class FakeUi extends RefCounted:
+ 	func update_stereo_shader(): pass
+ 	func update_option_btn(_button, _label): pass
+--- a/test/render_product_ui.gd
++++ b/test/render_product_ui.gd
+@@ -47,6 +47,9 @@
+ 	app.set_script(QuietMain)
+ 	root.add_child(app)
+ 	app.screen_registry.initialize(app.screen_mesh)
++	app.screen_mesh.setup(app)
++	app.screen_mesh.curvature = 0
++	app.screen_mesh.create_corner_handles()
+ 	app.layout = ScreenLayout.new()
+ 	app.screen_manager = ScreenManager.new(app)
+ 	app.settings_controller = SettingsController.new(app)
+@@ -100,6 +103,13 @@
+ 				RenderingServer.force_draw(false)
+ 				app.ui_viewport.get_texture().get_image().save_png("../after-tab-%d-sub-%d.png" % [tab_index, child.get_meta("precision_subpage")])
+ 		print("RENDER ", tab_index)
++	app.ui_controller.switch_tab(0)
++	for name in app.ui_controller.precision.view_panels:
++		app.ui_controller.precision._show_view_panel(name)
++		await process_frame
++		await process_frame
++		RenderingServer.force_draw(false)
++		app.ui_viewport.get_texture().get_image().save_png("../after-view-%s.png" % name)
+ 
+ 	app.session_lifecycle.stream_started()
+ 	var welcome := WelcomeScreen.new(app)

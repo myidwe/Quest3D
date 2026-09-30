@@ -1,0 +1,913 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "wc_cuda"
+-version = "0.1.2+quest2"
++version = "0.1.2+quest3"
+ edition = "2024"
+ 
+ [lib]
+@@ -8,7 +8,7 @@
+ crate-type = ["cdylib"]
+ 
+ [dependencies]
+-windows-capture = "=2.0.0-alpha.7"
++windows-capture = { version = "=2.0.0-alpha.7", path = "../../native/capture/vendor/windows-capture-2.0.0-alpha.7" }
+ pyo3 = { version = "0.23.4", features = ["extension-module", "abi3-py310"] }
+ thiserror = "2.0"
+ parking_lot = "0.12"
+@@ -16,6 +16,8 @@
+ [dependencies.windows]
+ version = "0.62.2"
+ features = [
++    "System",
++    "Win32_System_Com",
+     "Win32_Graphics_Direct3D11",
+     "Win32_Graphics_Dxgi",
+     "Win32_Graphics_Dxgi_Common",
+--- a/python/wc_cuda/__init__.py
++++ b/python/wc_cuda/__init__.py
+@@ -7,7 +7,7 @@
+ from ._wc_cuda import WcCapture as _NativeWcCapture
+ 
+ __all__ = ["WindowsCapture", "Frame", "InternalCaptureControl", "get_luid", "list_windows"]
+-QUEST3D_PATCH_VERSION = 2
++QUEST3D_PATCH_VERSION = 3
+ 
+ 
+ def _pixel_layout(color_format):
+@@ -236,8 +236,18 @@
+         window_hwnd: Optional[int] = None,
+         device_id: int = 0,  # Custom addition for CUDA
+         color_format: str = "bgra8",
++        window_identity: Optional[tuple] = None,
+     ):
+         _pixel_layout(color_format)
++        if (window_name is not None or (window_hwnd is not None and monitor_index is not None)
++                or (window_hwnd is None) != (window_identity is None)
++                or (window_hwnd is not None and (type(window_hwnd) is not int or window_hwnd <= 0))):
++            raise ValueError("Select one monitor or exact positive HWND plus window_identity; title selection is disabled")
++        if window_identity is not None:
++            if (type(window_identity) is not tuple or len(window_identity) != 4 or
++                    any(type(value) is not int or value <= 0 for value in window_identity[:3]) or
++                    type(window_identity[3]) is not str or not window_identity[3]):
++                raise ValueError("window_identity must contain PID, creation FILETIME, TID and class")
+         # Selecting another adapter silently is not safe for D3D/CUDA interop.
+         low, high = get_luid(device_id)
+         luid = (low, high)
+@@ -246,7 +256,8 @@
+         self.color_format = color_format
+         self._inner = _NativeWcCapture(
+             luid=luid, monitor_index=monitor_index, window_hwnd=window_hwnd,
+-            window_title=window_name, cursor_capture=cursor_capture, color_format=color_format
++            window_title=window_name, cursor_capture=cursor_capture, color_format=color_format,
++            window_identity=window_identity
+         )
+         if self._inner.lease_protocol_version != 1:
+             raise RuntimeError("Native CUDA texture lease protocol version mismatch")
+@@ -302,6 +313,10 @@
+                     tensor = self._copy_leased_frame(gpu_frame, new_id)
+                     ow, oh = gpu_frame.original_width, gpu_frame.original_height
+                     frame = Frame(tensor[:oh, :ow], ow, oh, gpu_frame.color_format)
++                    frame.frame_id = new_id
++                    frame.system_relative_time_ns = gpu_frame.system_relative_time_ns
++                    frame.source_hwnd = gpu_frame.source_hwnd
++                    frame.source_identity = gpu_frame.source_identity
+                     self.frame_handler(frame, self._control)
+                 else:
+                     # If no frame arrived, check if the capture thread is still alive
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -6,20 +6,23 @@
+ use std::time::Duration;
+ 
+ use windows::Win32::Foundation::HMODULE;
+-use windows::Win32::Foundation::{LPARAM, LUID, WPARAM};
++use windows::Win32::Foundation::{CloseHandle, FILETIME, HWND, LPARAM, LUID, WPARAM};
+ use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_UNKNOWN, D3D_FEATURE_LEVEL_11_1};
+ use windows::Win32::Graphics::Direct3D11::{
+-    D3D11_BIND_SHADER_RESOURCE, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_RESOURCE_MISC_SHARED,
++    D3D11_BIND_SHADER_RESOURCE, D3D11_BOX, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_RESOURCE_MISC_SHARED,
+     D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_DEFAULT, D3D11CreateDevice, ID3D11Device,
+     ID3D11DeviceContext, ID3D11Texture2D,
+ };
+ use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1};
+-use windows::Win32::System::Threading::GetCurrentThreadId;
++use windows::Win32::System::Threading::{GetCurrentThreadId, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
++use windows::Win32::System::Com::{CoIncrementMTAUsage, CoDecrementMTAUsage, CO_MTA_USAGE_COOKIE};
+ use windows::Win32::System::WinRT::{
+     CreateDispatcherQueueController, DQTAT_COM_NONE, DQTYPE_THREAD_CURRENT, DispatcherQueueOptions,
++    RoInitialize, RoUninitialize, RO_INIT_MULTITHREADED,
+ };
+ use windows::Win32::UI::WindowsAndMessaging::{
+-    DispatchMessageW, GetMessageW, MSG, PostThreadMessageW, TranslateMessage, WM_QUIT,
++    DispatchMessageW, GetAncestor, GetClassNameW, GetMessageW, GetWindowThreadProcessId,
++    IsWindow, MSG, PeekMessageW, PM_REMOVE, PostThreadMessageW, TranslateMessage, GA_ROOT, WM_QUIT,
+ };
+ use windows::core::Interface;
+ 
+@@ -32,6 +35,105 @@
+     GraphicsCaptureItemType, MinimumUpdateIntervalSettings, SecondaryWindowSettings,
+ };
+ use windows_capture::window::Window;
++
++type WindowIdentity = (u32, u64, u32, String); // PID, exact creation FILETIME, TID, class.
++
++static RUNTIME_SHUTDOWN: AtomicBool = AtomicBool::new(false);
++
++struct MtaLease(usize);
++impl Drop for MtaLease {
++    fn drop(&mut self) {
++        // windows-rs retains activation factories for the loaded extension.
++        // Module, capture workers and returned frames share this one MTA usage.
++        RUNTIME_SHUTDOWN.store(true, Ordering::SeqCst);
++        let _ = unsafe { CoDecrementMTAUsage(CO_MTA_USAGE_COOKIE(self.0 as _)) };
++    }
++}
++
++#[pyclass]
++struct CaptureRuntime {
++    lease: Arc<MtaLease>,
++}
++
++struct WinRTThread;
++impl Drop for WinRTThread {
++    fn drop(&mut self) {
++        unsafe { RoUninitialize(); }
++    }
++}
++
++struct DispatcherThread {
++    controller: windows::System::DispatcherQueueController,
++    error: Arc<Mutex<Option<String>>>,
++}
++
++impl DispatcherThread {
++    fn shutdown(&self) -> Result<(), WcCudaError> {
++        let action = self.controller.ShutdownQueueAsync()?;
++        let mut message = MSG::default();
++        while action.Status()?.0 == 0 {
++            unsafe {
++                while PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
++                    if message.message != WM_QUIT {
++                        let _ = TranslateMessage(&message);
++                        DispatchMessageW(&message);
++                    }
++                }
++            }
++            thread::sleep(Duration::from_millis(1));
++        }
++        action.GetResults()?;
++        Ok(())
++    }
++}
++
++impl Drop for DispatcherThread {
++    fn drop(&mut self) {
++        if let Err(error) = self.shutdown() {
++            *self.error.lock() = Some(format!("Dispatcher shutdown failed: {error}"));
++        }
++    }
++}
++
++fn query_window_identity(raw: isize) -> Result<WindowIdentity, WcCudaError> {
++    let hwnd = HWND(raw as *mut std::ffi::c_void);
++    unsafe {
++        if raw <= 0 || !IsWindow(Some(hwnd)).as_bool() || GetAncestor(hwnd, GA_ROOT) != hwnd {
++            return Err(WcCudaError::WindowIdentityLost("Selected top-level HWND no longer exists".into()));
++        }
++        let mut pid = 0;
++        let tid = GetWindowThreadProcessId(hwnd, Some(&mut pid));
++        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)?;
++        let mut created = FILETIME::default();
++        let mut exited = FILETIME::default();
++        let mut kernel = FILETIME::default();
++        let mut user = FILETIME::default();
++        let result = GetProcessTimes(process, &mut created, &mut exited, &mut kernel, &mut user);
++        let _ = CloseHandle(process);
++        result?;
++        let mut class = [0u16; 256];
++        let class_length = GetClassNameW(hwnd, &mut class);
++        let mut second_pid = 0;
++        if class_length <= 0 || GetWindowThreadProcessId(hwnd, Some(&mut second_pid)) != tid || second_pid != pid {
++            return Err(WcCudaError::WindowIdentityLost("HWND identity changed during native query".into()));
++        }
++        Ok((pid, ((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64,
++            tid, String::from_utf16_lossy(&class[..class_length as usize])))
++    }
++}
++
++fn verify_window_identity(raw: Option<isize>, expected: Option<&WindowIdentity>) -> Result<(), WcCudaError> {
++    if let Some(hwnd) = raw {
++        if Some(&query_window_identity(hwnd)?) != expected {
++            return Err(WcCudaError::WindowIdentityLost("Selected HWND process/lifetime identity does not match".into()));
++        }
++    }
++    Ok(())
++}
++
++fn valid_content_size(width: i32, height: i32, texture_width: u32, texture_height: u32) -> bool {
++    width > 0 && height > 0 && width as u32 <= texture_width && height as u32 <= texture_height
++}
+ 
+ fn parse_color_format(name: &str) -> PyResult<ColorFormat> {
+     match name {
+@@ -61,6 +163,8 @@
+     Python(#[from] PyErr),
+     #[error("Capture error: {0}")]
+     Capture(String),
++    #[error("Window identity lost: {0}")]
++    WindowIdentityLost(String),
+     #[error("Item conversion failed")]
+     ItemConvertFailed,
+ }
+@@ -122,6 +226,7 @@
+ #[pyclass]
+ #[derive(Clone)]
+ pub struct WcGpuFrame {
++    _runtime: Arc<MtaLease>,
+     pub texture: ID3D11Texture2D,
+     #[pyo3(get)]
+     pub width: u32,
+@@ -135,6 +240,12 @@
+     pub color_format: String,
+     #[pyo3(get)]
+     pub row_pitch_bytes: u32,
++    #[pyo3(get)]
++    pub system_relative_time_ns: u64,
++    #[pyo3(get)]
++    pub source_hwnd: Option<isize>,
++    #[pyo3(get)]
++    pub source_identity: Option<WindowIdentity>,
+ }
+ 
+ #[pymethods]
+@@ -188,25 +299,51 @@
+     frame: Option<WcGpuFrame>,
+     frame_id: u64,
+     lease: LeaseState,
++    closed: bool,
++    stop_requested: bool,
++    source_lost: bool,
++    source_error: Option<String>,
++    resize_skipped: u64,
++}
++
++impl SlotData {
++    fn request_stop(&mut self, identity_lost: Option<String>) -> bool {
++        self.stop_requested = true;
++        self.frame = None;
++        if let Some(error) = identity_lost {
++            self.source_lost = true;
++            self.source_error = Some(error);
++        }
++        // DestroyWindow can return before WGC has delivered Closed. Stopping
++        // its dispatcher first races session.Close against that notification.
++        // The real Closed callback must keep ownership of shutdown in this case.
++        !self.source_lost || self.closed
++    }
+ }
+ 
+ struct InnerHandler {
++    runtime: Arc<MtaLease>,
+     shared_slot: Arc<FrameSlot>,
+     shared_texture: Option<ID3D11Texture2D>,
+     current_aligned_width: u32,
+     current_aligned_height: u32,
+     current_format: i32,
+     thread_id: u32,
++    window_hwnd: Option<isize>,
++    window_identity: Option<WindowIdentity>,
+ }
+ 
+ impl GraphicsCaptureApiHandler for InnerHandler {
+-    type Flags = (Arc<FrameSlot>, u32);
++    type Flags = (Arc<FrameSlot>, u32, Option<isize>, Option<WindowIdentity>, Arc<MtaLease>);
+     type Error = WcCudaError;
+ 
+     fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
+         Ok(Self {
++            runtime: ctx.flags.4,
+             shared_slot: ctx.flags.0,
+             thread_id: ctx.flags.1,
++            window_hwnd: ctx.flags.2,
++            window_identity: ctx.flags.3,
+             shared_texture: None,
+             current_aligned_width: 0,
+             current_aligned_height: 0,
+@@ -223,13 +360,30 @@
+         // get_frame grants a lease under this same lock. While Python owns it,
+         // do not submit any D3D access to the texture mapped by CUDA.
+         let mut data = self.shared_slot.data.lock();
+-        if !data.lease.writer_available() {
++        if data.stop_requested || data.closed || !data.lease.writer_available() {
+             return Ok(());
+         }
+         let device = frame.device();
+         let context = frame.device_context();
+-        let width = frame.width();
+-        let height = frame.height();
++        if let Err(error) = verify_window_identity(self.window_hwnd, self.window_identity.as_ref()) {
++            if matches!(error, WcCudaError::WindowIdentityLost(_)) {
++                data.request_stop(Some(error.to_string()));
++                self.shared_slot.condvar.notify_all();
++                return Ok(());
++            }
++            return Err(error);
++        }
++        let content = frame.content_size()?;
++        if !valid_content_size(content.Width, content.Height, frame.width(), frame.height()) {
++            data.resize_skipped += 1;
++            return Ok(());
++        }
++        let width = content.Width as u32;
++        let height = content.Height as u32;
++        let timestamp = frame.timestamp()?.Duration;
++        if timestamp < 0 || timestamp as u64 > u64::MAX / 100 {
++            return Err(WcCudaError::Capture("Invalid WGC system relative timestamp".into()));
++        }
+         let format = frame.desc().Format;
+         let (color_name, bytes_per_pixel) = color_layout(format.0)?;
+ 
+@@ -267,10 +421,12 @@
+ 
+         if let Some(ref tex) = self.shared_texture {
+             unsafe {
+-                context.CopySubresourceRegion(tex, 0, 0, 0, 0, frame.as_raw_texture(), 0, None);
++                let region = D3D11_BOX { left: 0, top: 0, front: 0, right: width, bottom: height, back: 1 };
++                context.CopySubresourceRegion(tex, 0, 0, 0, 0, frame.as_raw_texture(), 0, Some(&region));
+                 context.Flush();
+             }
+             let gpu_frame = WcGpuFrame {
++                _runtime: self.runtime.clone(),
+                 texture: tex.clone(),
+                 width: aligned_width,
+                 height: aligned_height,
+@@ -278,6 +434,9 @@
+                 original_height: height,
+                 color_format: color_name.to_string(),
+                 row_pitch_bytes: aligned_width * bytes_per_pixel,
++                system_relative_time_ns: timestamp as u64 * 100,
++                source_hwnd: self.window_hwnd,
++                source_identity: self.window_identity.clone(),
+             };
+             
+             data.frame = Some(gpu_frame);
+@@ -288,6 +447,13 @@
+     }
+ 
+     fn on_closed(&mut self) -> Result<(), Self::Error> {
++        {
++            let mut data = self.shared_slot.data.lock();
++            data.closed = true;
++            data.stop_requested = true;
++            data.frame = None;
++            self.shared_slot.condvar.notify_all();
++        }
+         unsafe {
+             let _ = PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
+         }
+@@ -297,10 +463,11 @@
+ 
+ #[pyclass]
+ pub struct WcCapture {
++    runtime: Arc<MtaLease>,
+     luid: Option<(u32, i32)>,
+     monitor_index: Option<usize>,
+     window_hwnd: Option<isize>,
+-    window_title: Option<String>,
++    window_identity: Option<WindowIdentity>,
+     cursor_capture: Option<bool>,
+     color_format: ColorFormat,
+     shared_slot: Arc<FrameSlot>,
+@@ -308,26 +475,40 @@
+     thread_id: Arc<Mutex<Option<u32>>>,
+     should_stop: Arc<AtomicBool>,
+     last_error: Arc<Mutex<Option<String>>>,
++    shutdown_error: Arc<Mutex<Option<String>>>,
+ }
+ 
+ #[pymethods]
+ impl WcCapture {
+     #[new]
+-    #[pyo3(signature = (luid=None, monitor_index=None, window_hwnd=None, window_title=None, cursor_capture=None, color_format="bgra8"))]
++    #[pyo3(signature = (luid=None, monitor_index=None, window_hwnd=None, window_title=None, cursor_capture=None, color_format="bgra8", window_identity=None))]
+     fn new(
++        py: Python<'_>,
+         luid: Option<(u32, i32)>,
+         monitor_index: Option<usize>,
+         window_hwnd: Option<isize>,
+         window_title: Option<String>,
+         cursor_capture: Option<bool>,
+         color_format: &str,
++        window_identity: Option<WindowIdentity>,
+     ) -> PyResult<Self> {
++        if RUNTIME_SHUTDOWN.load(Ordering::SeqCst) {
++            return Err(pyo3::exceptions::PyRuntimeError::new_err("Capture runtime already shut down"));
++        }
++        let module = PyModule::import(py, "wc_cuda._wc_cuda")?;
++        let runtime = module.getattr("_runtime")?.extract::<PyRef<CaptureRuntime>>()?.lease.clone();
+         let color_format = parse_color_format(color_format)?;
++        if window_title.is_some() || (window_hwnd.is_some() && monitor_index.is_some()) ||
++            window_hwnd.is_some() != window_identity.is_some() || window_hwnd.is_some_and(|hwnd| hwnd <= 0) {
++            return Err(pyo3::exceptions::PyValueError::new_err(
++                "Select one monitor or exact positive HWND plus window_identity; title selection is disabled"));
++        }
+         Ok(Self {
++            runtime,
+             luid,
+             monitor_index,
+             window_hwnd,
+-            window_title,
++            window_identity,
+             cursor_capture,
+             color_format,
+             shared_slot: Arc::new(FrameSlot {
+@@ -338,6 +519,7 @@
+             thread_id: Arc::new(Mutex::new(Option::None)),
+             should_stop: Arc::new(AtomicBool::new(false)),
+             last_error: Arc::new(Mutex::new(None)),
++            shutdown_error: Arc::new(Mutex::new(None)),
+         })
+     }
+ 
+@@ -356,6 +538,12 @@
+                 ));
+             }
+             data.frame = None;
++            if self.window_hwnd.is_some() && (data.closed || data.source_lost) {
++                return Err(pyo3::exceptions::PyRuntimeError::new_err(
++                    "A closed HWND capture cannot restart or select a replacement window"));
++            }
++            data.stop_requested = false;
++            data.source_error = None;
+         }
+ 
+         let luid = self.luid.map(|(low, high)| LUID {
+@@ -364,16 +552,19 @@
+         });
+         let monitor_index = self.monitor_index;
+         let window_hwnd = self.window_hwnd;
+-        let window_title = self.window_title.clone();
++        let window_identity = self.window_identity.clone();
+         let cursor_capture = self.cursor_capture;
+         let color_format = self.color_format;
+         let thread_id_ptr = self.thread_id.clone();
+         let should_stop = self.should_stop.clone();
+         let last_error = self.last_error.clone();
++        let shutdown_error = self.shutdown_error.clone();
+         let shared_slot = self.shared_slot.clone();
++        let runtime = self.runtime.clone();
+ 
+         should_stop.store(false, Ordering::SeqCst);
+         *last_error.lock() = None;
++        *shutdown_error.lock() = None;
+ 
+         let handle = thread::spawn(move || {
+             let res: Result<(), WcCudaError> = (|| {
+@@ -381,14 +572,13 @@
+                     return Ok(());
+                 }
+ 
++                unsafe { RoInitialize(RO_INIT_MULTITHREADED)?; }
++                let _winrt_thread = WinRTThread;
++
+                 let (d3d_device, d3d_device_context) = create_d3d_device_with_luid(luid)?;
+ 
+-                let item_type: GraphicsCaptureItemType = if let Some(title) = window_title {
+-                    Window::from_contains_name(&title)
+-                        .map_err(|_| WcCudaError::Capture(format!("Window not found: {}", title)))?
+-                        .try_into()
+-                        .map_err(|_| WcCudaError::ItemConvertFailed)?
+-                } else if let Some(hwnd) = window_hwnd {
++                verify_window_identity(window_hwnd, window_identity.as_ref())?;
++                let item_type: GraphicsCaptureItemType = if let Some(hwnd) = window_hwnd {
+                     Window::from_raw_hwnd(hwnd as *mut std::ffi::c_void)
+                         .try_into()
+                         .map_err(|_| WcCudaError::ItemConvertFailed)?
+@@ -405,7 +595,10 @@
+                     threadType: DQTYPE_THREAD_CURRENT,
+                     apartmentType: DQTAT_COM_NONE,
+                 };
+-                let _controller = unsafe { CreateDispatcherQueueController(options)? };
++                let _controller = DispatcherThread {
++                    controller: unsafe { CreateDispatcherQueueController(options)? },
++                    error: shutdown_error.clone(),
++                };
+                 let tid = unsafe { GetCurrentThreadId() };
+                 *thread_id_ptr.lock() = Some(tid);
+ 
+@@ -414,7 +607,7 @@
+                 }
+ 
+                 let ctx = Context {
+-                    flags: (shared_slot, tid),
++                    flags: (shared_slot.clone(), tid, window_hwnd, window_identity.clone(), runtime.clone()),
+                     device: d3d_device.clone(),
+                     device_context: d3d_device_context.clone(),
+                 };
+@@ -438,26 +631,44 @@
+                     DirtyRegionSettings::Default,
+                     color_format,
+                     tid,
+-                    result,
++                    result.clone(),
+                 )
+                 .map_err(|e| WcCudaError::Capture(e.to_string()))?;
+ 
++                verify_window_identity(window_hwnd, window_identity.as_ref())?;
+                 capture
+                     .start_capture()
+                     .map_err(|e| WcCudaError::Capture(e.to_string()))?;
+ 
+                 let mut message = MSG::default();
+                 unsafe {
+-                    while GetMessageW(&mut message, None, 0, 0).as_bool() {
++                    loop {
++                        let status = GetMessageW(&mut message, None, 0, 0).0;
++                        if status == 0 { break; }
++                        if status == -1 { return Err(WcCudaError::Windows(windows::core::Error::from_thread())); }
+                         let _ = TranslateMessage(&message);
+                         DispatchMessageW(&message);
+                     }
++                }
++                if let Err(error) = capture.close_checked() {
++                    *shutdown_error.lock() = Some(format!("WGC shutdown failed: {error}"));
++                }
++                drop(capture);
++                if let Some(error) = result.lock().take() {
++                    return Err(error);
+                 }
+                 Ok(())
+             })();
+             
+             if let Err(e) = res {
+                 *last_error.lock() = Some(e.to_string());
++                if window_hwnd.is_some() {
++                    let mut data = shared_slot.data.lock();
++                    data.source_lost = true;
++                    data.stop_requested = true;
++                    data.frame = None;
++                    shared_slot.condvar.notify_all();
++                }
+             }
+             *thread_id_ptr.lock() = None;
+         });
+@@ -465,25 +676,19 @@
+         Ok(())
+     }
+ 
+-    fn stop(&self) {
+-        self.should_stop.store(true, Ordering::SeqCst);
+-        if let Some(tid) = *self.thread_id.lock() {
+-            unsafe {
+-                let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
+-            }
+-        }
+-
+-        let handle = self.thread_handle.lock().take();
+-        if let Some(h) = handle {
+-            if h.thread().id() != thread::current().id() {
+-                let _ = h.join();
+-            }
+-        }
+-        let mut data = self.shared_slot.data.lock();
+-        data.frame = None;
+-        // A consumer can still be finishing CUDA work while stop() runs. Keep
+-        // its lease until its explicit release, so restart cannot reuse data.
+-        self.shared_slot.condvar.notify_all();
++    fn stop(&self, py: Python<'_>) -> PyResult<()> {
++        // WGC session teardown may wait for the source UI thread. A Python
++        // window procedure or another consumer must be able to acquire the GIL
++        // while we join the native event thread.
++        py.allow_threads(|| self.stop_inner());
++        if let Some(error) = self.shutdown_error.lock().clone() {
++            return Err(pyo3::exceptions::PyRuntimeError::new_err(error));
++        }
++        Ok(())
++    }
++
++    fn request_stop(&self) {
++        self.request_stop_inner();
+     }
+ 
+     fn is_alive(&self) -> bool {
+@@ -494,6 +699,13 @@
+ 
+     fn get_last_error(&self) -> Option<String> {
+         self.last_error.lock().clone()
++            .or_else(|| self.shutdown_error.lock().clone())
++            .or_else(|| self.shared_slot.data.lock().source_error.clone())
++    }
++
++    fn window_status(&self) -> (bool, u64) {
++        let data = self.shared_slot.data.lock();
++        (data.closed, data.resize_skipped)
+     }
+ 
+     #[pyo3(signature = (last_id, timeout=None))]
+@@ -513,7 +725,7 @@
+                 let dur = Duration::from_secs_f32(timeout.unwrap());
+                 let _ = slot.condvar.wait_for(&mut data, dur);
+             }
+-            
++
+             if data.frame_id > last_id {
+                 let result = data.frame.as_ref().map(|frame| (frame.clone(), data.frame_id));
+                 if let Some((_, frame_id)) = result.as_ref() {
+@@ -547,9 +759,275 @@
+     }
+ }
+ 
++impl WcCapture {
++    fn request_stop_inner(&self) {
++        self.should_stop.store(true, Ordering::SeqCst);
++        let identity_lost = match verify_window_identity(self.window_hwnd, self.window_identity.as_ref()) {
++            Err(error @ WcCudaError::WindowIdentityLost(_)) => Some(error.to_string()),
++            _ => None,
++        };
++        let should_quit = self.shared_slot.data.lock().request_stop(identity_lost);
++        self.shared_slot.condvar.notify_all();
++        if !should_quit {
++            return;
++        }
++        if let Some(tid) = *self.thread_id.lock() {
++            unsafe {
++                let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
++            }
++        }
++    }
++
++    fn stop_inner(&self) {
++        self.request_stop_inner();
++        let handle = self.thread_handle.lock().take();
++        if let Some(h) = handle {
++            if h.thread().id() != thread::current().id() {
++                if h.join().is_err() {
++                    *self.shutdown_error.lock() = Some("Native capture thread panicked during shutdown".into());
++                }
++            }
++        }
++        let mut data = self.shared_slot.data.lock();
++        data.frame = None;
++        // A consumer can still be finishing CUDA work while stop() runs. Keep
++        // its lease until its explicit release, so restart cannot reuse data.
++        self.shared_slot.condvar.notify_all();
++    }
++
++}
++
+ #[cfg(test)]
+ mod tests {
+-    use super::{LeaseState, color_layout};
++    use super::{LeaseState, SlotData, color_layout, valid_content_size};
++
++    #[test]
++    #[ignore = "actual local D3D11 adapter diagnostic; no WGC, CUDA or user pixels"]
++    fn actual_d3d_device_handle_lifetime() {
++        use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
++        for iteration in 0..20 {
++            let (device, context) = super::create_d3d_device_with_luid(None).unwrap();
++            drop(context);
++            drop(device);
++            let mut handles = 0;
++            unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut handles).unwrap(); }
++            println!("D3D11-only iteration={iteration} handles={handles}");
++        }
++    }
++
++    #[test]
++    #[ignore = "owned HWND stage isolation; run only via probe-window-lifetime.py"]
++    fn actual_hwnd_stage_lifetime() {
++        use super::*;
++        use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
++        use windows::Graphics::Capture::Direct3D11CaptureFramePool;
++        use windows::Graphics::DirectX::DirectXPixelFormat;
++        let stage = std::env::var("QUEST3D_PROBE_STAGE").unwrap();
++        assert!(["d3d", "item", "queue", "direct", "pool", "session", "running"].contains(&stage.as_str()));
++        let shared_thread = std::env::var("QUEST3D_PROBE_THREAD_MODE").unwrap_or_default() == "shared";
++        let free_threaded = std::env::var("QUEST3D_PROBE_POOL_MODE").unwrap_or_default() == "free";
++        let raw: isize = std::env::var("QUEST3D_PROBE_HWND").unwrap().parse().unwrap();
++        let expected_pid: u32 = std::env::var("QUEST3D_PROBE_PID").unwrap().parse().unwrap();
++        let expected = query_window_identity(raw).unwrap();
++        assert_eq!(expected.0, expected_pid);
++        let cookie = unsafe { CoIncrementMTAUsage() }.unwrap();
++        let _runtime = Arc::new(MtaLease(cookie.0 as usize));
++        for iteration in 0..20 {
++            let stage = stage.clone();
++            let expected = expected.clone();
++            let work = move || {
++                unsafe { RoInitialize(RO_INIT_MULTITHREADED).unwrap(); }
++                let _winrt = WinRTThread;
++                verify_window_identity(Some(raw), Some(&expected)).unwrap();
++                let (device, context) = create_d3d_device_with_luid(None).unwrap();
++                if stage == "d3d" { return; }
++                let item_type: GraphicsCaptureItemType = Window::from_raw_hwnd(raw as _).try_into().unwrap();
++                let item = match &item_type {
++                    GraphicsCaptureItemType::Window((item, _)) => item,
++                    _ => panic!("Only the exact fixture HWND is accepted"),
++                };
++                if stage == "item" { return; }
++                let error = Arc::new(Mutex::new(None));
++                {
++                    let _queue = DispatcherThread {
++                        controller: unsafe { CreateDispatcherQueueController(DispatcherQueueOptions {
++                            dwSize: std::mem::size_of::<DispatcherQueueOptions>() as u32,
++                            threadType: DQTYPE_THREAD_CURRENT, apartmentType: DQTAT_COM_NONE,
++                        }).unwrap() },
++                        error: error.clone(),
++                    };
++                    if stage == "queue" { drop(_queue); assert!(error.lock().is_none()); return; }
++                    let direct = windows_capture::d3d11::create_direct3d_device(&device).unwrap();
++                    if stage == "direct" { drop(direct); drop(_queue); assert!(error.lock().is_none()); return; }
++                    let pool = if free_threaded {
++                        Direct3D11CaptureFramePool::CreateFreeThreaded(&direct, DirectXPixelFormat(10), 1, item.Size().unwrap())
++                    } else {
++                        Direct3D11CaptureFramePool::Create(&direct, DirectXPixelFormat(10), 1, item.Size().unwrap())
++                    }.unwrap();
++                    if stage != "pool" {
++                        let session = pool.CreateCaptureSession(item).unwrap();
++                        if stage == "running" {
++                            session.StartCapture().unwrap();
++                            let deadline = std::time::Instant::now() + Duration::from_secs(3);
++                            loop {
++                                let mut msg = MSG::default();
++                                unsafe {
++                                    while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
++                                        let _ = TranslateMessage(&msg);
++                                        DispatchMessageW(&msg);
++                                    }
++                                }
++                                if let Ok(frame) = pool.TryGetNextFrame() {
++                                    assert!(frame.ContentSize().unwrap().Width > 0);
++                                    println!("Q3D_ACTUAL_FRAME");
++                                    frame.Close().unwrap();
++                                    break;
++                                }
++                                assert!(std::time::Instant::now() < deadline, "No actual fixture frame");
++                                thread::sleep(Duration::from_millis(2));
++                            }
++                        }
++                        session.Close().unwrap();
++                    }
++                    pool.Close().unwrap();
++                    // Diagnostic only: relinquish the final owned COM reference,
++                    // exactly once, to observe the API's returned reference count.
++                    let unknown = pool.cast::<windows::core::IUnknown>().unwrap();
++                    drop(pool);
++                    let raw = unknown.into_raw();
++                    let refs = unsafe {
++                        let vtable = *(raw as *const *const windows::core::IUnknown_Vtbl);
++                        ((*vtable).Release)(raw)
++                    };
++                    println!("Q3D_RELEASE references={refs}");
++                }
++                assert!(error.lock().is_none());
++                drop(context);
++            };
++            if shared_thread { work(); } else { thread::spawn(work).join().unwrap(); }
++            let mut handles = 0;
++            unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut handles).unwrap(); }
++            println!("Q3D_LIFETIME iteration={iteration} handles={handles}");
++            let mut ack = String::new();
++            assert!(std::io::stdin().read_line(&mut ack).unwrap() > 0);
++            assert_eq!(ack.trim(), "observed");
++        }
++        thread::sleep(Duration::from_secs(2));
++        let mut handles = 0;
++        unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut handles).unwrap(); }
++        println!("Q3D_IDLE handles={handles}");
++    }
++
++    #[test]
++    #[ignore = "owned HWND long-lived pool/session isolation; use probe-window-lifetime.py"]
++    fn actual_hwnd_reused_pool_lifetime() {
++        use super::*;
++        use windows::Graphics::Capture::Direct3D11CaptureFramePool;
++        use windows::Graphics::DirectX::DirectXPixelFormat;
++        use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
++        let raw: isize = std::env::var("QUEST3D_PROBE_HWND").unwrap().parse().unwrap();
++        let other: isize = std::env::var("QUEST3D_PROBE_OTHER_HWND").unwrap().parse().unwrap();
++        let expected_pid: u32 = std::env::var("QUEST3D_PROBE_PID").unwrap().parse().unwrap();
++        let resize_only = std::env::var("QUEST3D_PROBE_STAGE").unwrap() == "resize";
++        for hwnd in [raw, other] { assert_eq!(query_window_identity(hwnd).unwrap().0, expected_pid); }
++        let cookie = unsafe { CoIncrementMTAUsage() }.unwrap();
++        let _runtime = Arc::new(MtaLease(cookie.0 as usize));
++        unsafe { RoInitialize(RO_INIT_MULTITHREADED).unwrap(); }
++        let _winrt = WinRTThread;
++        let (device, _context) = create_d3d_device_with_luid(None).unwrap();
++        let error = Arc::new(Mutex::new(None));
++        {
++            let _queue = DispatcherThread {
++                controller: unsafe { CreateDispatcherQueueController(DispatcherQueueOptions {
++                    dwSize: std::mem::size_of::<DispatcherQueueOptions>() as u32,
++                    threadType: DQTYPE_THREAD_CURRENT, apartmentType: DQTAT_COM_NONE,
++                }).unwrap() },
++                error: error.clone(),
++            };
++            let direct = windows_capture::d3d11::create_direct3d_device(&device).unwrap();
++            let pool = Direct3D11CaptureFramePool::Create(&direct, DirectXPixelFormat(10), 1,
++                windows::Graphics::SizeInt32 { Width: 128, Height: 128 }).unwrap();
++            let initial_item_type: GraphicsCaptureItemType = Window::from_raw_hwnd(raw as _).try_into().unwrap();
++            let initial_item = match &initial_item_type {
++                GraphicsCaptureItemType::Window((item, _)) => item,
++                _ => panic!("Owned HWND only"),
++            };
++            let live_session = if resize_only {
++                pool.Recreate(&direct, DirectXPixelFormat(10), 1, initial_item.Size().unwrap()).unwrap();
++                let session = pool.CreateCaptureSession(initial_item).unwrap();
++                session.StartCapture().unwrap();
++                Some(session)
++            } else { None };
++            for iteration in 0..40 {
++                let hwnd = if resize_only || iteration % 2 == 0 { raw } else { other };
++                assert_eq!(query_window_identity(hwnd).unwrap().0, expected_pid);
++                let item_type: GraphicsCaptureItemType = Window::from_raw_hwnd(hwnd as _).try_into().unwrap();
++                let item = match &item_type {
++                    GraphicsCaptureItemType::Window((item, _)) => item,
++                    _ => panic!("Owned HWND only"),
++                };
++                let size = item.Size().unwrap();
++                pool.Recreate(&direct, DirectXPixelFormat(10), 1, size).unwrap();
++                let session = if resize_only { None } else {
++                    let session = pool.CreateCaptureSession(item).unwrap();
++                    session.StartCapture().unwrap();
++                    Some(session)
++                };
++                let deadline = std::time::Instant::now() + Duration::from_secs(3);
++                loop {
++                    let mut msg = MSG::default();
++                    unsafe {
++                        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
++                            let _ = TranslateMessage(&msg);
++                            DispatchMessageW(&msg);
++                        }
++                    }
++                    if let Ok(frame) = pool.TryGetNextFrame() {
++                        let actual = frame.ContentSize().unwrap();
++                        frame.Close().unwrap();
++                        if (actual.Width, actual.Height) == (size.Width, size.Height) { break; }
++                        println!("Q3D_TRANSITION width={} height={}", actual.Width, actual.Height);
++                    }
++                    assert!(std::time::Instant::now() < deadline, "No actual owned source frame");
++                    thread::sleep(Duration::from_millis(2));
++                }
++                if let Some(session) = session.as_ref() { session.Close().unwrap(); }
++                drop(session);
++                drop(item_type);
++                let mut handles = 0;
++                unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut handles).unwrap(); }
++                println!("Q3D_LIFETIME iteration={iteration} handles={handles}");
++                let mut ack = String::new();
++                assert!(std::io::stdin().read_line(&mut ack).unwrap() > 0);
++                assert_eq!(ack.trim(), "observed");
++            }
++            if let Some(session) = live_session { session.Close().unwrap(); }
++            pool.Close().unwrap();
++        }
++        assert!(error.lock().is_none());
++    }
++
++    #[test]
++    fn lost_source_keeps_dispatcher_until_real_closed_event() {
++        let mut data = SlotData::default();
++        assert!(!data.request_stop(Some("identity lost".into())));
++        assert!(data.stop_requested && data.source_lost && !data.closed);
++        assert!(!data.request_stop(None));
++        data.closed = true;
++        assert!(data.request_stop(None));
++        let mut live = SlotData::default();
++        assert!(live.request_stop(None));
++        assert!(!live.closed);
++    }
++
++    #[test]
++    fn resize_never_copies_beyond_pool_texture_and_zero_size_is_not_a_frame() {
++        assert!(valid_content_size(320, 200, 640, 400));
++        assert!(valid_content_size(320, 200, 320, 200));
++        assert!(!valid_content_size(640, 400, 320, 200));
++        assert!(!valid_content_size(0, 200, 320, 200));
++        assert!(!valid_content_size(-1, 200, 320, 200));
++    }
+ 
+     #[test]
+     fn fp16_layout_is_rgba_and_twice_the_bgra8_pitch() {
+@@ -576,8 +1054,17 @@
+     }
+ }
+ 
++#[cfg(test)]
++#[path = "../../../native/capture/static_refresh_probe.rs"]
++mod static_refresh_probe;
++
+ #[pymodule]
+ fn _wc_cuda(m: &Bound<'_, PyModule>) -> PyResult<()> {
++    if RUNTIME_SHUTDOWN.load(Ordering::SeqCst) {
++        return Err(pyo3::exceptions::PyRuntimeError::new_err("Capture runtime already shut down; process restart required"));
++    }
++    let cookie = unsafe { CoIncrementMTAUsage() }.map_err(WcCudaError::Windows)?;
++    m.add("_runtime", Py::new(m.py(), CaptureRuntime { lease: Arc::new(MtaLease(cookie.0 as usize)) })?)?;
+     m.add_class::<WcCapture>()?;
+     m.add_class::<WcGpuFrame>()?;
+     Ok(())

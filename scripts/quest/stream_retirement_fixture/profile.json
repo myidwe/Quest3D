@@ -1,0 +1,1 @@
+{"enabled_classes":["Object","RefCounted","Node","Timer","OS","Image","ImageTexture","Shader","ShaderMaterial","RenderingDevice","RenderingServer","RDShaderSPIRV","RDSamplerState","RDUniform","RDTextureFormat","RDTextureView","Texture2DRD","Mutex","ConfigFile","Crypto","CryptoKey","X509Certificate","AESContext","HashingContext","JSON"]}

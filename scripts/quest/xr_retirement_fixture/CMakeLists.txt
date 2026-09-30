@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.25)
+project(quest3d_xr_retirement_probe LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(GODOTCPP_BUILD_PROFILE "${CMAKE_CURRENT_SOURCE_DIR}/profile.json" CACHE FILEPATH "" FORCE)
+set(GODOTCPP_TARGET template_debug CACHE STRING "" FORCE)
+set(GODOTCPP_CUSTOM_API_FILE "${GODOT_CPP_SOURCE}/extension_api.json" CACHE FILEPATH "" FORCE)
+add_subdirectory("${GODOT_CPP_SOURCE}" godot-cpp)
+set(XR_SRC "${QUEST_ROOT}/third_party/nightfall/extensions/nightfall-xr")
+add_library(xr_retirement_probe SHARED probe.cpp
+    "${XR_SRC}/src/fast_xr_renderer.cpp"
+    "${XR_SRC}/src/fast_xr_renderer_android.cpp"
+    "${XR_SRC}/src/fast_xr_renderer_pointer.cpp")
+target_compile_definitions(xr_retirement_probe PRIVATE __ANDROID__)
+target_compile_options(xr_retirement_probe PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_include_directories(xr_retirement_probe PRIVATE "${XR_SRC}/include" "${FIXTURE_HEADERS}" "${OPENXR_INCLUDE}")
+target_link_libraries(xr_retirement_probe PRIVATE godot-cpp /lib/x86_64-linux-gnu/libEGL.so.1 /lib/x86_64-linux-gnu/libGL.so.1 pthread dl m)
+target_link_options(xr_retirement_probe PRIVATE -Wl,--wrap=eglMakeCurrent -Wl,--wrap=eglDestroyContext -Wl,--wrap=eglDestroySurface -Wl,--wrap=glFinish)
+target_link_options(xr_retirement_probe PRIVATE -Wl,--wrap=_ZN5godot18OpenXRAPIExtension37unregister_composition_layer_providerEPNS_22OpenXRExtensionWrapperE)
+set_target_properties(xr_retirement_probe PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/project")
+foreach(FILENAME project.godot xr_retirement_probe.gdextension test.gd)
+    configure_file("${FILENAME}" "${CMAKE_BINARY_DIR}/project/${FILENAME}" COPYONLY)
+endforeach()
