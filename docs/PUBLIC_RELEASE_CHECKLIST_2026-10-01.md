@@ -4,6 +4,14 @@
 
 이 문서는 작업 착수 시점의 실제 증거와 남은 일을 정리한다. 로컬 후보의 `published: false`는 해당 도구가 게시를 하지 않았다는 뜻이며 이후 원격 상태를 자동 추적하지 않는다. 최종 게시 기록은 GitHub의 저장소·커밋·Release URL과 실제 다운로드 검사 결과로 남긴다.
 
+## 첫 Preview 게시 결과 — 2026-10-01
+
+[0.1.0-preview 다운로드](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)를 공개했다. Desktop ZIP, Quest ZIP, 동일한 standalone APK, native 대응 Source ZIP, 검증 JSON과 해시 파일을 로그인 없이 실제로 다운로드해 원본과 대조했다. 총 6개 파일의 크기·SHA가 일치한다.
+
+Release 태그는 `50ff8d219637a3d99eab1070e0ce85b5e2d0e94c`에 고정했다. 해당 소스의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36814730156)는 686검사 통과다. APK는 공개 패키지·release 인증서를 유지한 versionCode2다. 실제 PC 설정·페어링 보존 업데이트와 Quest 3의 code1→2 업데이트·기존 Pair·HEVC 수신을 확인했다.
+
+새 UI의 착용 확인, Quest 2의 새 공개 APK, Python 없는 새 Windows, 다른 PC·GPU, 정량 AV·장시간은 미검증으로 남겼다. 실제 범위는 Release의 `release-validation.json`을 따른다. 게시된 설치 파일은 변경하지 않으며 이후 문서 갱신과 Release의 고정 소스 커밋을 구분한다.
+
 ## 1. 소스 저장소
 
 | 항목 | 확인한 상태 | 완료 기준 |

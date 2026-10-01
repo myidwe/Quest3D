@@ -2,6 +2,14 @@
 
 기준: **2026-10-01 공개 절차**. 대상은 `myidwe/Quest3D`다. 이메일·토큰·서명 개인키는 공개 파일과 커밋에 넣지 않는다. 원격 생성·push·Release 공개 여부는 실제 GitHub 결과를 확인해 기록한다. 로컬 `origin` 설정은 업로드 증거가 아니다.
 
+## 첫 Preview 게시 결과 — 2026-10-01
+
+[0.1.0-preview 다운로드](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)를 공개했다. Desktop ZIP, Quest ZIP, 동일한 standalone APK, native 대응 Source ZIP, 검증 JSON과 해시 파일을 로그인 없이 실제로 다운로드해 원본과 대조했다. 총 6개 파일의 크기·SHA가 일치한다.
+
+Release 태그는 `50ff8d219637a3d99eab1070e0ce85b5e2d0e94c`에 고정했다. 해당 소스의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36814730156)는 686검사 통과다. APK는 공개 패키지·release 인증서를 유지한 versionCode2다. 실제 PC 설정·페어링 보존 업데이트와 Quest 3의 code1→2 업데이트·기존 Pair·HEVC 수신을 확인했다.
+
+새 UI의 착용 확인, Quest 2의 새 공개 APK, Python 없는 새 Windows, 다른 PC·GPU, 정량 AV·장시간은 미검증으로 남겼다. 실제 범위는 Release의 `release-validation.json`을 따른다. 게시된 설치 파일은 변경하지 않으며 이후 문서 갱신과 Release의 고정 소스 커밋을 구분한다.
+
 ## 공개 단위
 
 **소스 저장소 공개와 설치 파일 Release는 별도 단계**다. 개인정보·저작권·필수 소스 파일의 공개 검사를 통과한 프로젝트 소스는 먼저 올릴 수 있다. README에는 다운로드 가능한 설치본의 유무와 native 대응 소스 준비 상태를 명시한다. 저장소 공개를 설치 가능·전체 재빌드 가능·최종 실기 검증 완료로 표시하지 않는다.
@@ -24,7 +32,7 @@ README → Releases → 같은 버전의 **Desktop ZIP / Quest ZIP** → 설치�
 | SHA256SUMS.txt | 최종 파일의 SHA-256 |
 | release-validation.json | 해당 배포판에서 확인한 결과와 남은 조건 |
 
-이 표는 예정 파일 이름이며 다운로드 링크가 아니다. 현재 개발 서명 APK와 로컬 review ZIP을 정식 공개판으로 표시하지 않는다. PC 설치 후 Python·GPU 라이브러리·기본 모델 다운로드는 설치창이 담당한다. Quest 개발자 모드와 헤드셋의 USB 승인, Google Platform Tools 준비는 최초 한 번 필요한 사용자 작업이다.
+이 표는 현재 공개 Preview의 파일 이름이다. 다운로드는 위 Release 링크를 사용한다. 현재 개발 서명 APK와 로컬 review ZIP을 정식 공개판으로 표시하지 않는다. PC 설치 후 Python·GPU 라이브러리·기본 모델 다운로드는 설치창이 담당한다. Quest 개발자 모드와 헤드셋의 USB 승인, Google Platform Tools 준비는 최초 한 번 필요한 사용자 작업이다.
 
 ## 안전한 소스 준비
 

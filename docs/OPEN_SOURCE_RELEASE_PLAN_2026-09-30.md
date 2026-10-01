@@ -1,8 +1,16 @@
 # GitHub 공개 준비
 
-기준일: 2026-10-01. [myidwe/Quest3D](https://github.com/myidwe/Quest3D) Public 저장소와 `main` 소스 게시를 완료했다. 첫 원격 커밋 `3f96913ca6c59cbc21811d40d9337a628224730c`의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36808111632)는 **430검사 통과·139.26초**, 646파일 export 검증도 통과했다. 설치 파일 Release는 새 host/공개 APK의 대응 소스·고지·서명·설치 검증을 마감하며 준비 중이다. 소스 게시와 설치 배포 완료를 구분한다. 원본 작업 폴더는 Git 저장소가 아니며 공개 후보와 분리한다.
+기준일: 2026-10-01. [myidwe/Quest3D](https://github.com/myidwe/Quest3D) Public 저장소와 `main` 소스 게시를 완료했다. 첫 원격 커밋 `3f96913ca6c59cbc21811d40d9337a628224730c`의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36808111632)는 **430검사 통과·139.26초**, 646파일 export 검증도 통과했다. 이 초기 소스 게시 이후 대응 소스·고지·서명·설치 검증을 마감하고 첫 Preview를 공개했다. 소스 게시와 설치 배포 완료를 구분한다. 원본 작업 폴더는 Git 저장소가 아니며 공개 후보와 분리한다.
 
 아래 이전 후보 준비 기록의 과거 '원격 게시 전' 상태는 첫 게시 이전에 확인한 증거다. 현재 실행 기준은 [공개 체크리스트](PUBLIC_RELEASE_CHECKLIST_2026-10-01.md)를 따른다.
+
+## 첫 Preview 게시 결과 — 2026-10-01
+
+[0.1.0-preview 다운로드](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)를 공개했다. Desktop ZIP, Quest ZIP, 동일한 standalone APK, native 대응 Source ZIP, 검증 JSON과 해시 파일을 로그인 없이 실제로 다운로드해 원본과 대조했다. 총 6개 파일의 크기·SHA가 일치한다.
+
+Release 태그는 `50ff8d219637a3d99eab1070e0ce85b5e2d0e94c`에 고정했다. 해당 소스의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36814730156)는 686검사 통과다. APK는 공개 패키지·release 인증서를 유지한 versionCode2다. 실제 PC 설정·페어링 보존 업데이트와 Quest 3의 code1→2 업데이트·기존 Pair·HEVC 수신을 확인했다.
+
+새 UI의 착용 확인, Quest 2의 새 공개 APK, Python 없는 새 Windows, 다른 PC·GPU, 정량 AV·장시간은 미검증으로 남겼다. 실제 범위는 Release의 `release-validation.json`을 따른다. 게시된 설치 파일은 변경하지 않으며 이후 문서 갱신과 Release의 고정 소스 커밋을 구분한다.
 
 ## 이전 후보의 준비 기록
 
