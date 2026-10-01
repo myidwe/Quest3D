@@ -30,6 +30,7 @@ PUBLIC_DOCS = (
     "README.md", "GETTING_STARTED.md", "GETTING_STARTED.en.md",
     "assets/README.md", "assets/quest3d-workflow.png",
     "assets/quest3d-workflow-v2.png",
+    "assets/quest3d-workflow-v3.png",
     "EXE_INSTALLERS.md", "RELEASE_0.1.2_PREVIEW.md",
     "PRIVACY_REMEDIATION_2026-10-01.md", "RELEASE_0.1.1_PREVIEW.md",
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.md", "DESKTOP_USER_GUIDE.html",

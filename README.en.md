@@ -6,7 +6,7 @@ Turn your existing browser or player screen into stereo 3D with local AI on your
 
 [한국어](README.md) · **0.1.2-preview**
 
-![Windows screen → local AI depth estimation and left/right views → a large stereo screen with visible depth in Quest](docs/assets/quest3d-workflow-v2.png)
+![Windows screen → local AI depth estimation and left/right views → a large stereo screen with visible depth in Quest](docs/assets/quest3d-workflow-v3.png)
 
 <sub>Concept illustration · not an app screenshot or conversion result · [Image provenance](docs/assets/README.md)</sub>
 

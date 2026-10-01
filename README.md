@@ -6,7 +6,7 @@
 
 [English](README.en.md) · **0.1.2-preview**
 
-![Windows 화면 → 로컬 AI의 깊이 추정·좌우 영상 생성 → 깊이가 드러나는 Quest의 큰 입체 화면](docs/assets/quest3d-workflow-v2.png)
+![Windows 화면 → 로컬 AI의 깊이 추정·좌우 영상 생성 → 깊이가 드러나는 Quest의 큰 입체 화면](docs/assets/quest3d-workflow-v3.png)
 
 <sub>기능 개념도 · 실제 앱 화면·변환 결과 아님 · [이미지 생성 정보](docs/assets/README.md)</sub>
 
