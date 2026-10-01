@@ -3,6 +3,9 @@
 param([ValidateSet('pc','quest')][string]$Target='pc', [string]$LogPath, [switch]$NoDialog, [switch]$SelfTest)
 $ErrorActionPreference = 'Stop'
 $env:POWERSHELL_TELEMETRY_OPTOUT = 'true'
+# .NET Framework 4.8 process settings; no machine policy or registry changes.
+[AppContext]::SetSwitch('Switch.System.IO.UseLegacyPathHandling', $false)
+[AppContext]::SetSwitch('Switch.System.IO.BlockLongPaths', $false)
 if ($PSVersionTable.PSVersion.Major -le 5) {
     foreach ($module in @('Utility','Management')) {
         Import-Module (Join-Path $PSHOME ('Modules/Microsoft.PowerShell.' + $module + '/Microsoft.PowerShell.' + $module + '.psd1')) -ErrorAction Stop
@@ -24,6 +27,8 @@ function Assert-LauncherPath([string]$Path) {
     }
 }
 $safeLog = $null
+$launcherMutex = $null
+$launcherMutexOwned = $false
 function Write-LauncherLog([string]$Path, [string]$Content) {
     $stream = [IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
     try {
@@ -32,6 +37,15 @@ function Write-LauncherLog([string]$Path, [string]$Content) {
     } finally { $stream.Dispose() }
 }
 try {
+    # The EXE bootstrap uses a separate parent mutex. This one also protects
+    # the advanced ZIP/CMD entry, across installation folders for this user.
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    try { $mutexName = 'Local\Quest3D.Installer.' + $identity.User.Value }
+    finally { $identity.Dispose() }
+    $launcherMutex = New-Object Threading.Mutex($false, $mutexName)
+    try { $launcherMutexOwned = $launcherMutex.WaitOne(0) }
+    catch [Threading.AbandonedMutexException] { $launcherMutexOwned = $true }
+    if (!$launcherMutexOwned) { throw '다른 Quest3D 설치창이 열려 있습니다. 기존 창에서 계속 진행해 주세요.' }
     $temporary = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\','/')
     if (!$LogPath) { $LogPath = Join-Path $temporary ('Quest3D-Start-' + [Guid]::NewGuid().ToString('N') + '.details.log') }
     $candidateLog = [IO.Path]::GetFullPath($LogPath)
@@ -54,7 +68,7 @@ try {
     $shell = Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
     $info = New-Object Diagnostics.ProcessStartInfo
     $info.FileName = $shell
-    $info.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $child + '"'
+    $info.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -File "' + $child + '"'
     if ($SelfTest) { $info.Arguments += ' -SelfTest' }
     $info.UseShellExecute = $false; $info.CreateNoWindow = $true
     $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true
@@ -85,4 +99,7 @@ try {
         } catch { }
     }
     exit 1
+} finally {
+    if ($launcherMutexOwned) { $launcherMutex.ReleaseMutex() }
+    if ($launcherMutex) { $launcherMutex.Dispose() }
 }

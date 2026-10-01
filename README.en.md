@@ -2,20 +2,20 @@
 
 View your Windows desktop on a large Meta Quest screen and switch between 2D and stereo 3D using local AI.
 
-**Windows / NVIDIA Turing · 0.1.1-preview**
+**Windows / NVIDIA Turing · 0.1.2-preview**
 
 [한국어](README.md)
 
-View your existing browser and applications on a large screen, switching between 2D and stereo 3D. AI runs on the PC. This first public Preview has limited hardware support. The [release guide](docs/RELEASE_0.1.1_PREVIEW.md) and `release-validation.json` separate verified behavior from remaining hardware checks.
+View your existing browser and applications on a large screen, switching between 2D and stereo 3D. AI runs on the PC. This first public Preview has limited hardware support. The [release guide](docs/RELEASE_0.1.2_PREVIEW.md) and `release-validation.json` separate verified behavior from remaining hardware checks.
 
 ## Install
 
-**[Windows download](https://github.com/myidwe/Quest3D/releases/download/v0.1.1-preview/Quest3D-Desktop-0.1.1-preview.zip)** · **[Quest download](https://github.com/myidwe/Quest3D/releases/download/v0.1.1-preview/Quest3D-Quest-0.1.1-preview.zip)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.1-preview)
+**[Windows download](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Desktop-Setup-0.1.2-preview.exe)** · **[Quest download](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Quest-Setup-0.1.2-preview.exe)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)
 
-Download matching Desktop and Quest ZIPs. **Code → Download ZIP** contains developer source, not the installer. The same Release provides complete native corresponding sources, SHA256 checksums and validation results.
+Download matching Desktop and Quest Setup EXEs. Manual ZIP packages are also available. **Code → Download ZIP** contains developer source, not the installer. The same Release provides complete native corresponding sources, SHA256 checksums and validation results. The Quest APK remains 0.1.1-preview/code3; an existing installation does not need reinstalling.
 
-1. Extract the entire Desktop ZIP and open **Install-Quest3D.cmd → 설치 (Install) → 연결 허용 (Allow connection)**. Windows requests administrator approval only when needed for the app's firewall setup.
-2. Enable Quest developer mode and approve USB debugging. Open **Install-Quest.cmd**, select official Google Platform Tools' `adb.exe`, search devices and select your Quest.
+1. Run **Desktop Setup EXE → choose folder → 설치 (Install) → 연결 허용 (Allow connection)**. Windows requests administrator approval only when needed for the app's firewall setup. Close the installer window before opening Quest Setup.
+2. Enable Quest developer mode and approve USB debugging. Run **Quest Setup EXE**, select official Google Platform Tools' `adb.exe`, search devices and select your Quest.
 3. Connect PC and Quest to the same private LAN.
 4. Open **Quest3D Desktop → PC 시작 (PC start)**.
 5. On Quest, **Scan Network → select PC → Pair**. Approve the PIN in the PC app.

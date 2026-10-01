@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import collections
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -50,6 +51,29 @@ PEM = re.compile(rb"-----BEGIN ((?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KE
 UTF16 = {"utf-16le": re.compile(rb"(?:[\x09\x0a\x0d\x20-\x7e]\x00){8,}"),
          "utf-16be": re.compile(rb"(?:\x00[\x09\x0a\x0d\x20-\x7e]){8,}")}
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
+SETUP_MAGIC_PREFIX = b"Q3DSETUPZIP"
+SETUP_BOOTSTRAP_PREFIX = "Q3D_SETUP_BOOTSTRAP_"
+_SETUP_PAYLOAD_MODULE = None
+
+
+def claims_setup_payload(data: bytes) -> bool:
+    """Recognize reserved installer claims even when their footer is damaged."""
+    return SETUP_MAGIC_PREFIX in data or any(
+        SETUP_BOOTSTRAP_PREFIX.encode(encoding) in data
+        for encoding in ("ascii", "utf-16le", "utf-16be"))
+
+
+def setup_payload_module():
+    """Load the sibling format validator under CLI and spec-based callers."""
+    global _SETUP_PAYLOAD_MODULE
+    if _SETUP_PAYLOAD_MODULE is None:
+        spec = importlib.util.spec_from_file_location("quest3d_privacy_exe_payload", Path(__file__).with_name("exe_payload.py"))
+        if spec is None or spec.loader is None:
+            raise ImportError("Setup payload validator unavailable")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _SETUP_PAYLOAD_MODULE = module
+    return _SETUP_PAYLOAD_MODULE
 
 
 def digest(data: bytes) -> str:
@@ -255,14 +279,35 @@ class Auditor:
         name = PurePosixPath(path.split("!")[-1].replace("\\", "/")).name.lower()
         if PurePosixPath(name).suffix in PRIVATE_SUFFIXES or name in PRIVATE_NAMES:
             self.record(path, sha, {"category": "private-state-or-key-file", "count": 1, "encoding": "filename", "offsets": []}, authorities)
+        is_setup = (data.startswith(b"MZ") or name.endswith(".exe")) and claims_setup_payload(data)
         is_archive = name.endswith(ARCHIVE_SUFFIXES) or data.startswith(b"PK\x03\x04")
-        if is_archive:
+        if is_setup:
+            if depth >= self.max_depth:
+                self.error(path, "setup-exe-depth-limit")
+            else:
+                self.setup_exe(path, data, depth, authorities + (sha,))
+        elif is_archive:
             if depth >= self.max_depth:
                 self.error(path, "archive-depth-limit")
             else:
                 self.archive(path, data, depth, authorities + (sha,))
         elif name.endswith(".gdc") or data.startswith(b"GDSC"):
             self.godot(path, data, authorities)
+
+    def setup_exe(self, path: str, data: bytes, depth: int, authorities: tuple[str, ...]) -> None:
+        try:
+            validator = setup_payload_module()
+            if not validator.has_setup_marker(data):
+                raise ValueError("Unrecognized Quest3D setup format")
+            payload, metadata = validator.read_payload(data)
+            self.counts["setup_exe_payloads_decoded"] += 1
+            self.counts["setup_exe_stub_bytes_inspected"] += metadata["stub_bytes"]
+            self.counts["setup_exe_payload_bytes_inspected"] += metadata["payload_bytes"]
+            # The EXE itself was scanned above. Inspect the verified ZIP as a
+            # separate container, including every filename, comment and child.
+            self.inspect(path + "!embedded-payload.zip", payload, depth + 1, authorities)
+        except Exception as error:
+            self.error(path, "setup-exe-inspection-failed", error)
 
     def archive(self, path: str, data: bytes, depth: int, authorities: tuple[str, ...]) -> None:
         self.counts["archives_opened"] += 1

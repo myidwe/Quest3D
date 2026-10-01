@@ -40,9 +40,11 @@ bash <SourceZIP폴더>/sources/sunshine/tools/rebuild_host_release.sh <새빌드
 
 ### 같은 버전 배포 묶음
 
+EXE 설치본은 ZIP 검증 후 [EXE 빌드 절차](EXE_INSTALLERS.md)를 따른다. C# 소스·권한 manifest·footer parser가 저장소에 포함되며 Windows의 .NET Framework C# 컴파일러를 사용한다. 0.1.2 설치 묶음은 기존 개인정보 수정 Quest APK 0.1.1-preview/code3을 그대로 사용한다. 설치 묶음 버전과 APK versionCode를 혼동하지 않는다.
+
 ```powershell
-python scripts/release/build_bundle.py --output <새출력폴더> --release 0.1.0-preview --sources --host-release <검토한HOST_RELEASE.json> --quest-source <서명된대응소스폴더> --quest-apk <서명된APK> --quest-sha256 <실제APK해시>
-python scripts/release/review_assets.py --directory <새출력폴더> --release 0.1.0-preview --output <새검증JSON>
+python scripts/release/build_bundle.py --output <새출력폴더> --release 0.1.2-preview --sources --exe-installers --host-release <검토한HOST_RELEASE.json> --quest-source <서명된대응소스폴더> --quest-apk <서명된APK> --quest-sha256 <실제APK해시>
+python scripts/release/review_assets.py --directory <새출력폴더> --release 0.1.2-preview --output <새검증JSON>
 ```
 
 새 호스트는 `--host-release`와 대응 소스를 함께 지정한다. 기본값은 역사 후보 검토용이며 새 공개판 선택을 대신하지 않는다. 각 ZIP의 actual size/SHA, PC↔host source, APK↔Quest source/package/서명, binary↔source 원문 고지를 대조한다. 이 도구는 업로드하지 않는다. `ready_for_public_release: false`는 모든 실기를 완료한 정식판이 아니라는 뜻이며 제한을 명시한 Preview 공개 판단과 구분한다.

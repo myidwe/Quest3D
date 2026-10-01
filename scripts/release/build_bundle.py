@@ -13,6 +13,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import zipfile
 
@@ -23,6 +24,7 @@ AUDIO_PROBE_SHA = "1511eb13904a5164f8b6b7bce15abbb76115fb42ecd9cdc7a2b1548014657
 HOST = "artifacts/host/runtime-public"
 SOURCE_SUFFIXES = {".py", ".ps1", ".sh", ".h", ".hpp", ".c", ".cpp", ".cu", ".cuh", ".rs", ".toml", ".json", ".lock", ".patch", ".cmake", ".txt", ".md", ".gd", ".gdshader", ".gdshaderinc", ".tscn", ".tres", ".godot", ".cfg", ".java", ".xml", ".gradle", ".properties", ".in", ".yml", ".yaml", ".bat", ".cmd", ".rc", ".manifest", ".uid", ".qml", ".qrc", ".svg", ".ttf", ".otf", ".png", ".ico"}
 SOURCE_SUFFIXES.add(".gdextension")
+SOURCE_SUFFIXES.add(".cs")
 # Device operations and developer-specific probes are not corresponding source.
 LOCAL_ONLY_SCRIPTS = (
     "*-reviewed.*", "snapshot-ui-baseline.py", "desktop-qt-preview.py",
@@ -37,6 +39,7 @@ LOCAL_ONLY_SCRIPTS = (
 )
 LOCAL_ONLY_DIAGNOSTICS = ("select_quest_codec.py", "dev-firewall.ps1", "run_file_audio_interop.py", "HDR_CANDIDATE.md", "WINDOW_CANDIDATE.md")
 PUBLIC_RELEASE_DOCS = (
+    "EXE_INSTALLERS.md", "RELEASE_0.1.2_PREVIEW.md",
     "PRIVACY_REMEDIATION_2026-10-01.md", "RELEASE_0.1.1_PREVIEW.md",
     "QUEST_PUBLIC_UI_REFINEMENT_2026-10-01.md",
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.html", "DESKTOP_USER_GUIDE.md",
@@ -574,11 +577,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--release", default="0.1.1-preview")
+    parser.add_argument("--release", default="0.1.2-preview")
     parser.add_argument("--privacy-reviews", type=Path, help="Exact public-origin fixture review records")
     parser.add_argument("--privacy-markers", type=Path, help="Optional PRIVATE identifier file outside the source/release")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--sources", action="store_true")
+    parser.add_argument("--exe-installers", action="store_true", help="Compile single-file Windows Setup EXEs after ZIP verification")
     parser.add_argument("--quest-source", type=Path)
     parser.add_argument("--quest-apk", type=Path)
     parser.add_argument("--quest-sha256")
@@ -611,7 +615,19 @@ def main(argv=None):
     if args.quest_apk:
         build_quest(root, args.output.resolve(), args.release, args.quest_apk.resolve(), args.quest_sha256, quest_manifest, args.quest_source.resolve())
     verify_directory(destination)
-    verify_release_privacy(sorted(args.output.glob("*.zip")), reviews=args.privacy_reviews,
+    if args.exe_installers:
+        targets = [("pc", "Desktop")]
+        if args.quest_apk:
+            targets.append(("quest", "Quest"))
+        for target, label in targets:
+            result = subprocess.run([sys.executable, "-B", str(root / "scripts/release/build_exe_installer.py"),
+                "--zip", str(args.output / f"Quest3D-{label}-{args.release}.zip"),
+                "--target", target, "--version", args.release,
+                "--output", str(args.output / f"Quest3D-{label}-Setup-{args.release}.exe")], capture_output=True)
+            if result.returncode:
+                raise RuntimeError("EXE build failed; preserve the output directory and rerun in a new directory after reviewing compiler/runtime requirements")
+    audit_inputs = sorted(args.output.glob("*.zip")) + sorted(args.output.glob("*.exe"))
+    verify_release_privacy(audit_inputs, reviews=args.privacy_reviews,
                            markers=args.privacy_markers,
                            output=args.output / "privacy-audit.json")
     print(json.dumps({"pc": str(destination), "published": False}, indent=2))

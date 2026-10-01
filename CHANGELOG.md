@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2-preview — EXE installers
+
+- Single-file Desktop and Quest USB Setup EXEs; no manual ZIP extraction
+- Preserve existing installation, update, rollback and selective UAC logic
+- Verify embedded ZIP and every manifest file before opening the installation window
+- Detect simultaneous installer windows and audit EXE nested payloads for privacy
+- PC package 0.1.2; reuse the exact corrected Quest APK 0.1.1-preview/code3
+
 ## 0.1.1-preview — privacy correction
 
 - Rebuild stream and pinned static dependencies to remove personal build paths

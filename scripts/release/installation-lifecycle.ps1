@@ -1,5 +1,8 @@
 ﻿<# Shared owned-install transactions. No recursive deletion and no automatic service/network changes. #>
 Set-StrictMode -Version Latest
+# Keep .NET Framework 4.8 long-path handling local to this installer process.
+[AppContext]::SetSwitch('Switch.System.IO.UseLegacyPathHandling', $false)
+[AppContext]::SetSwitch('Switch.System.IO.BlockLongPaths', $false)
 # Windows PowerShell may be started by a Python environment with a different
 # module discovery cache. Load the shipped OS modules, never a user module.
 if ($PSVersionTable.PSVersion.Major -le 5) {

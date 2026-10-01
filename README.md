@@ -2,33 +2,33 @@
 
 Windows 데스크톱을 Meta Quest의 큰 화면으로 보고, 로컬 AI로 2D와 스테레오 3D를 전환하는 앱
 
-**Windows / NVIDIA Turing · 0.1.1-preview**
+**Windows / NVIDIA Turing · 0.1.2-preview**
 
 [English](README.en.md)
 
-기존 브라우저와 프로그램을 큰 화면에서 보고 2D/3D를 전환합니다. AI는 PC에서 실행합니다. 공개 Preview는 지원 장비와 실기 검증 범위를 제한하며, [배포 안내](docs/RELEASE_0.1.1_PREVIEW.md)에 확인한 결과와 남은 조건을 기록합니다.
+기존 브라우저와 프로그램을 큰 화면에서 보고 2D/3D를 전환합니다. AI는 PC에서 실행합니다. 공개 Preview는 지원 장비와 실기 검증 범위를 제한하며, [배포 안내](docs/RELEASE_0.1.2_PREVIEW.md)에 확인한 결과와 남은 조건을 기록합니다.
 
-개인 빌드 경로 제거와 공유 진단 가림을 적용하는 수정 배포입니다. [개인정보 수정 내역](docs/PRIVACY_REMEDIATION_2026-10-01.md)을 확인할 수 있습니다.
+EXE에서 설치를 시작하는 배포입니다. 검증된 Quest APK 0.1.1/code3은 그대로 사용합니다. 개인 빌드 경로 제거와 공유 진단 가림도 유지합니다. [개인정보 수정 내역](docs/PRIVACY_REMEDIATION_2026-10-01.md)을 확인할 수 있습니다.
 
 ## Download
 
-**[Windows 다운로드](https://github.com/myidwe/Quest3D/releases/download/v0.1.1-preview/Quest3D-Desktop-0.1.1-preview.zip)** · **[Quest 다운로드](https://github.com/myidwe/Quest3D/releases/download/v0.1.1-preview/Quest3D-Quest-0.1.1-preview.zip)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.1-preview)
+**[Windows 다운로드](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Desktop-Setup-0.1.2-preview.exe)** · **[Quest 다운로드](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Quest-Setup-0.1.2-preview.exe)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)
 
-같은 버전의 Desktop ZIP과 Quest ZIP을 받습니다. GitHub의 **Code → Download ZIP**은 개발 소스이며 설치 파일이 아닙니다.
+같은 버전의 Desktop Setup EXE와 Quest Setup EXE를 받습니다. ZIP은 고급·수동 설치용입니다. GitHub의 **Code → Download ZIP**은 개발 소스이며 설치 파일이 아닙니다.
 
 | 파일 | 용도 |
 |---|---|
-| `Quest3D-Desktop-<version>.zip` | Windows 설치창과 PC 앱 |
-| `Quest3D-Quest-<version>.zip` | Quest APK와 USB 설치창 |
-| [Quest3D-Source-0.1.1-preview.zip](https://github.com/myidwe/Quest3D/releases/download/v0.1.1-preview/Quest3D-Source-0.1.1-preview.zip) | native 구성 요소를 포함한 대응 소스 |
+| `Quest3D-Desktop-Setup-<version>.exe` | Windows 설치창과 PC 앱 |
+| `Quest3D-Quest-Setup-<version>.exe` | Quest APK와 USB 설치창 |
+| [Quest3D-Source-0.1.2-preview.zip](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Source-0.1.2-preview.zip) | native 구성 요소를 포함한 대응 소스 |
 | `SHA256SUMS.txt` | 다운로드 파일 무결성 확인 |
 
 무결성과 실제 검증 범위는 같은 Release의 `SHA256SUMS.txt`, `release-validation.json`을 확인합니다.
 
 ## Quick start
 
-1. PC ZIP 전체 압축 해제 → **Install-Quest3D.cmd → 설치 → 연결 허용**
-2. Quest 개발자 모드·USB 디버깅 승인 → **Install-Quest.cmd**로 APK 설치
+1. **Desktop Setup EXE → 설치 폴더 → 설치 → 연결 허용 → 설치창 닫기**
+2. Quest 개발자 모드·USB 디버깅 승인 → **Quest Setup EXE**로 APK 설치
 3. PC와 Quest를 같은 사설망에 연결
 4. **Quest3D Desktop → PC 시작**
 5. Quest의 **Scan Network → PC 선택 → Pair**, PC 앱에서 PIN 승인
@@ -36,7 +36,7 @@ Windows 데스크톱을 Meta Quest의 큰 화면으로 보고, 로컬 AI로 2D�
 
 처음 설치에는 인터넷과 Python·GPU 라이브러리·모델 다운로드가 필요합니다. 이후 AI 추론은 PC에서 실행합니다. 사용료·구독료·클라우드 추론료는 없습니다. 사용 시 Codex·WSL·개발 도구가 필요하지 않습니다.
 
-[설치·업데이트·문제 해결](docs/DISTRIBUTION.md) · [사용 방법](docs/DESKTOP_USER_GUIDE.md)
+[EXE 설치 안내](docs/EXE_INSTALLERS.md) · [설치·업데이트·문제 해결](docs/DISTRIBUTION.md) · [사용 방법](docs/DESKTOP_USER_GUIDE.md)
 
 ## Features
 

@@ -1,6 +1,6 @@
 [project]
 name = "quest3d"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local Windows to Quest stereo desktop and media host"
 requires-python = ">=3.12,<3.13"
 dependencies = [
