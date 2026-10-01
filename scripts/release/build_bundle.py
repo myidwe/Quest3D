@@ -43,6 +43,8 @@ PUBLIC_RELEASE_DOCS = (
     "HOST_RELEASE_PREPARATION_2026-09-30.md", "QUEST_RELEASE_PREPARATION_2026-09-30.md",
     "SETUP_PERMISSIONS_2026-09-30.md",
     "QUEST_CLEAN_BUILD_2026-10-01.md",
+    "PUBLIC_RELEASE_CHECKLIST_2026-10-01.md",
+    "RELEASE_0.1.0_PREVIEW.md",
 )
 SKIP_DIRS = {".git", ".godot", "__pycache__", ".pytest_cache", "node_modules", "target", "build", "tools", ".cache", "config", "models", "bin", "installed", "vcpkg_installed", "user", "user-data"}
 FORBIDDEN_NAMES = {"credentials.json", "web-access.clixml", "app_state.cfg", "host_state.cfg", "config.ini", "desktop.json", "receipt.json", "process.json", "launch.json", "sunshine.conf", "sunshine_state.json", "sunshine.log", ".env"}
@@ -219,7 +221,74 @@ def installer_launcher_cmd(target: str) -> bytes:
     return ("\r\n".join(lines) + "\r\n").encode("ascii")
 
 
-def build_pc(root: Path, out: Path, release: str) -> Path:
+def validate_host_release(root: Path, record: Path) -> dict:
+    """Bind a newly built host to its reviewed runtime and supplied sources.
+
+    The historical default remains a review candidate. An override cannot
+    change only the executable while retaining that historical source record.
+    """
+    assert_regular(record, root)
+    spec = json.loads(record.read_text("utf-8"))
+    if spec.get("schema") != 1 or spec.get("kind") != "host-release-input":
+        raise ValueError("Reviewed host release input required")
+    expected = spec.get("binary_sha256", "")
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError("Exact new host binary SHA-256 required")
+    for flag in ("source_complete", "notices_verified", "native_build_verified"):
+        if spec.get(flag) is not True:
+            raise ValueError("New host source, notices and native build must be verified")
+    for field in ("runtime_path", "source_supply_path", "runtime_manifest_name"):
+        relative_name(spec.get(field, ""))
+    runtime = root / spec["runtime_path"]
+    sources = root / spec["source_supply_path"]
+    runtime_manifest = runtime / spec["runtime_manifest_name"]
+    assert_regular(runtime_manifest, root)
+    if digest(runtime_manifest) != spec.get("runtime_manifest_sha256"):
+        raise ValueError("New host runtime manifest hash mismatch")
+    runtime_record = json.loads(runtime_manifest.read_text("utf-8"))
+    if (not isinstance(runtime_record, dict) or runtime_record.get("schema") != 1 or
+            runtime_record.get("kind") != "host-release-runtime" or
+            runtime_record.get("host_exe_sha256") != expected):
+        raise ValueError("New host runtime manifest does not describe the selected binary")
+    manifest_files = runtime_record.get("files")
+    if not isinstance(manifest_files, dict) or not manifest_files:
+        raise ValueError("New host runtime manifest inventory required")
+    normalized_files = {}
+    for name, entry in manifest_files.items():
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid host runtime manifest entry")
+        normalized_files[name] = {"sha256": entry.get("sha256"), "bytes": entry.get("bytes")}
+    if normalized_files != spec.get("runtime_files"):
+        raise ValueError("New host runtime manifest and release inventory differ")
+    for base, records in ((runtime, spec.get("runtime_files")), (sources, spec.get("files"))):
+        if not isinstance(records, dict) or not records:
+            raise ValueError("Complete host runtime and source inventories required")
+        for name, entry in records.items():
+            public_name(name)
+            path = base / name
+            assert_regular(path, root)
+            if not isinstance(entry, dict) or path.stat().st_size != entry.get("bytes") or digest(path) != entry.get("sha256"):
+                raise ValueError("New host runtime/source content hash mismatch")
+        actual = {p.relative_to(base).as_posix() for p in base.rglob("*") if p.is_file()}
+        permitted = set(records) | ({spec["runtime_manifest_name"]} if base == runtime else set())
+        if actual != permitted:
+            raise ValueError("Unlisted or missing host runtime/source input")
+    if spec["runtime_files"].get("sunshine.exe", {}).get("sha256") != expected:
+        raise ValueError("New host runtime does not match the selected binary")
+    for required in ("zlib1.dll", "LICENSE.txt", "assets/apps.json", "assets/web/index.html"):
+        if required not in spec["runtime_files"]:
+            raise ValueError("New host runtime lacks required assets")
+    if "provenance.json" not in spec["files"]:
+        raise ValueError("New host corresponding source provenance required")
+    provenance = json.loads((sources / "provenance.json").read_text("utf-8"))
+    if (provenance.get("host_binary_sha256") != expected or
+            any(provenance.get(flag) is not True for flag in (
+                "binary_source_rebuild_verified", "source_complete", "dependency_notices_verified"))):
+        raise ValueError("New host provenance does not match verified source and notices")
+    return spec
+
+
+def build_pc(root: Path, out: Path, release: str, host_release: dict | None = None) -> Path:
     validate_runtime_tree(root / "src/quest3d")
     check_spec = importlib.util.spec_from_file_location("quest3d_release_ui", Path(__file__).with_name("verify_installed_ui.py"))
     ui_check = importlib.util.module_from_spec(check_spec)
@@ -250,10 +319,16 @@ def build_pc(root: Path, out: Path, release: str) -> Path:
     spec = json.loads((root / "config/models.json").read_text())["depth_anything_v2_small"]
     manifest = {"source_commit": spec["source_commit"], "files": {p.relative_to(depth).as_posix(): digest(p) for p in sorted((depth / "depth_anything_v2").rglob("*.py"))}}
     payload.put("config/depth-source.json", json.dumps(manifest, indent=2).encode())
-    host = root / HOST
-    for name in ("sunshine.exe", "zlib1.dll", "LICENSE.txt"):
-        payload.copy(host / name, "artifacts/host/runtime-public/" + name, HOST_SHA if name == "sunshine.exe" else None)
-    payload.tree(host / "assets", "artifacts/host/runtime-public/assets", skip_dirs={"config"})
+    host_sha = host_release["binary_sha256"] if host_release else HOST_SHA
+    if host_release:
+        host = root / host_release["runtime_path"]
+        for name, entry in sorted(host_release["runtime_files"].items()):
+            payload.copy(host / name, "artifacts/host/runtime-public/" + name, entry["sha256"])
+    else:
+        host = root / HOST
+        for name in ("sunshine.exe", "zlib1.dll", "LICENSE.txt"):
+            payload.copy(host / name, "artifacts/host/runtime-public/" + name, HOST_SHA if name == "sunshine.exe" else None)
+        payload.tree(host / "assets", "artifacts/host/runtime-public/assets", skip_dirs={"config"})
     capture_wheel = root / "artifacts/capture/hdr-experimental/wc_cuda-0.1.2+quest2-cp310-abi3-win_amd64.whl"
     if digest(capture_wheel) != CAPTURE_SHA:
         raise ValueError("Capture wheel changed")
@@ -265,14 +340,15 @@ def build_pc(root: Path, out: Path, release: str) -> Path:
     payload.tree(root / ".tools/desktop/powershell", ".tools/desktop/powershell")
     payload.copy(root / ".tools/desktop/uv.exe", ".tools/desktop/uv.exe", "f13b441ca13bf0a1d02d367e395c8a72e11733c5c29efa4a2f71af6a3a30d5ac")
     payload.tree(root / "scripts/release/licenses", "licenses")
-    payload.put("config/distribution.json", json.dumps({"schema": 1, "host_runtime": "artifacts/host/runtime-public", "host_sha256": HOST_SHA, "hdr_package": "runtime/capture", "depth_source": "config/depth-source.json"}, indent=2).encode())
+    payload.put("config/distribution.json", json.dumps({"schema": 1, "host_runtime": "artifacts/host/runtime-public", "host_sha256": host_sha, "hdr_package": "runtime/capture", "depth_source": "config/depth-source.json"}, indent=2).encode())
     payload.put("Install-Quest3D.cmd", installer_launcher_cmd("pc"))
-    payload.put("README-FIRST.txt", ("Quest3D Desktop preview\n\n1. Extract this entire ZIP.\n2. Open Install-Quest3D.cmd. First install downloads Python, GPU dependencies and the model.\n3. Open Quest3D Desktop, start PC, then pair/connect in the Quest app.\n\nRead docs/DISTRIBUTION.md. This candidate has not been published.\n").encode())
+    payload.put("README-FIRST.txt", ("Quest3D Desktop preview\n\n1. Extract this entire ZIP.\n2. Open Install-Quest3D.cmd. First install downloads Python, GPU dependencies and the model.\n3. Open Quest3D Desktop, start PC, then pair/connect in the Quest app.\n\nRead docs/DISTRIBUTION.md for requirements and verification scope.\n").encode())
     # Validate the copied payload itself: checking only the working tree cannot
     # detect an allowlist that accidentally drops runtime CUDA/QML source files.
     if ui_check.verify_resources(payload.destination) != ui_verification or ui_check.verify_runtime_sources(payload.destination) != runtime_sources:
         raise ValueError("Packaged runtime resources differ from the reviewed source")
-    payload.manifest(release=release, metadata={"kind": "pc-installer-candidate", "host_sha256": HOST_SHA, "capture_wheel_sha256": CAPTURE_SHA, "model_included": False, "published": False, "ui": ui_verification, "cuda_sources": runtime_sources})
+    payload.manifest(release=release, metadata={"kind": "pc-installer-candidate", "host_sha256": host_sha, "capture_wheel_sha256": CAPTURE_SHA, "model_included": False, "published": False, "ui": ui_verification, "cuda_sources": runtime_sources,
+        "host_native_build_verified": bool(host_release), "host_source_and_notices_verified": bool(host_release)})
     zip_payload(payload.destination, out / f"Quest3D-Desktop-{release}.zip")
     return payload.destination
 
@@ -297,7 +373,7 @@ def snapshot_tar(directory: Path) -> bytes:
     return output.getvalue()
 
 
-def build_sources(root: Path, out: Path, release: str, quest_source: Path | None) -> Path:
+def build_sources(root: Path, out: Path, release: str, quest_source: Path | None, host_release: dict | None = None) -> Path:
     """Keep binary-corresponding historical host sources separate from later experiments."""
     payload = Payload(root, out / "source")
     for name in ("README.md", "README.en.md", "pyproject.toml", "uv.lock", ".python-version", "LICENSE", "THIRD_PARTY_NOTICES.md", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md"):
@@ -311,6 +387,34 @@ def build_sources(root: Path, out: Path, release: str, quest_source: Path | None
     for name in PUBLIC_RELEASE_DOCS:
         payload.copy(root / "docs" / name, "docs/" + name)
     payload.tree(root / "scripts/release/licenses", "licenses")
+    if host_release:
+        supply = root / host_release["source_supply_path"]
+        for name, entry in sorted(host_release["files"].items()):
+            payload.copy(supply / name, "sources/sunshine/" + name, entry["sha256"])
+    else:
+        build_historical_host_sources(root, payload)
+    capture = root / "third_party/wc_cuda"
+    payload.put("sources/capture/upstream.tar", git_bytes(capture, "archive", "--format=tar", "6f6c6eaed91f36f0e937f1da92cf5cfc35a9bfcc"))
+    for name in ("wc_cuda-quest1.patch", "wc_cuda-quest2-hdr.patch", "Cargo.hdr.lock"):
+        payload.copy(root / "native/capture" / name, "sources/capture/" + name)
+    depth = root / "third_party/depth-anything-v2"
+    # Ship the exact complete inference package used at runtime.
+    payload.tree(depth / "depth_anything_v2", "sources/depth-anything-v2/depth_anything_v2", source_only=True)
+    payload.copy(depth / "LICENSE", "sources/depth-anything-v2/LICENSE")
+    if quest_source is not None:
+        manifest_path = quest_source / "source-manifest.json"
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+        for name, expected in manifest["files"].items():
+            relative_name(name)
+            payload.copy(quest_source / name, "sources/quest/" + name, expected if isinstance(expected, str) else expected["sha256"])
+        payload.copy(manifest_path, "sources/quest/source-manifest.json")
+    payload.manifest(release=release, metadata={"kind": "source-candidate", "published": False, "host_binary_source_rebuild_verified": bool(host_release), "quest_source_included": quest_source is not None})
+    zip_payload(payload.destination, out / f"Quest3D-Source-{release}.zip")
+    return payload.destination
+
+
+def build_historical_host_sources(root: Path, payload: Payload) -> None:
+    """Preserve old review exports without binding them to a new executable."""
     sunshine_pin = "cb72dffa3233c5815cd5ba88f09f049dd679ba75"
     sunshine = root / "third_party/sunshine"
     payload.put("sources/sunshine/upstream.tar", git_bytes(sunshine, "archive", "--format=tar", sunshine_pin))
@@ -349,27 +453,6 @@ def build_sources(root: Path, out: Path, release: str, quest_source: Path | None
         "submodules": submodules,
     }
     payload.put("sources/sunshine/provenance.json", json.dumps(provenance, indent=2).encode())
-    capture = root / "third_party/wc_cuda"
-    payload.put("sources/capture/upstream.tar", git_bytes(capture, "archive", "--format=tar", "6f6c6eaed91f36f0e937f1da92cf5cfc35a9bfcc"))
-    for name in ("wc_cuda-quest1.patch", "wc_cuda-quest2-hdr.patch", "Cargo.hdr.lock"):
-        payload.copy(root / "native/capture" / name, "sources/capture/" + name)
-    depth = root / "third_party/depth-anything-v2"
-    # This repository is a sparse/promisor checkout. Ship exactly the complete
-    # inference package used at runtime; do not fetch unrelated model/demo blobs.
-    payload.tree(depth / "depth_anything_v2", "sources/depth-anything-v2/depth_anything_v2", source_only=True)
-    payload.copy(depth / "LICENSE", "sources/depth-anything-v2/LICENSE")
-    if quest_source is not None:
-        # The Quest builder supplies an explicit source manifest, not a whole mutable
-        # working directory. Compiled caches, user preferences and signing keys are omitted.
-        manifest_path = quest_source / "source-manifest.json"
-        manifest = json.loads(manifest_path.read_text("utf-8"))
-        for name, expected in manifest["files"].items():
-            relative_name(name)
-            payload.copy(quest_source / name, "sources/quest/" + name, expected if isinstance(expected, str) else expected["sha256"])
-        payload.copy(manifest_path, "sources/quest/source-manifest.json")
-    payload.manifest(release=release, metadata={"kind": "source-candidate", "published": False, "host_binary_source_rebuild_verified": False, "quest_source_included": quest_source is not None})
-    zip_payload(payload.destination, out / f"Quest3D-Source-{release}.zip")
-    return payload.destination
 
 
 def validate_quest_source(source: Path, expected_apk_sha: str) -> dict:
@@ -411,10 +494,20 @@ def quest_install_metadata(source_manifest: dict, expected_sha: str) -> dict:
             "certificate_sha256": cert, "signing_kind": meta.get("signing_kind", "unverified"), "preserve_data": True}
 
 
-def build_quest(root: Path, out: Path, release: str, apk: Path, expected_sha: str, source_manifest: dict) -> Path:
+def build_quest(root: Path, out: Path, release: str, apk: Path, expected_sha: str, source_manifest: dict,
+                quest_source: Path | None = None) -> Path:
     if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
         raise ValueError("The reviewed APK SHA-256 is required")
     install_metadata = quest_install_metadata(source_manifest, expected_sha)
+    notice_names = source_manifest.get("binary_notice_files", [])
+    if install_metadata["signing_kind"] == "release":
+        if (any(source_manifest.get(flag) is not True for flag in (
+                "source_complete", "clean_build_verified", "dependency_notices_verified")) or
+                not isinstance(notice_names, list) or not notice_names or quest_source is None):
+            raise ValueError("Public Quest distribution requires verified sources and actual binary notices")
+    if notice_names and (not isinstance(notice_names, list) or quest_source is None or
+                         len(notice_names) != len(set(notice_names))):
+        raise ValueError("Reviewed Quest notice source and unique file list required")
     payload = Payload(root, out / "quest")
     payload.copy(apk, "Quest3D-Quest.apk", expected_sha)
     for name in ("install-quest.ps1", "quest-install-ui.ps1", "installer-launcher.ps1"):
@@ -423,6 +516,13 @@ def build_quest(root: Path, out: Path, release: str, apk: Path, expected_sha: st
         payload.copy(root / name, name)
     for name in PUBLIC_RELEASE_DOCS:
         payload.copy(root / "docs" / name, "docs/" + name)
+    for name in notice_names:
+        public_name(name)
+        entry = source_manifest.get("files", {}).get(name)
+        if entry is None:
+            raise ValueError("Quest binary notice is missing from its source inventory")
+        expected = entry if isinstance(entry, str) else entry["sha256"]
+        payload.copy(quest_source / name, "notices/quest/" + name, expected)
     payload.put("quest-install.json", json.dumps(install_metadata, indent=2).encode())
     # The bundled HTML guide must also work from a Quest-only download.
     payload.copy(root / "resources/ui/brand/quest3d-mark.png", "resources/ui/brand/quest3d-mark.png")
@@ -432,6 +532,8 @@ def build_quest(root: Path, out: Path, release: str, apk: Path, expected_sha: st
         "package": install_metadata["package"], "signing_kind": install_metadata["signing_kind"],
         "quest_corresponding_source_complete": source_manifest.get("source_complete") is True,
         "quest_clean_build_verified": source_manifest.get("clean_build_verified") is True,
+        "quest_dependency_notices_verified": source_manifest.get("dependency_notices_verified") is True,
+        "binary_notice_files": notice_names,
         "ready_for_public_release": False})
     zip_payload(payload.destination, out / f"Quest3D-Quest-{release}.zip")
     return payload.destination
@@ -447,6 +549,7 @@ def main(argv=None):
     parser.add_argument("--quest-source", type=Path)
     parser.add_argument("--quest-apk", type=Path)
     parser.add_argument("--quest-sha256")
+    parser.add_argument("--host-release", type=Path, help="Reviewed new host binary/runtime/corresponding-source descriptor")
     args = parser.parse_args(argv)
     if args.verify:
         result = verify_directory(args.output)
@@ -454,6 +557,10 @@ def main(argv=None):
         return
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", args.release):
         raise ValueError("Invalid release name")
+    if args.host_release and not args.sources:
+        raise ValueError("New host distribution requires its corresponding source bundle")
+    root = args.root.resolve()
+    host_release = validate_host_release(root, args.host_release.resolve()) if args.host_release else None
     if args.quest_apk:
         if not args.quest_sha256 or not args.quest_source or not args.sources:
             raise ValueError("APK distribution requires reviewed SHA and corresponding source bundle")
@@ -464,11 +571,11 @@ def main(argv=None):
     if args.output.exists():
         raise FileExistsError("Use a new release directory")
     args.output.mkdir(parents=True)
-    destination = build_pc(args.root.resolve(), args.output.resolve(), args.release)
+    destination = build_pc(root, args.output.resolve(), args.release, host_release)
     if args.sources:
-        build_sources(args.root.resolve(), args.output.resolve(), args.release, args.quest_source.resolve() if args.quest_source else None)
+        build_sources(root, args.output.resolve(), args.release, args.quest_source.resolve() if args.quest_source else None, host_release)
     if args.quest_apk:
-        build_quest(args.root.resolve(), args.output.resolve(), args.release, args.quest_apk.resolve(), args.quest_sha256, quest_manifest)
+        build_quest(root, args.output.resolve(), args.release, args.quest_apk.resolve(), args.quest_sha256, quest_manifest, args.quest_source.resolve())
     verify_directory(destination)
     print(json.dumps({"pc": str(destination), "published": False}, indent=2))
 

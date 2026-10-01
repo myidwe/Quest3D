@@ -1,6 +1,67 @@
 # Sunshine 호스트 공개 준비 검증
 
-검토안 · 2026-09-30 · GitHub 업로드 없음 · 기존 제품 실행 파일 보존
+공개 준비 기록 · 2026-10-01 · 기존 제품 실행 파일 보존
+
+## 현재 공개 후보 — 2026-10-01
+
+**새 호스트 `2026.930.1`의 실제 대응 소스와 의존성 고지 공급을 마감했다**. 기존 개발 호스트 `77c950b5…`의 누락 원문이 복구된 것은 아니다. 새 `86eb2ee5…`는 명시적인 API 호환 수정으로 실제 빌드한 별도 baseline이며, 공개용 입력은 `artifacts/publication/host-release-inputs-20261001-final/HOST_RELEASE.json`이다. 아래 역사 조사·첫 후보 기록은 이전 실패와 판단 이유를 보존한다.
+
+| 공개 준비 항목 | 실제 결과 |
+|---|---|
+| 새 exe | SHA-256 `86eb2ee5e3177a892f15ecd5ba869b27d3e1b9131848b1adacf9a25301767d42` · 67,192,649 B |
+| 소스 공급 | `source-supply/sunshine-modified.tar.gz` · 15,603개 선택 source files · 115,848,414 B |
+| 소스 archive SHA-256 | `741b811085c866d1b17a3631674691e88033d35f9b6a2ee1f31bc1e20e8de9ba` |
+| 실제 source authority | original Git/submodule archive + 역사 overlay + 명시 API patch · 모든 archive member의 실제 SHA 비교 통과 |
+| 의존성 source packages | 정확한 MSYS2 14개 · 105,773,101 B · 세 GNU package와 나머지 11개 |
+| 나머지 11개 recipe | 실제 binary `.BUILDINFO` SHA와 공식 commit·source package recipe가 일치 · 37개 source/patch/signature 입력을 읽어 recipe checksum 대조 |
+| 고지 | 실제 연결된 MSYS2 runtime 17개, web production npm 35개, vendored source와 Boost/JSON/NV header 원 copyright·license texts |
+| 설치용 static runtime | payload 334개 + `runtime-preparation.json` · `kind=host-release-runtime` · 현재 제품 설정/credentials 미포함 |
+| 실제 source/runtime notice 교차 검사 | 대응 source 파일과 runtime 파일 바이트 동일 · 전체 manifest mismatch 0 |
+| archive의 알려진 개인 정보 검사 | 변경 소스/공급 metadata 및 원 upstream의 알려진 개인 홈·이메일·runtime marker 0 |
+| 정상 upstream key fixtures | 원 공식 authority와 동일한 3개 source file로 분리 · 수정 입력/사용자 key 아님 |
+| helper 경계 검사 | source 수집·release supply·public unpack·runtime staging 49 tests 통과 · 실패·skip 0 |
+| native/web 기존 실제 검증 | native build + 35 CPU tests + web build 성공 |
+| 실제 safe server 검증 | 아래 loopback 검사 두 회 성공 |
+| `source_complete` / `notices_verified` / `native_build_verified` | `true` |
+| Quest actual stream/wearer/audio/long-run 검증 | 이 새 호스트에서는 미검증 · source gate와 구분 |
+
+원래 전체 조립 소스 중 **사용하지 않는 공식 파일 9,445개는 공급에서 제외**했다. AMF의 `Thirdparty/ffmpeg/`는 SDK 샘플용 FFmpeg source/prebuilt DLL·PDB 묶음이며 실제 build-deps `amf.cmake`는 `amf/public/include`만 복사한다. `file_to_header.exe`와 Vulkan Loader fixture data도 이번 실제 Sunshine dependency graph에 없다. 포함·제외 파일 SHA를 각각 `source-file-inventory.json`, `excluded-unused-upstream-inputs.json`에 보존했다. 실제 필요 AMF headers·FFmpeg 38b88335 source/patch·SVT/x264/x265·MIT-licensed NVAPI import libraries는 공급에 남긴다. 원 공식 archive의 불필요한 바이너리까지 재배포 범위를 넓히지 않는다.
+
+`notices/`는 실제 선택 runtime에도 그대로 전달된다. `provenance.json.runtime_notice_files`가 source-supply와 runtime의 경로를 연결하고, `HOST_RELEASE.json`이 파일별 size/SHA를 고정한다. GCC runtime의 적용 파일에는 Runtime Library Exception 3.1을 구분하며, MinGW CRT/Windows POSIX threading은 일반 플랫폼 runtime의 원 고지를 보존한다. Windows OS DLL과 NVIDIA driver를 복사하지 않는다. Node/npm/GCC/CMake/Ninja 실행 도구 전체를 사용자의 설치 ZIP에 넣거나 그 전체를 재컴파일해야 한다는 조건은 추가하지 않는다. 수집한 MSYS2 분리 서명의 GPG 검증은 수행하지 않았으며 `SKIP` signature 입력을 checksum 검증으로 오인하지 않는다.
+
+현재 제품의 monitor 확대 입력은 **frame bridge protocol 2**다. 이후 protocol-3/source-selection/file-PCM 실험은 이 호스트 baseline에 포함되지 않는다. 사용자가 제외한 inline 3D, PC pointer 입력, 내장 file player도 최종 공개 필수 기능으로 되돌리지 않는다. PC audio 기본값과 기존 system-loopback→Opus의 Quest/shared audio 경로는 유지해야 할 실제 제품 범위다.
+
+### 실제 loopback 시작·종료·재시작
+
+`artifacts/publication/host-loopback-probe-20261001-r2/loopback-validation.json`은 별도 runtime/config에서 수행한 실제 native 검사다. 원 sunshine process와 관련 listen ports가 없음을 확인한 뒤 `127.0.0.1`, base port `58189`, validation 이름으로 시작했다. audio/input/display 모드 변경과 UPnP는 껐고, 원 방화벽·운영 설정·오디오·페어링을 바꾸지 않았다.
+
+- 실제 v2 BGRA publisher의 1280×360 합성 프레임을 새 native reader가 수신
+- 실제 RTX 2060 SUPER에서 NVENC H.264·HEVC encoder 초기화 probe 성공
+- HTTP `serverinfo` 200 준비 시간 4.39초/3.89초 · 두 번 시작
+- 실행 중 동일 port의 두 번째 native copy를 exit 9로 거부
+- 인증하지 않은 Quest control HTTPS 연결을 TLS 단계에서 거부
+- graceful exit 0 두 번 · 임시 mDNS 등록·해제 두 번 · 최종 자신의 process/ports 소멸
+- 원 개발 host SHA 불변
+
+첫 검증의 두 번째 종료 timeout은 test harness가 부모 Python의 Windows Ctrl+C-ignore를 남겨 다음 child가 그 상태를 상속한 원인이었다. 원 실패를 `host-loopback-probe-20261001`에 보존하고, ignore 상태를 복구한 r2에서 같은 assertions로 재검증했다. 제품 코드를 바꾸거나 assertion을 낮추지 않았다.
+
+이 검사는 **실제 native 실행·IPC·encoder probing·API·lifecycle**의 증거다. 합성 프레임에 대한 기술 검사이므로 실제 WGC capture→AI→stereo→Quest 수신 성능·입체 품질·wearer audio sync를 검증한 것으로 표시하지 않는다. release asset 최종 설치와 실제 Quest 연결의 결과는 제품 현황 기록에서 별도로 확정한다.
+
+### 공개 source 재현 경로
+
+source supply의 `SOURCE.md`, `tools/unpack_host_release.py`, `tools/rebuild_host_release.sh`를 제공한다. unpacker는 archive와 member의 실제 SHA 및 경로 경계를 먼저 검사하고 새 별도 build workspace만 만든다. build helper는 source·dependency inputs를 이 workspace에 연결하고 native test/web build를 실행한다. 설치·방화벽·서비스·서버 시작은 하지 않는다. 고정 Windows MSYS2 UCRT64 toolchain 및 native Node `v24.20.0`이 필요하며 `.BUILDINFO`-bound source recipes는 읽기 입력으로 공급한다.
+
+```powershell
+python source-supply/tools/unpack_host_release.py --supply source-supply --output host-rebuild
+```
+
+그 뒤 MSYS2 UCRT64에서 `QUEST3D_NATIVE_NPM`에 고정 native Windows `npm.cmd`를 지정하고 `bash source-supply/tools/rebuild_host_release.sh host-rebuild 6`을 실행한다. dependency archives와 `toolchain.lock.json`의 download URLs·SHA를 유지한다. 기존 바이너리와 bit-for-bit 일치를 공개 조건으로 추가하지 않는다.
+
+최종 root 공급 JSON SHA-256은 `49584877ab43fabc81a70bd8bc5f10d6df0e8f85c81fa9bd078bbd87615a8fcb`다. `source-runtime-binding-and-privacy-audit.json`과 실제 loopback 원 보고서는 공개 후 자동으로 새 실기 검증을 통과시키는 자료가 아니다.
+
+같은 공개 unpacker를 최종 source-supply 실제 파일에 실행했다. `artifacts/publication/host-public-unpack-validation-20261001`의 새 workspace에 15,603 source members의 실제 SHA와 전체 dependency archive SHA를 확인해 추출했으며 exit 0이다. 실제 원 source/dependency/제품을 덮어쓰거나 build/server를 실행하지 않았다. 이 결과는 source 준비 도구의 작은 fixture tests와 별도로 실제 공개 입력의 unpack 경로를 확인한다.
+
+그 새 추출 tree로 실제 CMake configure도 exit 0, configure 64.9초·generate 2.9초로 완료했다. Ninja dry-run은 exit 0이며 glob check/CMake regeneration을 계획했다. 여기서 native compile을 다시 실행한 결과로 표시하지 않는다. 고정 실제 source 입력의 기존 성공 빌드와 새 공개 공급의 unpack/configure를 구분하며, `host-public-unpack-validation-20261001/PUBLIC_SUMMARY.json`에 기록했다.
 
 ## 결과
 

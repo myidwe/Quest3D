@@ -225,3 +225,67 @@ def test_quest_only_download_has_the_html_guide_brand_image(tmp_path):
     with zipfile.ZipFile(out / "Quest3D-Quest-test.zip") as archive:
         assert archive.read("docs/DESKTOP_USER_GUIDE.html").decode() == guide
         assert archive.read("resources/ui/brand/quest3d-mark.png") == brand.read_bytes()
+
+
+def public_quest_fixture(root):
+    names = ["README.md", "README.en.md", "LICENSE", "THIRD_PARTY_NOTICES.md",
+             "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md",
+             "scripts/release/install-quest.ps1", "scripts/release/quest-install-ui.ps1",
+             "scripts/release/installer-launcher.ps1", "resources/ui/brand/quest3d-mark.png"]
+    names += ["docs/" + name for name in release.PUBLIC_RELEASE_DOCS]
+    for name in names:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"public fixture")
+    apk = root / "public.apk"
+    apk.write_bytes(b"synthetic public APK; never installed")
+    source = root / "reviewed-source"
+    source.mkdir()
+    notice = source / "NOTICES.md"
+    notice.write_bytes(b"Actual dependency attribution fixture\n")
+    record = {"apk_sha256": release.digest(apk), "apk_metadata": {
+        "package": "app.questto3d.client", "version_code": 1,
+        "certificate_sha256": "2" * 64, "signing_kind": "release"},
+        "source_complete": True, "clean_build_verified": True,
+        "dependency_notices_verified": True,
+        "files": {"NOTICES.md": release.digest(notice)},
+        "binary_notice_files": ["NOTICES.md"]}
+    return apk, source, record
+
+
+def test_public_quest_archive_delivers_exact_reviewed_dependency_notices(tmp_path):
+    root = tmp_path / "root"
+    apk, source, record = public_quest_fixture(root)
+    out = tmp_path / "out"
+    out.mkdir()
+    release.build_quest(root, out, "public-test", apk, release.digest(apk), record, source)
+    with zipfile.ZipFile(out / "Quest3D-Quest-public-test.zip") as archive:
+        assert archive.read("notices/quest/NOTICES.md") == (source / "NOTICES.md").read_bytes()
+        assert json.loads(archive.read("distribution-manifest.json"))["metadata"]["quest_dependency_notices_verified"] is True
+
+
+@pytest.mark.parametrize("failure", ["missing-gate", "no-list", "no-source"])
+def test_public_quest_without_reviewed_notice_inputs_is_refused_before_output(tmp_path, failure):
+    root = tmp_path / "root"
+    apk, source, record = public_quest_fixture(root)
+    if failure == "missing-gate":
+        record["dependency_notices_verified"] = "true"
+    elif failure == "no-list":
+        record["binary_notice_files"] = []
+    else:
+        source = None
+    out = tmp_path / "out"
+    with pytest.raises(ValueError, match="verified sources and actual binary notices"):
+        release.build_quest(root, out, "public-test", apk, release.digest(apk), record, source)
+    assert not out.exists()
+
+
+def test_changed_notice_cannot_be_shipped_under_a_valid_source_hash(tmp_path):
+    root = tmp_path / "root"
+    apk, source, record = public_quest_fixture(root)
+    (source / "NOTICES.md").write_bytes(b"different attribution")
+    out = tmp_path / "out"
+    out.mkdir()
+    with pytest.raises(ValueError, match="Pinned hash mismatch"):
+        release.build_quest(root, out, "public-test", apk, release.digest(apk), record, source)
+    assert not (out / "Quest3D-Quest-public-test.zip").exists()

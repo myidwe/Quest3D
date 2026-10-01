@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import sys
 import zipfile
+import io
 
 import pytest
 
@@ -62,7 +63,14 @@ def inputs(tmp_path, monkeypatch):
     vendor = tmp_path / "vendor.zip"
     with zipfile.ZipFile(vendor, "w") as archive:
         for name in export.VENDOR_MEMBERS:
-            archive.writestr("asset/" + name, b"pinned vendor fixture")
+            data = b"pinned vendor fixture"
+            if name.endswith(".aar"):
+                fixture = io.BytesIO()
+                with zipfile.ZipFile(fixture, "w") as aar:
+                    aar.writestr("jni/arm64-v8a/libgodotopenxrvendors.so", b"pinned vendor fixture")
+                    aar.writestr("classes.jar", b"retained Java fixture")
+                data = fixture.getvalue()
+            archive.writestr("asset/" + name, data)
     monkeypatch.setattr(export, "VENDOR_SHA", export.source_tool.sha(vendor))
     template = tmp_path / "template.zip"
     with zipfile.ZipFile(template, "w") as archive:
@@ -114,6 +122,46 @@ def test_native_tamper_cannot_be_exported(tmp_path, monkeypatch):
     output = tmp_path / "export"
     with pytest.raises(ValueError, match="native changed"):
         export.prepare(*args, output)
+    assert not (output / "android-export-preparation.json").exists()
+
+
+def test_public_vendor_native_and_preview_version_are_bound(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    public = tmp_path / "public-vendor"
+    public.mkdir()
+    native = public / "rebuilt.so"
+    native.write_bytes(b"fresh public-header vendor")
+    record = {"exit_code": 0, "vendor_built_from_source": True,
+              "meta_preview_headers_selected": False,
+              "native": {"path": "rebuilt.so", "sha256": sha(native.read_bytes())}}
+    (public / "vendor-build-summary.json").write_text(json.dumps(record))
+    output = tmp_path / "export"
+    export.prepare(*args, output, public, "0.1.0-preview")
+    proof = json.loads((output / "android-export-preparation.json").read_text())
+    assert proof["vendor_built_from_source"] is True
+    assert proof["public_vendor_binding"]["native_sha256"] == sha(native.read_bytes())
+    assert (output / "project" / export.VENDOR_MEMBERS[0]).read_bytes() == native.read_bytes()
+    with zipfile.ZipFile(output / "project" / export.VENDOR_MEMBERS[1]) as derived:
+        assert derived.read("jni/arm64-v8a/libgodotopenxrvendors.so") == native.read_bytes()
+        assert derived.read("classes.jar") == b"retained Java fixture"
+    with zipfile.ZipFile(output / "official-vendor-android-release.aar") as preserved:
+        assert preserved.read("jni/arm64-v8a/libgodotopenxrvendors.so") != native.read_bytes()
+    assert proof["public_vendor_binding"]["aar_derivation"]["native_sha256"] == sha(native.read_bytes())
+    assert 'version/name="0.1.0-preview"' in (output / "project/export_presets.cfg").read_text()
+
+
+def test_tampered_public_vendor_cannot_create_success_receipt(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    public = tmp_path / "public-vendor"
+    public.mkdir()
+    native = public / "rebuilt.so"
+    native.write_bytes(b"changed vendor")
+    (public / "vendor-build-summary.json").write_text(json.dumps({
+        "exit_code": 0, "vendor_built_from_source": True, "meta_preview_headers_selected": False,
+        "native": {"path": "rebuilt.so", "sha256": sha(b"original vendor")}}))
+    output = tmp_path / "export"
+    with pytest.raises(ValueError, match="vendor input changed"):
+        export.prepare(*args, output, public, "0.1.0-preview")
     assert not (output / "android-export-preparation.json").exists()
 
 

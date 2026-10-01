@@ -405,6 +405,121 @@ def test_host_record_returns_absent_only_for_absent_process(rig):
     assert backend.DesktopController._host_identity(rig.c) is None
 
 
+def public_host_binding(rig):
+    """Inject an already selected public layout into process-boundary fixtures."""
+    rig.c.host_sha = backend.PUBLIC_HOST_SHA
+    path = rig.c.root / 'artifacts/host/dev/launch.json'
+    launch = json.loads(path.read_text())
+    write_json(path, {**launch, 'host_sha256': backend.PUBLIC_HOST_SHA})
+    rig.monkeypatch.setattr(backend, 'sha256_file', lambda path: backend.PUBLIC_HOST_SHA)
+
+
+def test_public_install_never_adopts_live_historical_launch_even_at_same_path(rig):
+    public_host_binding(rig)
+    path = rig.c.root / 'artifacts/host/dev/launch.json'
+    launch = json.loads(path.read_text())
+    write_json(path, {**launch, 'host_sha256': backend.HOST_SHA})
+    before = path.read_bytes()
+    with pytest.raises(RuntimeError, match='실행 경로/버전'):
+        backend.DesktopController._host_identity(rig.c)
+    assert path.read_bytes() == before and backend.same_process(rig.state.host)
+
+
+@pytest.mark.parametrize('actual', [backend.PUBLIC_HOST_SHA, backend.HOST_SHA])
+def test_public_preflight_checks_selected_binary_before_model_or_capture(rig, actual):
+    public_host_binding(rig)
+    c = rig.c
+    for path in (c.python, c.pwsh, c.root/'.tools/desktop/uv.exe',
+                 c.capture_package/'wc_cuda/__init__.py', c.runtime/'sunshine.exe'):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'non-executable preflight fixture')
+    c.preferences['monitor_device'] = rig.monitor['device_name']
+    model_calls = []
+    rig.monkeypatch.setattr(backend, 'sha256_file', lambda path: actual)
+    rig.monkeypatch.setattr(backend, 'verified_model', lambda: model_calls.append(True))
+    if actual == backend.PUBLIC_HOST_SHA:
+        assert c._preflight() == rig.monitor and model_calls == [True]
+    else:
+        with pytest.raises(RuntimeError, match='검증한 버전'):
+            c._preflight()
+        assert model_calls == []
+
+
+def test_public_start_passes_same_selected_pin_to_setup_and_rebind(rig):
+    public_host_binding(rig)
+    c = rig.c
+    c.distributed = True
+    (c.root/'artifacts/host/dev/launch.json').unlink()
+    rig.state.host = None
+    rig.state.live.pop(202)
+    rig.monkeypatch.setattr(c, '_preflight', lambda: rig.monitor)
+    calls = []
+
+    def run(argv, label, **kwargs):
+        calls.append((argv, label))
+        if label == 'host-start':
+            rig.state.host = {'pid': 202, 'exe': str(c.runtime/'sunshine.exe'), 'birth': 'public-host-lifetime'}
+            rig.state.live[202] = rig.state.host
+        return c._last_log_dir/(label+'.log')
+
+    rig.monkeypatch.setattr(c, '_run', run)
+    c._start()
+    assert [label for _, label in calls] == ['host-setup', 'host-check', 'host-bind', 'host-start']
+    for argv, _ in calls[:3]:
+        assert argv[argv.index('-ExpectedHostSha256')+1] == backend.PUBLIC_HOST_SHA
+        assert argv[argv.index('-ExpectedRuntime')+1] == c.runtime
+    assert c.get_snapshot()['phase'] == 'running'
+
+
+@pytest.mark.parametrize('actual', [backend.PUBLIC_HOST_SHA, backend.HOST_SHA])
+def test_public_stop_uses_selected_binary_and_preserves_other_version(rig, actual):
+    public_host_binding(rig)
+    c = rig.c
+    c._host = dict(rig.state.host)
+    rig.monkeypatch.setattr(c, '_inspect', lambda: None)
+    rig.monkeypatch.setattr(c, '_recover_audio', lambda: None)
+    rig.monkeypatch.setattr(backend, 'sha256_file', lambda path: actual)
+    calls = []
+
+    def run(argv, label, **kwargs):
+        calls.append((argv, label))
+        rig.state.live.pop(202)
+        return c.logs/(label+'.log')
+
+    rig.monkeypatch.setattr(c, '_run', run)
+    if actual == backend.PUBLIC_HOST_SHA:
+        c._stop()
+        assert [label for _, label in calls] == ['host-stop']
+        assert c.get_snapshot()['phase'] == 'idle'
+    else:
+        with pytest.raises(RuntimeError, match='신원이 바뀌어'):
+            c._stop()
+        assert calls == [] and backend.same_process(rig.state.host)
+
+
+@pytest.mark.parametrize('fault', [None, 'historical_launch', 'historical_binary'])
+def test_public_readiness_uses_selected_pin_for_launch_and_actual_file(rig, fault):
+    public_host_binding(rig)
+    c = rig.c
+    c._host = dict(rig.state.host)
+    if fault == 'historical_launch':
+        path = c.root/'artifacts/host/dev/launch.json'
+        launch = json.loads(path.read_text())
+        write_json(path, {**launch, 'host_sha256': backend.HOST_SHA})
+    if fault == 'historical_binary':
+        rig.monkeypatch.setattr(backend, 'sha256_file', lambda path: backend.HOST_SHA)
+    rig.monkeypatch.setattr(backend.psutil, 'Process', lambda pid: SimpleNamespace(
+        net_connections=lambda **kwargs: [SimpleNamespace(status=backend.psutil.CONN_LISTEN,
+          laddr=SimpleNamespace(port=port)) for port in [47984, 47989, 48010]]))
+    if fault is None:
+        backend.DesktopController._verify_host_ready(c, timeout=.5)
+        assert c._verified_host == rig.state.host
+    else:
+        with pytest.raises(RuntimeError):
+            backend.DesktopController._verify_host_ready(c, timeout=.5)
+        assert c._verified_host is None
+
+
 def test_same_process_requires_exact_birth_and_path(rig):
     original = dict(rig.state.producer)
     assert backend.same_process(original)

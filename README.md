@@ -2,24 +2,26 @@
 
 Windows 데스크톱을 Meta Quest의 큰 화면으로 보고, 로컬 AI로 2D와 스테레오 3D를 전환하는 앱
 
-**공개 준비 중 · Windows/NVIDIA Turing 전용 Preview**
+**Windows / NVIDIA Turing · 0.1.0-preview**
 
 [English](README.en.md)
 
-현재 개발 PC와 Quest 2·Quest 3에서 실제 캡처·AI 깊이·좌우 영상·헤드셋 표시를 연결해 사용했습니다. 최신 공개 설치 파일은 아직 게시하지 않았습니다. 첫 공개는 제한된 장비를 대상으로 한 `0.1.0-preview`를 계획합니다.
+기존 브라우저와 프로그램을 큰 화면에서 보고 2D/3D를 전환합니다. AI는 PC에서 실행합니다. 첫 공개 Preview는 지원 장비와 실기 검증 범위를 제한하며, [배포 안내](docs/RELEASE_0.1.0_PREVIEW.md)에 확인한 결과와 남은 조건을 기록합니다.
 
 ## Download
 
-공개 후 이 저장소의 **Releases**에서 아래 두 파일을 받습니다. GitHub의 **Code → Download ZIP**은 개발 소스이며 설치 파일이 아닙니다.
+**[Windows 다운로드](https://github.com/myidwe/Quest3D/releases/download/v0.1.0-preview/Quest3D-Desktop-0.1.0-preview.zip)** · **[Quest 다운로드](https://github.com/myidwe/Quest3D/releases/download/v0.1.0-preview/Quest3D-Quest-0.1.0-preview.zip)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)
+
+같은 버전의 Desktop ZIP과 Quest ZIP을 받습니다. GitHub의 **Code → Download ZIP**은 개발 소스이며 설치 파일이 아닙니다.
 
 | 파일 | 용도 |
 |---|---|
 | `Quest3D-Desktop-<version>.zip` | Windows 설치창과 PC 앱 |
 | `Quest3D-Quest-<version>.zip` | Quest APK와 USB 설치창 |
-| `Quest3D-Source-<version>.zip` | native 구성 요소를 포함한 대응 소스 |
+| [Quest3D-Source-0.1.0-preview.zip](https://github.com/myidwe/Quest3D/releases/download/v0.1.0-preview/Quest3D-Source-0.1.0-preview.zip) | native 구성 요소를 포함한 대응 소스 |
 | `SHA256SUMS.txt` | 다운로드 파일 무결성 확인 |
 
-저장소 주소와 실제 다운로드 링크는 공개 시 확정합니다. 기존 개발용 ZIP을 최신 배포판으로 안내하지 않습니다.
+무결성과 실제 검증 범위는 같은 Release의 `SHA256SUMS.txt`, `release-validation.json`을 확인합니다.
 
 ## Quick start
 

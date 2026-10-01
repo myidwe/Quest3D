@@ -55,9 +55,12 @@ function Get-Quest3DNetworkInstallation([string]$Root) {
         $files[$entry.Name]=$entry.Value
     }
     $config=Read-Quest3DNetworkJson (Get-Quest3DNetworkPath $rootPath 'config/distribution.json')
-    $expectedHash='77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63'
-    if($config.schema -ne 1 -or $config.host_sha256 -cne $expectedHash -or
+    $approvedHashes=@(
+        '77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63',
+        '86eb2ee5e3177a892f15ecd5ba869b27d3e1b9131848b1adacf9a25301767d42')
+    if($config.schema -ne 1 -or $config.host_sha256 -isnot [string] -or $approvedHashes -cnotcontains $config.host_sha256 -or
         [string]$config.host_runtime -cnotmatch '^artifacts/host/runtime-[A-Za-z0-9_-]+$'){throw 'Unrecognized installed network host.'}
+    $expectedHash=$config.host_sha256
     $exeRelative=$config.host_runtime+'/sunshine.exe'
     foreach($relative in @('native/host/configure-installed-network.ps1','.tools/desktop/powershell/pwsh.exe','config/distribution.json',$exeRelative)) {
         $file=Get-Quest3DNetworkPath $rootPath $relative;$entry=$files[$relative]
@@ -81,7 +84,7 @@ function Get-Quest3DNetworkSnapshot([array]$Rows,[hashtable]$Rule,[string]$Progr
     $found=@($Rows | Where-Object {$_.Name -ieq $Rule.name})
     if(!$found.Count){return $null}
     $apps=@($found | Get-NetFirewallApplicationFilter -ErrorAction Stop)
-    if($found.Count -ne 1 -or $found[0].Description -cne "Quest3D installation $Key | $Program" -or
+    if($found.Count -ne 1 -or $found[0].Description -cne "Quest3D installation $Key" -or
         $apps.Count -ne 1 -or $apps[0].Program -ine $Program){throw 'A different rule owns this name. No conflicting rule was changed.'}
     $ports=@($found | Get-NetFirewallPortFilter -ErrorAction Stop)
     $addresses=@($found | Get-NetFirewallAddressFilter -ErrorAction Stop)
@@ -124,7 +127,9 @@ function Update-Quest3DInstalledNetworkRules([string]$Program,[string]$Key,[arra
             if($existing.ContainsKey($spec.name)) {
                 if($Delete){$existing[$spec.name] | Remove-NetFirewallRule -ErrorAction Stop;$result.removed += $spec.name}else{$result.kept += $spec.name}
             } elseif(!$Delete) {
-                $null=New-NetFirewallRule -PolicyStore PersistentStore -Name $spec.name -DisplayName ('Quest3D LAN '+$spec.protocol) -Description "Quest3D installation $Key | $Program" -Group "Quest3D-$Key" -Direction Inbound -Action Allow -Enabled True -Profile Private -Program $Program -Protocol $spec.protocol -LocalPort $spec.ports -RemoteAddress LocalSubnet -EdgeTraversalPolicy Block -ErrorAction Stop
+                # Windows INetFwRule forbids | in Description. The program is
+                # bound separately by the exact application filter and key.
+                $null=New-NetFirewallRule -PolicyStore PersistentStore -Name $spec.name -DisplayName ('Quest3D LAN '+$spec.protocol) -Description "Quest3D installation $Key" -Group "Quest3D-$Key" -Direction Inbound -Action Allow -Enabled True -Profile Private -Program $Program -Protocol $spec.protocol -LocalPort $spec.ports -RemoteAddress LocalSubnet -EdgeTraversalPolicy Block -ErrorAction Stop
                 $result.created += $spec.name
             }
         }

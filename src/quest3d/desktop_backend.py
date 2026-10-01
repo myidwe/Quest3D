@@ -31,6 +31,8 @@ from .desktop_setup import distribution_layout
 from .session_control import atomic_json, read_json, send_control, validate_request
 
 HOST_SHA = '77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63'
+PUBLIC_HOST_SHA = '86eb2ee5e3177a892f15ecd5ba869b27d3e1b9131848b1adacf9a25301767d42'
+APPROVED_HOST_SHAS = frozenset({HOST_SHA, PUBLIC_HOST_SHA})
 RUNTIME = 'artifacts/host/runtime-20260909-233013-03efb525'
 HDR_PACKAGE = 'artifacts/capture/hdr-experimental/package-0d8bea69406e'
 OUTPUT_PROFILES = {'quest2': (1920, 1080), 'quest3': (2048, 1152)}
@@ -155,8 +157,10 @@ def hidden_flags():
 class DesktopController:
     def __init__(self, root=ROOT, *, start_worker=True):
         self.root = Path(root).resolve()
-        layout = distribution_layout(self.root, host_sha=HOST_SHA, runtime=RUNTIME, capture=HDR_PACKAGE)
+        layout = distribution_layout(self.root, host_sha=HOST_SHA, runtime=RUNTIME, capture=HDR_PACKAGE,
+                                     approved_host_shas=APPROVED_HOST_SHAS)
         self.runtime = layout['runtime']
+        self.host_sha = layout['host_sha']
         self.capture_package = layout['capture']
         self.distributed = layout['distributed']
         self.python = self.root / '.venv/Scripts/python.exe'
@@ -431,6 +435,7 @@ class DesktopController:
         if (Path(record['exe']) != (self.runtime/'sunshine.exe').resolve()
                 or record['birth'] != str(data['owner_creation_filetime'])):
             raise RuntimeError('호스트 PID 또는 생성 시각이 달라졌습니다. 다른 프로세스는 종료하지 않습니다.')
+        self._verify_launch_binding()
         return record
 
     def _inspect(self):
@@ -677,13 +682,18 @@ class DesktopController:
         self._helper = None
         self._helper_path.unlink(missing_ok=True)
 
+    def _verify_launch_binding(self):
+        """A live host from another approved version still belongs to that version."""
+        launch = read_json(self.root/'artifacts/host/dev/launch.json')
+        if (Path(launch['runtime']).resolve() != self.runtime or
+                not isinstance(launch.get('host_sha256'), str) or launch['host_sha256'].lower() != self.host_sha):
+            raise RuntimeError('전송 서버의 실행 경로/버전 기록이 다릅니다.')
+
     def _verify_host_ready(self, timeout=12):
         """Validate actual host ownership/listeners, not a launch receipt alone."""
-        launch = read_json(self.root/'artifacts/host/dev/launch.json')
-        if Path(launch['runtime']).resolve() != self.runtime or launch['host_sha256'].lower() != HOST_SHA:
-            raise RuntimeError('전송 서버의 실행 경로/버전 기록이 다릅니다.')
+        self._verify_launch_binding()
         if self._verified_host != self._host:
-            if sha256_file(self.runtime/'sunshine.exe') != HOST_SHA:
+            if sha256_file(self.runtime/'sunshine.exe') != self.host_sha:
                 raise RuntimeError('전송 서버의 실제 파일이 검증된 버전과 다릅니다.')
         deadline = time.monotonic()+timeout
         while time.monotonic() < deadline:
@@ -704,7 +714,7 @@ class DesktopController:
                      self.capture_package/'wc_cuda/__init__.py', self.runtime/'sunshine.exe'):
             if not file.is_file():
                 raise RuntimeError(f'실행에 필요한 파일이 없습니다: {file.name}. 사용 안내의 복구 절차를 확인해 주세요.')
-        if sha256_file(self.runtime/'sunshine.exe') != HOST_SHA:
+        if sha256_file(self.runtime/'sunshine.exe') != self.host_sha:
             raise RuntimeError('전송 서버 파일이 검증한 버전과 다릅니다. 원본을 보존하고 시작을 멈췄습니다.')
         if self.preferences['depth_model'] == DEFAULT_DEPTH_MODEL:
             verified_model()
@@ -802,9 +812,9 @@ class DesktopController:
         if self.distributed and not (self.root/'artifacts/host/dev/launch.json').exists():
             self._run([self.pwsh, '-NoProfile', '-File', self.root/'native/host/prepare-installed-host.ps1',
                        '-ControlDirectory', self._session, '-ExpectedRuntime', self.runtime,
-                       '-ExpectedHostSha256', HOST_SHA], 'host-setup')
+                       '-ExpectedHostSha256', self.host_sha], 'host-setup')
         command = [self.pwsh, '-NoProfile', '-File', self.root/'native/host/rebind-dev-source.ps1',
-                   '-ControlDirectory', self._session, '-ExpectedRuntime', self.runtime, '-ExpectedHostSha256', HOST_SHA]
+                   '-ControlDirectory', self._session, '-ExpectedRuntime', self.runtime, '-ExpectedHostSha256', self.host_sha]
         audio_args = ['-AudioOutput', self.preferences['audio_output']] if self.preferences['audio_output'] != 'pc' else []
         command += audio_args
         self._run(command+['-CheckOnly'], 'host-check')
@@ -840,7 +850,7 @@ class DesktopController:
         self._inspect()
         if self._host:
             expected = dict(self._host)
-            if not same_process(expected) or sha256_file(self.runtime/'sunshine.exe') != HOST_SHA:
+            if not same_process(expected) or sha256_file(self.runtime/'sunshine.exe') != self.host_sha:
                 raise RuntimeError('전송 서버의 신원이 바뀌어 종료하지 않았습니다.')
             self._run([self.python, self.root/'scripts/stop-verified-host.py', '--exe', self.runtime/'sunshine.exe',
                        '--pid', str(expected['pid']), '--birth', expected['birth']], 'host-stop', timeout=20)

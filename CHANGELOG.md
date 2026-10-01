@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 0.1.0-preview 준비
+## 0.1.0-preview — 2026-10-01
 
 - Windows 모니터 캡처 → 로컬 깊이 AI → 좌우 합성 → Quest 표시
 - Quest 2·Quest 3 출력 프로필, HEVC, 2D/3D와 Depth 미세 조절
@@ -12,4 +12,9 @@
 - Quest USB 기기 선택·승인 상태 안내·데이터 보존 설치·downgrade 차단
 - 한국어·영어 안내, 별도 Git 공개 후보·실제 Git tree·배포 ZIP 무결성 검사
 
-아직 공개된 릴리스가 아닙니다. 대응 소스·서명·새 설치·실기 검증 조건은 [공개 계획](docs/OPEN_SOURCE_RELEASE_PLAN_2026-09-30.md)에 기록합니다.
+- 새 host native와 공개 Quest package의 실제 소스 재빌드·대응 source/notice 공급
+- 공개 Khronos header vendor, AAR native 선택 대조, 장기 공개 APK 서명
+- 실제 새 PC 설치·캡처/AI/제어/종료/재시작, 호환 업데이트 데이터 보존
+- Windows 방화벽 Description 제약 수정과 exact 앱·Private/LocalSubnet 실제 적용 확인
+
+지원 장비와 미검증 조건을 제한한 첫 Preview입니다. [배포 안내](docs/RELEASE_0.1.0_PREVIEW.md)와 같은 Release의 `release-validation.json`을 확인합니다.

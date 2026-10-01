@@ -72,3 +72,7 @@ Display의 상세 설정에서 위치·곡률·여백·보기 저장을 사용�
 - **모니터 연결 변경 후 시작 실패:** Display의 Monitor에서 해상도를 확인하고 사용할 16:9 화면을 다시 선택합니다. Windows의 모니터 번호가 바뀔 수 있습니다.
 
 PC 설정은 `config/desktop.json`, Quest 설정은 헤드셋 앱에 저장됩니다. 업데이트 때 앱 데이터를 지우지 마세요. 개인 페어링/인증 파일을 다른 PC에 복사하지 않습니다.
+
+## License · 대응 소스
+
+[프로젝트 라이선스](../LICENSE) · [제3자 고지](../THIRD_PARTY_NOTICES.md)를 확인할 수 있습니다. PC 설치 폴더의 `artifacts/host/runtime-public/notices/THIRD_PARTY_NOTICES.md`에는 호스트 의존성의 상세 고지가 있습니다. Quest ZIP의 `notices/quest` 폴더에는 APK 구성 요소의 원문 고지가 있습니다. 수정·재빌드를 위한 완전한 native 소스는 같은 GitHub Release의 **Quest3D-Source ZIP**으로 제공합니다.

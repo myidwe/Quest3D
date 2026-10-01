@@ -107,18 +107,57 @@ def review(directory: Path, release: str, private_markers=()) -> dict:
                     actual = hashlib.file_digest(stream, "sha256").hexdigest()
                 if actual != (entry if isinstance(entry, str) else entry["sha256"]):
                     raise ValueError(f"Quest corresponding source mismatch: {name}")
+            quest_notices = quest_source.get("binary_notice_files", [])
+            if not isinstance(quest_notices, list) or len(quest_notices) != len(set(quest_notices)):
+                raise ValueError("Invalid Quest binary notice inventory")
+            for name in quest_notices:
+                bundle.public_name(name)
+                if name not in source_files:
+                    raise ValueError("Quest binary notice is not supplied as source")
+                try:
+                    with quest.open("notices/quest/" + name) as stream:
+                        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+                except KeyError as exc:
+                    raise ValueError("Quest binary notice was not delivered") from exc
+                entry = source_files[name]
+                if actual != (entry if isinstance(entry, str) else entry["sha256"]):
+                    raise ValueError("Quest binary notice differs from its reviewed source")
+            host_notices = host_source.get("runtime_notice_files", {})
+            if not isinstance(host_notices, dict):
+                raise ValueError("Invalid host runtime notice inventory")
+            for runtime_name, source_name in host_notices.items():
+                bundle.public_name(runtime_name)
+                bundle.public_name(source_name)
+                try:
+                    with pc.open(host_runtime + "/" + runtime_name) as stream:
+                        runtime_sha = hashlib.file_digest(stream, "sha256").hexdigest()
+                    with source.open("sources/sunshine/" + source_name) as stream:
+                        source_sha = hashlib.file_digest(stream, "sha256").hexdigest()
+                except KeyError as exc:
+                    raise ValueError("Host runtime notice was not delivered with its source") from exc
+                if runtime_sha != source_sha:
+                    raise ValueError("Host runtime notice differs from its supplied source")
             binding = True
             source_status = {"host_rebuild_verified": host_source.get("binary_source_rebuild_verified") is True,
+                             "host_source_complete": host_source.get("source_complete") is True,
+                             "host_notices_verified": host_source.get("dependency_notices_verified") is True,
+                             "host_notice_delivery_verified": bool(host_notices),
                              "quest_source_complete": quest_source.get("source_complete") is True,
                              "quest_clean_build_verified": quest_source.get("clean_build_verified") is True,
+                             "quest_notices_verified": quest_source.get("dependency_notices_verified") is True,
+                             "quest_notice_delivery_verified": bool(quest_notices),
                              "public_release_signing": install.get("signing_kind") == "release" and install.get("package") == "app.questto3d.client"}
+    native_verified = bool(source_status) and all(source_status.values())
+    pending = ["fresh_windows_install", "update_rollback_on_final_package", "quest2_and_quest3_final_package",
+               "wearer_audio_av_and_long_run", "upstream_archives_and_binary_metadata_privacy_audit"]
+    if not native_verified:
+        pending.insert(0, "complete_native_sources_and_notices")
     return {"schema": 1, "release": release, "kind": "release-asset-review", "published": False,
             "available_archive_integrity_verified": True, "missing_assets": missing,
             "binary_source_cross_binding_verified": binding, "source_and_signing": source_status,
             "ready_for_public_release": False,
-            "pending_acceptance": ["complete_native_sources_and_notices", "fresh_windows_install",
-                                   "update_rollback_on_final_package", "quest2_and_quest3_final_package",
-                                   "wearer_audio_av_and_long_run", "upstream_archives_and_binary_metadata_privacy_audit"],
+            "native_source_and_signing_verified": native_verified,
+            "pending_acceptance": pending,
             "assets": rows}
 
 

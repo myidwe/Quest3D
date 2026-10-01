@@ -1,10 +1,18 @@
 # 설치·연결 설정과 권한 감사
 
-상태: **2026-10-01 보완 구현·검증 · 공개 준비 검토판**. 현재 작업 소스·실제 배포 후보 APK·Windows 설정을 읽기 전용으로 확인했다. 이번 권한 보완에서는 실제 방화벽·네트워크 프로필·실행 정책·USB 승인·설치 APK를 변경하지 않았다. 기존 d ZIP 및625파일 Git 후보는 그대로 보존한다.
+상태: **2026-10-01 보완 구현·실제 적용 검증**. 아래의 기존 권한 조사는 읽기 전용이었고 이후 새 공개 PC 후보에서는 별도 방화벽 적용을 검증했다. 네트워크 프로필·실행 정책과 기존 개발 설치는 변경하지 않았다. 이전 d ZIP 및625파일 Git 후보는 보존한다.
+
+## 10월 1일 공개 PC 후보의 실제 적용
+
+이 아래의 기존 조사와 별도로 새 호스트 `86eb2ee5…`의 A 드라이브 격리 설치에서 연결 허용 흐름을 실제 실행했다. 사용자 설치 소유권·manifest·exe 확인 → 새 작업 ID → Windows 승격 실행 → 적용 receipt → 새 상태 조회를 통과했다. **새 설치본 전용 TCP/UDP 규칙 2개**가 exact Program, Inbound Allow, Private, LocalSubnet, EdgeTraversal Block 및 아래 스트리밍 포트와 일치했다. 기존 개발 규칙·네트워크 프로필·관리 페이지47990·검색5353 정책은 변경하지 않았다.
+
+첫 시도는 Windows가 규칙 Description의 `|` 문자를 금지해 실패했다. 생성·삭제·부분 적용·rollback error는 모두 0이며 실패 기록을 보존했다. 설명을 짧은 설치 식별자로 고치고 실제 Program filter·path 기반 Name/Group·scope 검증은 유지했다. 수정 후 적용·독립 실제 규칙 조회까지 통과했다. [Microsoft Description 제약](https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwrule)
+
+승격 자식의 실제 결과를 확인했지만 사용자에게 UAC가 보인 방식·취소·다른 관리자 계정·새 Windows를 모두 검증한 것은 아니다. 실제 적용 성공과 이 미검증 조건을 구분한다. 아래 4개 규칙은 기존 개발 설치의 조사 결과다.
 
 ## 현재 PC의 방화벽
 
-현재 네트워크는 Private이고 Domain/Private/Public의 Windows 방화벽은 모두 켜져 있다. Quest2·Quest3용 허용 규칙4개가 활성화돼 있다. 실제 규칙의 프로그램 경로는 검증한 기존 host와 일치하고 해당 host SHA256은 `77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63`이다.
+기존 개발 설치 조사 당시 네트워크는 Private이고 Domain/Private/Public의 Windows 방화벽은 모두 켜져 있었다. Quest2·Quest3용 허용 규칙4개의 프로그램 경로는 기존 host와 일치했고 해당 host SHA256은 `77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63`다.
 
 | 범위 | 현재 개발 PC | 배포 설치창의 구현 |
 |---|---|---|

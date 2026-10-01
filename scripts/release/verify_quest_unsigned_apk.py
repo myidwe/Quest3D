@@ -40,7 +40,8 @@ def identity(badging: str) -> dict:
     }
 
 
-def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path, attempt: str = "first") -> dict:
+def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path, attempt: str = "first",
+           public_vendor: Path | None = None) -> dict:
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,31}", attempt):
         raise ValueError("Invalid export attempt")
     apk = export / "Quest3D-public-review-unsigned.apk"
@@ -75,8 +76,9 @@ def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path,
 
     badging = run([str(bt / "aapt"), "dump", "badging", str(apk)], "apk-badging").stdout
     metadata = identity(badging)
+    preparation = json.loads((export / "android-export-preparation.json").read_text())
     assert metadata["package"] == "app.questto3d.client"
-    assert metadata["version_code"] == "1" and metadata["version_name"] == "0.1.0-review"
+    assert metadata["version_code"] == "1" and metadata["version_name"] == preparation.get("version_name", "0.1.0-review")
     assert not metadata["debuggable"]
     run([str(bt / "aapt"), "dump", "xmltree", str(apk), "AndroidManifest.xml"], "apk-manifest")
     signed = run([str(bt / "apksigner"), "verify", "--verbose", "--print-certs", str(apk)], "apk-signature", None)
@@ -118,12 +120,22 @@ def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path,
         with zipfile.ZipFile(vendor) as distribution:
             raw_vendor = output / ("raw-" + vendor_name)
             raw_vendor.write_bytes(distribution.read("asset/addons/godotopenxrvendors/.bin/android/template_release/arm64/" + vendor_name))
+        if public_vendor:
+            review = json.loads((public_vendor / "vendor-build-summary.json").read_text())
+            assert review["exit_code"] == 0 and review["vendor_built_from_source"] is True
+            assert review["meta_preview_headers_selected"] is False
+            selected = public_vendor / review["native"]["path"]
+            assert selected.resolve().is_relative_to(public_vendor.resolve())
+            assert sha(selected) == review["native"]["sha256"]
+            assert preparation["public_vendor_binding"]["native_sha256"] == sha(selected)
+            shutil.copyfile(selected, raw_vendor)
         vendor_stripped = output / ("stripped-" + vendor_name)
         shutil.copyfile(raw_vendor, vendor_stripped)
         run([str(ndkbin / "llvm-strip"), "--strip-unneeded", str(vendor_stripped)], "strip-" + vendor_name)
         packaged_vendor = archive.read("lib/arm64-v8a/" + vendor_name)
         binding[vendor_name] = {"official_zip_sha256": sha(vendor), "raw_sha256": sha(raw_vendor), "stripped_sha256": sha(vendor_stripped),
-                               "apk_sha256": hashlib.sha256(packaged_vendor).hexdigest(), "rebuilt_from_source": False}
+                               "apk_sha256": hashlib.sha256(packaged_vendor).hexdigest(), "rebuilt_from_source": bool(public_vendor),
+                               "meta_preview_headers_selected": False if public_vendor else None}
         assert sha(vendor_stripped) == binding[vendor_name]["apk_sha256"]
         loader_candidates = list((export / "cache/gradle/caches/modules-2/files-2.1/org.khronos.openxr/openxr_loader_for_android/1.1.54").rglob("*.aar"))
         assert len(loader_candidates) == 1
@@ -142,6 +154,7 @@ def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path,
                               (("aapt", bt / "aapt"), ("apksigner", bt / "apksigner"), ("zipalign", bt / "zipalign"),
                                ("llvm-strip", ndkbin / "llvm-strip"), ("llvm-readelf", ndkbin / "llvm-readelf"))},
               "dependency_notices_verified": False, "public_release_ready": False}
+    result["public_vendor_binding"] = preparation.get("public_vendor_binding")
     (output / "apk-correspondence.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 
@@ -151,8 +164,9 @@ def main():
     for name in ("export", "rebuilt", "vendor", "tools", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--attempt", default="first")
+    parser.add_argument("--public-vendor", type=Path)
     args = parser.parse_args()
-    result = verify(args.export, args.rebuilt, args.vendor, args.tools, args.output, args.attempt)
+    result = verify(args.export, args.rebuilt, args.vendor, args.tools, args.output, args.attempt, args.public_vendor)
     print(json.dumps({k: result[k] for k in ("apk_sha256", "metadata", "native_binding_verified", "unsigned_verified", "zip_alignment_16k_verified", "public_release_ready")}, indent=2))
 
 

@@ -1,6 +1,54 @@
 # Quest3D 빌드·재현
 
-상태: **2026-09-30 공개 준비 검토안**. 검증한 개발 경로와 아직 완성되지 않은 공개 재현 경로를 구분한다. 사용자 설치는 [DISTRIBUTION](DISTRIBUTION.md)을 따른다.
+## 0.1.0-preview 공개 빌드 — 2026-10-01
+
+사용자 설치는 [DISTRIBUTION](DISTRIBUTION.md)을 따른다. GitHub 저장소는 제품 코드·설치 도구·검사를 제공한다. native fork와 의존성의 완전한 입력은 **같은 Release의 Quest3D-Source ZIP**으로 제공한다. 자동 `Source code.zip`만으로 전체 앱이 빌드되는 것은 아니다. 빌드 도구와 모델 다운로드도 필요하다.
+
+현재 제품은 monitor 확대 보기와 **frame bridge protocol 2**다. PC 입력·내장 파일 플레이어·선택 영역만 입체화·protocol 3은 지원 범위가 아니다. TensorRT·학습·대형 모델 실험이 현재 제품 런타임을 뜻하지 않는다.
+
+### 새 공개 호스트
+
+새 `sunshine.exe` SHA는 `86eb2ee5e3177a892f15ecd5ba869b27d3e1b9131848b1adacf9a25301767d42`다. 완전한 선택 소스·고정 dependency archives·14개 정적 라이브러리 source packages·원문 고지·도구가 `sources/sunshine`에 있다. `SOURCE.md`와 `provenance.json`을 먼저 읽는다.
+
+```powershell
+python scripts/release/unpack_host_release.py --supply <SourceZIP폴더>/sources/sunshine --output <새빌드폴더>
+```
+
+고정 MSYS2 UCRT64 도구와 Windows npm을 준비한 뒤 UCRT64 bash에서:
+
+```bash
+export QUEST3D_NATIVE_NPM='<고정 Node의 npm.cmd 경로>'
+bash <SourceZIP폴더>/sources/sunshine/tools/rebuild_host_release.sh <새빌드폴더> 6
+```
+
+공개 unpacker는 tar의 모든 member SHA·경로·dependency SHA를 확인한다. 실제 새 추출에서 CMake configure도 통과했다. 재빌드 도구는 native/CPU 회귀/web을 빌드하며 서버·서비스·방화벽을 자동 실행하지 않는다. source package의 원 recipe/checksum은 함께 제공되지만 모든 MSYS2 recipe를 다시 실행했다는 뜻은 아니다. 빌드 머신 차이로 바이너리 SHA가 달라질 수 있으며 동작 검증을 별도로 수행한다.
+
+기존 개발 `77c950b5…`의 역사 source snapshot은 packet API 누락으로 재빌드에 실패했다. 공개판은 완전한 수정 소스로 새 호스트를 빌드했다. 기존 바이너리의 누락 원문을 복구했다고 주장하지 않는다. [전체 증거·제외 근거](HOST_RELEASE_PREPARATION_2026-09-30.md)
+
+### 공개 Quest
+
+`sources/quest/SOURCE_BUILD_NOTES.md`, `source-manifest.json`, `NOTICES.md`와 dependency-supply 기록을 따른다. 새 project·Godot engine·stream/XR·OpenXR vendor를 빌드하고 APK 안의 **6개 native 라이브러리와 loader**를 실제 입력과 비교한다. 공식 addon AAR가 다른 native 파일을 우선 패키징할 수 있으므로 빌드 성공만으로 대응을 판단하지 않는다. 공개 vendor는 고정 Khronos 공개 헤더를 사용하며 Meta preview proprietary 헤더를 운영 입력으로 요구하지 않는다.
+
+`prepare_quest_android_export.py`, `export_quest_unsigned_baseline.sh`, `verify_quest_unsigned_apk.py`, `complete_quest_source_supply.py`가 고정 export·Maven SHA·실제 APK·source/notice gate를 검증한다. 자세한 사용 도구·명령·실패 기록은 [Quest clean build](QUEST_CLEAN_BUILD_2026-10-01.md)에 있다.
+
+새 공개 export에는 준비·APK 검사 양쪽에 **`--public-vendor <공개 vendor 빌드 폴더>`**를 지정한다. 이 입력은 직접 `.so`와 파생 AAR의 native를 함께 고정한다. `.so`만 교체하거나 아래의 역사적 공식 addon 명령을 그대로 사용하는 것은 새 공개판 재현 경로가 아니다.
+
+공개 패키지는 **`app.questto3d.client`**, 개발 패키지는 `app.questto3d.client.debug`다. `sign_quest_release.py`는 non-debug 공개 unsigned APK·exact source·인증서 fingerprint를 확인하고 외부 장기키로 서명한다. 개인키/암호는 저장소·ZIP·argv·로그에 넣지 않는다. 본인 fork는 별도 패키지·본인 키를 사용한다. 공개 앱 업데이트는 동일 키/패키지와 증가한 versionCode가 필요하다. 소유자는 복구 가능한 외부 키 백업을 유지한다.
+
+### 같은 버전 배포 묶음
+
+```powershell
+python scripts/release/build_bundle.py --output <새출력폴더> --release 0.1.0-preview --sources --host-release <검토한HOST_RELEASE.json> --quest-source <서명된대응소스폴더> --quest-apk <서명된APK> --quest-sha256 <실제APK해시>
+python scripts/release/review_assets.py --directory <새출력폴더> --release 0.1.0-preview --output <새검증JSON>
+```
+
+새 호스트는 `--host-release`와 대응 소스를 함께 지정한다. 기본값은 역사 후보 검토용이며 새 공개판 선택을 대신하지 않는다. 각 ZIP의 actual size/SHA, PC↔host source, APK↔Quest source/package/서명, binary↔source 원문 고지를 대조한다. 이 도구는 업로드하지 않는다. `ready_for_public_release: false`는 모든 실기를 완료한 정식판이 아니라는 뜻이며 제한을 명시한 Preview 공개 판단과 구분한다.
+
+GPU 없는 Windows 검사는 `.github/workflows/source-checks.yml`의 고정 pytest/psutil/NumPy와 exact 파일 목록을 사용한다. 제품 소스 import용 **`PYTHONPATH=src`**를 설정한다. CUDA/QML·실제 캡처·제어 ACK·Quest 수신·착용·음성·장시간은 별도 증거다. 같은 PC 격리 설치를 새 Windows 설치로 보고하지 않는다. Release의 `release-validation.json`에 완료·미검증 범위를 기록한다.
+
+## 이전 개발 경로와 준비 기록
+
+**이 아래는 2026-09-30의 개발/조사 기록이다.** 당시 미완료 gate, 기존 77 호스트·debug APK와 명령을 새 공개판의 상태/재현 명령으로 사용하지 않는다. 새 공개판은 위의 exact source와 검증 기록을 따른다.
 
 현재 `.tools`, `third_party`, `vendor`, `artifacts`는 개발 PC의 준비된 입력이다. GitHub 소스만 받는 유지보수자에게 자동으로 제공되지 않는다. 깨끗한 clone에서 최신 PC+Quest APK까지 빌드하는 단일 명령은 아직 없다. 고정 입력·fork 소스·서명·출시 검증을 준비한 다음 공개 재현 가능으로 표시한다.
 

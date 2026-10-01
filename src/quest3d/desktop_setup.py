@@ -4,16 +4,27 @@ import json
 import re
 
 
-def distribution_layout(root: Path, *, host_sha: str, runtime: str, capture: str) -> dict:
+def distribution_layout(root: Path, *, host_sha: str, runtime: str, capture: str,
+                        approved_host_shas: frozenset[str] | None = None) -> dict:
+    """Select a caller-approved exact binary, never trust an arbitrary config hash.
+
+    Existing callers authorize only their single host_sha. Product callers may
+    explicitly provide additional reviewed pins; development keeps host_sha.
+    """
+    approved = frozenset({host_sha}) if approved_host_shas is None else approved_host_shas
+    if (not isinstance(approved, frozenset) or host_sha not in approved or
+            any(not isinstance(pin, str) or not re.fullmatch(r'[0-9a-f]{64}', pin) for pin in approved)):
+        raise ValueError('검증된 전송 서버 버전 목록이 올바르지 않습니다.')
     path = root / 'config/distribution.json'
     if not path.exists():
-        return {'distributed': False, 'runtime': root / runtime, 'capture': root / capture}
+        return {'distributed': False, 'runtime': root / runtime, 'capture': root / capture, 'host_sha': host_sha}
     if '#' in str(root):
         raise ValueError('설치 폴더 이름에 #을 사용할 수 없습니다. #이 없는 폴더에 설치해 주세요.')
     value = json.loads(path.read_text('utf-8-sig'))
-    if not isinstance(value, dict) or value.get('schema') != 1 or value.get('host_sha256') != host_sha:
+    if (not isinstance(value, dict) or value.get('schema') != 1 or
+            not isinstance(value.get('host_sha256'), str) or value['host_sha256'] not in approved):
         raise ValueError('설치 정보의 전송 서버 버전이 다릅니다. 검증된 설치 파일로 복구해 주세요.')
-    result = {'distributed': True}
+    result = {'distributed': True, 'host_sha': value['host_sha256']}
     for key, field in (('runtime', 'host_runtime'), ('capture', 'hdr_package')):
         text = value.get(field)
         if not isinstance(text, str) or '\\' in text or ':' in text or any(c in text for c in '#\r\n'):

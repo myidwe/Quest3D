@@ -2,15 +2,17 @@
 
 View your Windows desktop on a large Meta Quest screen and switch between 2D and stereo 3D using local AI.
 
-**Release preparation · Windows / NVIDIA Turing preview**
+**Windows / NVIDIA Turing · 0.1.0-preview**
 
 [한국어](README.md)
 
-The capture → depth inference → stereo synthesis → streaming → per-eye Quest display pipeline has been used on the development PC with Quest 2 and Quest 3. A current public installer has **not** been released. The planned first release is `0.1.0-preview` with limited hardware support.
+View your existing browser and applications on a large screen, switching between 2D and stereo 3D. AI runs on the PC. This first public Preview has limited hardware support. The [release guide](docs/RELEASE_0.1.0_PREVIEW.md) and `release-validation.json` separate verified behavior from remaining hardware checks.
 
 ## Install
 
-After publication, download matching **Desktop ZIP** and **Quest ZIP** files from Releases. **Code → Download ZIP** contains developer source, not the installer. Native corresponding sources and SHA256 checksums will be separate release assets.
+**[Windows download](https://github.com/myidwe/Quest3D/releases/download/v0.1.0-preview/Quest3D-Desktop-0.1.0-preview.zip)** · **[Quest download](https://github.com/myidwe/Quest3D/releases/download/v0.1.0-preview/Quest3D-Quest-0.1.0-preview.zip)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)
+
+Download matching Desktop and Quest ZIPs. **Code → Download ZIP** contains developer source, not the installer. The same Release provides complete native corresponding sources, SHA256 checksums and validation results.
 
 1. Extract the entire Desktop ZIP and open **Install-Quest3D.cmd → 설치 (Install) → 연결 허용 (Allow connection)**. Windows requests administrator approval only when needed for the app's firewall setup.
 2. Enable Quest developer mode and approve USB debugging. Open **Install-Quest.cmd**, select official Google Platform Tools' `adb.exe`, search devices and select your Quest.
@@ -19,7 +21,7 @@ After publication, download matching **Desktop ZIP** and **Quest ZIP** files fro
 5. On Quest, **Scan Network → select PC → Pair**. Approve the PIN in the PC app.
 6. Subsequent use: **PC start → Quest Connect**.
 
-The first installation downloads Python, pinned GPU libraries and the default model. AI runs locally after setup; there are no subscription or cloud inference fees. End users do not need Codex, WSL or native build tools. Installation screenshots and final download links are still pending release validation.
+The first installation downloads Python, pinned GPU libraries and the default model. AI runs locally after setup; there are no subscription or cloud inference fees. End users do not need Codex, WSL or native build tools. Read the install guide for developer-mode, USB and supported-GPU requirements.
 
 ## Features
 

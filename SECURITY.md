@@ -4,4 +4,4 @@
 
 인증서·페어링 정보·서명키·전체 설치 폴더는 공개 Issue에 첨부하지 않습니다. 진단은 공유 전에 주소·기기 ID·경로를 확인합니다.
 
-저장소 공개 시 GitHub **Private vulnerability reporting**을 활성화하고 비공개 제보 경로를 확인해야 합니다. 공개 전에는 해당 연락 경로가 아직 없습니다. 활성화된 후 보안 결함은 저장소 Security 탭의 비공개 제보를 이용합니다. 민감한 재현 자료를 일반 Issue에 게시하지 않습니다.
+GitHub **Private vulnerability reporting**을 활성화했습니다. 보안 결함은 [비공개 취약점 제보](https://github.com/myidwe/Quest3D/security/advisories/new) 또는 저장소 Security 탭의 **Report a vulnerability**를 이용합니다. GitHub 로그인이 필요합니다. 민감한 재현 자료를 일반 Issue에 게시하지 않습니다.

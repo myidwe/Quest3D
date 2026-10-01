@@ -22,8 +22,9 @@ param([string]$Policy, [string]$Scenario)
 $ErrorActionPreference = 'Stop'
 . $Policy
 $Program = 'C:\Apps\Quest3D\host\sunshine.exe'
+if($Scenario -eq 'long-program'){$Program='C:\'+('p'*180)+'\sunshine.exe'}
 $Key = '012345ABCDEF'
-$Description = "Quest3D installation $Key | $Program"
+$Description = "Quest3D installation $Key"
 $Specs = @(
   @{name="Quest3D-$Key-TCP";protocol='TCP';ports=@(47984,47989,48010)},
   @{name="Quest3D-$Key-UDP";protocol='UDP';ports=@(47998,47999,48000)}
@@ -70,16 +71,23 @@ function Remove-NetFirewallRule {
 function New-NetFirewallRule {
   [CmdletBinding()]param($PolicyStore,$Name,$DisplayName,$Description,$Group,$Direction,$Action,$Enabled,$Profile,$Program,$Protocol,$LocalPort,$RemoteAddress,$EdgeTraversalPolicy)
   $script:Actions.Add('create:'+$Name)
+  # MS-FASP FW_RULE / INetFwRule reject the literal pipe even in short strings.
+  if(!$Description -or $Description.Length -ge 10000 -or $Description.Contains('|')){throw 'Invalid firewall description'}
   if($Scenario -eq 'creation-failure' -and $Protocol -eq 'UDP'){throw 'Simulated UDP creation failure'}
   $script:Rows[$Name] = [pscustomobject]@{Name=$Name;Description=$Description;Program=$Program;
     Direction=$Direction;Action=$Action;Enabled=[string]$Enabled;Profile=$Profile;EdgeTraversalPolicy=$EdgeTraversalPolicy;
     Protocol=$Protocol;LocalPort=$LocalPort;RemotePort='Any';LocalAddress='Any';RemoteAddress=$RemoteAddress}
 }
-$Delete = $Scenario -in @('conflict-remove','remove','remove-again','deletion-failure','query-failure-remove')
+$Delete = $Scenario -in @('conflict-remove','remove','remove-again','deletion-failure','query-failure-remove','foreign-program-remove')
 switch($Scenario) {
   'conflict-remove' {$script:Rows[$Specs[1].name].Description='owned by another app'}
   'conflict-create' {$script:Rows.Remove($Specs[0].name);$script:Rows[$Specs[1].name].Description='owned by another app'}
   'changed-policy' {$script:Rows[$Specs[1].name].Profile='Public'}
+  'foreign-program-create' {$script:Rows.Remove($Specs[0].name);$script:Rows[$Specs[1].name].Program='C:\Apps\Another\sunshine.exe'}
+  'foreign-program-remove' {$script:Rows[$Specs[1].name].Program='C:\Apps\Another\sunshine.exe'}
+  'legacy-description' {$script:Rows[$Specs[1].name].Description="Quest3D installation $Key | $Program"}
+  'create' {$script:Rows.Clear()}
+  'long-program' {$script:Rows.Clear()}
   'missing-rule' {$script:Rows.Remove($Specs[1].name)}
   'creation-failure' {$script:Rows.Clear()}
   'post-query-failure' {$script:Rows.Clear()}
@@ -95,7 +103,7 @@ $Retry=$null
 if($Scenario -eq 'deletion-failure') {
   $Scenario='retry';$Retry=Update-Quest3DInstalledNetworkRules $Program $Key $Specs $true
 }
-@{status=$PolicyStatus;error=$ErrorText;actions=@($script:Actions.ToArray());remaining=@($script:Rows.Keys | Sort-Object);result=$Result;retry=$Retry;queries=$script:Queries} | ConvertTo-Json -Depth 8 -Compress
+@{status=$PolicyStatus;error=$ErrorText;actions=@($script:Actions.ToArray());remaining=@($script:Rows.Keys | Sort-Object);rows=@($script:Rows.Values);result=$Result;retry=$Retry;queries=$script:Queries} | ConvertTo-Json -Depth 8 -Compress
 '''
 
 
@@ -123,6 +131,33 @@ def test_repeat_apply_preserves_both_correct_rules_without_mutations(run_policy)
     assert result['status'] == 'ok' and result['actions'] == []
     assert sorted(result['result']['kept']) == [TCP, UDP]
     assert result['result']['verified_after'] and result['result']['requested_applied']
+
+
+@pytest.mark.parametrize('scenario', ['create', 'long-program'])
+def test_fresh_apply_uses_valid_description_and_preserves_program_and_scope(run_policy, scenario):
+    result = run_policy(scenario)
+    assert result['status'] == 'ok' and result['actions'] == ['create:'+TCP, 'create:'+UDP]
+    assert result['result']['verified_after'] and result['result']['requested_applied']
+    assert sorted(result['result']['created']) == [TCP, UDP]
+    assert result['result']['rolled_back'] == [] and not result['result']['partial']
+    expected_program = r'C:\Apps\Quest3D\host\sunshine.exe' if scenario == 'create' else 'C:\\'+'p'*180+r'\sunshine.exe'
+    for row in result['rows']:
+        assert row['Description'] == 'Quest3D installation 012345ABCDEF'
+        assert len(row['Description']) == 33 and '|' not in row['Description']
+        assert row['Program'] == expected_program
+        assert (row['Direction'], row['Action'], row['Enabled'], row['Profile'], row['RemoteAddress'], row['EdgeTraversalPolicy']) == (
+            'Inbound', 'Allow', 'True', 'Private', 'LocalSubnet', 'Block')
+        assert row['LocalAddress'] == 'Any' and row['RemotePort'] == 'Any'
+        assert row['LocalPort'] == ([47984, 47989, 48010] if row['Protocol'] == 'TCP' else [47998, 47999, 48000])
+
+
+@pytest.mark.parametrize('scenario', ['foreign-program-create', 'foreign-program-remove', 'legacy-description'])
+def test_short_description_never_adopts_or_mutates_foreign_program_rules(run_policy, scenario):
+    result = run_policy(scenario)
+    assert result['status'] == 'error' and result['actions'] == []
+    assert UDP in result['remaining']
+    if scenario != 'foreign-program-create':
+        assert TCP in result['remaining']
 
 
 @pytest.mark.parametrize('scenario', ['conflict-remove', 'conflict-create', 'changed-policy'])
@@ -210,13 +245,18 @@ def run_body(tmp_path, body, *, shell=PWSH):
         pytest.skip('Actual Windows PowerShell runtime required')
     script = tmp_path / 'isolated-body.ps1'
     script.write_text("$ErrorActionPreference='Stop'\n. " + ps_quote(ROOT / 'native/host/configure-installed-network.ps1') + "\n" + body, 'utf-8-sig')
+    environment = dict(os.environ)
+    # Python may inherit PS7-only module paths from the developer's shell.
+    # Let each isolated PowerShell select its own built-in modules instead.
+    environment.pop('PSModulePath', None)
     result = subprocess.run([str(shell), '-NoProfile', '-NonInteractive', '-File', str(script)],
-                            capture_output=True, text=True, encoding='utf-8', timeout=25)
+                            capture_output=True, text=True, encoding='utf-8', timeout=25, env=environment)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
 
 PINNED_HOST = '77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63'
+PUBLIC_HOST = '86eb2ee5e3177a892f15ecd5ba869b27d3e1b9131848b1adacf9a25301767d42'
 
 
 @pytest.fixture
@@ -244,10 +284,16 @@ def installation(tmp_path):
 
 
 CHECKSUM_ORACLE = r'''
+# Windows PS5 exports Get-FileHash as a function, unlike PS7's cmdlet. Avoid
+# recursively resolving that shadowed function: hash all other real files with
+# the same SHA256 stream primitive. Only the non-executable host is simulated.
 function Get-FileHash {
   [CmdletBinding()]param([string]$LiteralPath,[string]$Algorithm)
   if($LiteralPath.EndsWith('\sunshine.exe')){return [pscustomobject]@{Hash=$Script:HostDigest}}
-  Microsoft.PowerShell.Utility\Get-FileHash -LiteralPath $LiteralPath -Algorithm $Algorithm
+  if($Algorithm -ne 'SHA256'){throw 'This fixture preserves exact SHA256 file checks only.'}
+  $hash=[Security.Cryptography.SHA256]::Create();$stream=[IO.File]::OpenRead($LiteralPath)
+  try{return [pscustomobject]@{Hash=([BitConverter]::ToString($hash.ComputeHash($stream))).Replace('-','')}}
+  finally{$stream.Dispose();$hash.Dispose()}
 }
 function Get-NetFirewallRule { throw 'A validation test must not query or change system firewall.' }
 function New-NetFirewallRule { throw 'A validation test must not change system firewall.' }
@@ -273,6 +319,52 @@ def test_actual_installer_uppercase_manifest_hash_is_accepted(tmp_path, installa
     owner = json.loads(path.read_text()); owner['package_manifest_sha256'] = owner['package_manifest_sha256'].upper()
     path.write_text(json.dumps(owner))
     assert validate_install(tmp_path, installation)['ok']
+
+
+def select_install_host(installation, pin, *, manifest_pin=None):
+    """Rebind only an isolated non-executable fixture and its owned manifest."""
+    config_path = installation/'config/distribution.json'
+    config = json.loads(config_path.read_text())
+    config['host_sha256'] = pin
+    config_path.write_text(json.dumps(config))
+    manifest_path = installation/'distribution-manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['files']['config/distribution.json'] = dict(bytes=config_path.stat().st_size,
+        sha256=hashlib.sha256(config_path.read_bytes()).hexdigest())
+    manifest['files']['artifacts/host/runtime-public/sunshine.exe']['sha256'] = manifest_pin or pin
+    manifest_path.write_text(json.dumps(manifest))
+    owner_path = installation/'quest3d-install.json'
+    owner = json.loads(owner_path.read_text())
+    owner['package_manifest_sha256'] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    owner_path.write_text(json.dumps(owner))
+
+
+@pytest.mark.parametrize('shell', [PWSH, WINDOWS_PS], ids=['PS7', 'WindowsPS51'])
+@pytest.mark.parametrize('selected,actual,ok', [(PINNED_HOST,PINNED_HOST,True),
+    (PUBLIC_HOST,PUBLIC_HOST,True), (PUBLIC_HOST,PINNED_HOST,False),
+    (PINNED_HOST,PUBLIC_HOST,False), ('0'*64,'0'*64,False)])
+def test_network_action_selects_only_reviewed_exact_binary_before_os_query(tmp_path, installation, shell, selected, actual, ok):
+    select_install_host(installation, selected)
+    result = run_body(tmp_path, "$Script:HostDigest=" + ps_quote(actual) + '\n' + CHECKSUM_ORACLE +
+        '\ntry {$item=Get-Quest3DNetworkInstallation '+ps_quote(installation)+
+        ";@{ok=$true;program=$item.program}|ConvertTo-Json} catch {@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json}", shell=shell)
+    assert result['ok'] is ok, result
+    if not ok:
+        assert 'must not query' not in result['error']
+
+
+def test_public_network_action_rejects_historical_payload_manifest_even_with_public_config(tmp_path, installation):
+    select_install_host(installation, PUBLIC_HOST, manifest_pin=PINNED_HOST)
+    result = validate_install(tmp_path, installation, PUBLIC_HOST)
+    assert not result['ok'] and 'checksum mismatch' in result['error']
+
+
+def test_python_and_powershell_product_approve_the_same_exact_two_host_versions():
+    import re
+    from quest3d.desktop_backend import APPROVED_HOST_SHAS
+    policy = (ROOT/'native/host/configure-installed-network.ps1').read_text('utf-8')
+    actual = set(re.findall(r"'([0-9a-f]{64})'", policy))
+    assert actual == APPROVED_HOST_SHAS == frozenset({PINNED_HOST, PUBLIC_HOST})
 
 
 @pytest.mark.parametrize('failure', ['owner', 'helper', 'pwsh', 'host', 'payload-path'])

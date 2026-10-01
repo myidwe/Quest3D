@@ -103,3 +103,41 @@ python3 scripts/release/verify_quest_unsigned_apk.py --export artifacts/publicat
 ```
 
 helper는 실제 키·서명·Quest 설치·GitHub 게시를 수행하지 않는다. signed public build와 source manifest를 확정할 때 [기존 서명 절차](QUEST_RELEASE_PREPARATION_2026-09-30.md#공개-apk와-서명-경계)의 audit gate를 통과시켜야 한다. 새 unsigned APK를 기존 정상 개발 APK나 최종 배포 묶음으로 자동 교체하지 않는다.
+
+위 명령은 역사적 공식 vendor 기반 baseline이다. 후속 공개 후보에서는 `collect_quest_vendor_baseline.py`로 고정 vendor/submodule source를 준비하고 `rebuild_quest_public_vendor.sh`로 arm64 native를 빌드한다. `prepare_quest_android_export.py`와 `verify_quest_unsigned_apk.py` 모두 `--public-vendor <새 vendor build>`를 사용한다. 최종 dependency source/고지는 `collect_quest_release_dependencies.py` → `complete_quest_source_supply.py`가 새 source manifest에 결합한다. 실제 공개 후보 receipt와 아래의 AAR native 대응 검사를 함께 사용한다.
+
+## 공개 후보 후속 작업 — 2026-10-01
+
+GitHub 공개 준비를 이어 진행하면서 기존 r3·a3 APK·review-e 묶음을 보존한 새 후보를 만들고 있다. 아래 새 결과를 앞의 역사적 결과에 소급해 붙이지 않는다.
+
+OpenXR Vendors는 같은 commit `6a04c8632140f7dc14670e5564fd473464047a15`에서 **공개 Khronos header만 선택하여 새 arm64 release native를 빌드했다**. `meta_headers`를 지정하지 않았으며 122초에 성공했다. 실제 raw native SHA-256은 `4eeb9d10e9e1de2432e4deac8da309534ad3ac1abb621994cc138bc5aa777a0e`다. godot-cpp submodule은 `58d1de720b8ffe9f8ffcdfe3a85148582cfd2e74`, OpenXR source submodule은 `ba4aec9686cb94c99a55f7ceba9768e9e35525c2`로 고정하고 공식 source archive를 수집했다. 해당 빌드에서는 Meta preview calibration/fidelity·boundary visibility·stationary preview가 제외된다. 현재 앱의 source에서 이 preview API 호출은 발견되지 않았으며, 일반 stereo·controller·화면·stream 기능의 실기 회귀는 별도 확인한다.
+
+`artifacts/publication/quest-release-dependencies-20261001-r5/dependency-source-notices.json`은 실제 native 8개 package의 ABI에 기록된 port·patch input과 source archive 9개의 원래 fetch SHA-512를 대조했다. 버전이 같은 최신 port로 바꾸지 않고 실제 registry cache의 정확한 recipe를 공급한다. Moonlight의 custom nested header, vcpkg 도구 source, FFmpeg의 GPL-enabled 실제 configure flags를 함께 남긴다. 실제 runtime Maven 37개 artifact의 SHA를 재검사했고 35개 module의 published source JAR을 모두 수집했다. POM 선언뿐 아니라 runtime/source archive의 LICENSE·NOTICE와 Apache-2.0 전문을 제공한다.
+
+신규 helper·기존 export/signing 경계 테스트 52개가 통과했다. 여기에는 archive 경로/링크 거부, 기존 source·key 보존, public vendor native 변조 거부, nested NOTICE 보존, 실제 Windows current-user DPAPI roundtrip이 포함된다. 외부 private release key는 source와 ZIP 밖에 생성했다. 공개 인증서 SHA-256은 `d950d11633753a3a52acba925dff8a35ccc0df7de1aef77291a1868c93f73cfc`다. private key·암호·DPAPI 파일은 배포 자료에 넣지 않는다.
+
+새 public version은 `app.questto3d.client`, versionCode `1`, `0.1.0-preview`다. 앞선 미서명 a3 및 r3 gate를 수정하는 방식으로 공개 후보를 만들지 않는다. 모든 native/DEX/payload와 source supply를 검증한 **별도 manifest**를 서명한다. 현재 신규 APK의 서명·실기·게시 완료를 이 단락만으로 판정하지 않는다.
+
+첫 `quest-public-export-20261001` 전체 export는 600초에 성공했으나 실제 native 검증에서 탈락했다. SHA-256 `ce1733eb548e19a56a39fa05c5f20b93229ed54de65c1c7c9bd6ff6f1e3a1a8c` APK에는 교체한 GDExtension `.so` 대신 공식 AAR 안의 이전 vendor native가 들어갔다. 이 APK는 공개 후보로 승격하거나 서명하지 않는다. 실패 APK와 검증 receipt를 보존한다.
+
+export helper는 새 public vendor를 `.so`와 Android AAR **양쪽**에 넣도록 수정했다. 원래 AAR는 별도로 보존하며 Java·resource entry의 bytes를 유지하고 선택하지 않은 ABI만 제외한다. 실제 APK의 vendor가 NDK strip 결과 `95ee3eda182999bcfe66a3faac472fdfa399078f79ddaf2915ffaa922fff9e38`과 같아야 한다. `quest-public-export-20261001-r2`에서 새 전체 export를 진행한다. 설정값만 보고 성공 판정하지 않고 APK bytes를 대조한다.
+
+## 새 공개 source 검증 완료 — 2026-10-01
+
+수정한 `quest-public-export-20261001-r2` 전체 export는 **566초**에 성공했다. unsigned APK는 118,824,200바이트, SHA-256 `54e6a461db54b6e8eb164b73c7f1643a2d2f648ff409e175c80eec359a674702`다. 실제 vendor native는 위의 `95ee3eda…f9e38`과 정확히 같고, own stream/XR·수정 Godot·libc++·loader를 포함한 native 6개 대응, unsigned, 16KB ZIP 정렬을 모두 검사했다. package/version/권한은 `quest-public-apk-verification-20261001-r2/apk-correspondence.json`의 실제 APK 조회 결과다.
+
+새 대응 source는 `artifacts/publication/quest-public-source-20261001-r4/public-source`이며 manifest 1,134파일, SHA-256 `dc26d3c4cdc7c069d25676504d030ad541f94d5e3936eb1a389d7deb7373f57f`다. 실제 새 APK와 exact source/recipe/dependency supply 대조를 통과해 이 **별도 후보**의 `source_complete`, `clean_build_verified`, `dependency_notices_verified`가 true다. 역사적 r3/a3/개발 APK의 false gate는 그대로 보존한다. binary 배포에 필요한 65개 `binary_notice_files`는 `NOTICES.md`와 source manifest에 해시가 기록된 `licenses/` 텍스트다. root binary bundle은 이 bytes를 함께 공급한다.
+
+`PUBLIC_HEADER_INPUT_AUDIT.json`은 공급 source archive 15개의 실제 SHA·멤버 수를 기록한다. Meta mobile SDK·meta_headers·openxr_preview.h의 실제 archive/header 경로는 0개이며 공식 vendor ZIP/AAR의 옛 native는 이 source에 들어 있지 않다. 과거 `meta/LICENSE-SDK`의 3줄 저작권·SDK URL 참조는 역사적 텍스트로 구분해 보존한다. 공개 source에 SDK의 사용하지 않는 proprietary header/archive를 추가하지 않는다. 이 입력 검증은 exact pinned source/build hash를 보완하며 파일 이름 검색만으로 모든 라이선스를 판정한다는 주장은 하지 않는다.
+
+원본 curl archive의 `docs/examples/usercertinmem.c`와 OpenSSL archive의 sample/test 288파일에는 공개 fixture private-key marker가 있다. 원 archive SHA와 실제 vcpkg fetch SHA-512를 대조한 upstream source이며 프로젝트의 private release key 예외와 구분한다. marker 내용을 출력하거나 새 private key를 source에 공급하지 않는다. 별도 evidence는 `quest-public-upstream-fixture-audit-20261001.json`이다.
+
+이 source input 단계의 focused 테스트는 56개 통과, 1.82초(`quest-public-release-tests-20261001-inputaudit.xml`)다. 새 proprietary preview header가 source archive에 들어오는 실패와 역사적 SDK URL 텍스트 보존을 함께 검증한다. 이후 실제 WSL 서명 pipe 경계까지 포함한 최종 focused 결과는 60개 통과, 1.73초다. 실기·전체 공개 준비 상태는 이 source/build 검증과 분리하여 계속 기록한다.
+
+## 실제 공개 서명 확정 — 2026-10-01
+
+`artifacts/publication/quest-public-signed-20261001-r2/Quest3D-Quest.apk`의 실제 공개 서명이 완료됐다. 크기 118,866,943바이트, SHA-256 `dd4ce7cf7d9438e6dd3f96b13f2a405ac70dae32c138c64c64416760bc7fb232`다. `app.questto3d.client` / versionCode `1` / `0.1.0-preview`, release 인증서 SHA-256 `d950d11633753a3a52acba925dff8a35ccc0df7de1aef77291a1868c93f73cfc`로 실제 검증했다. 16KB 정렬을 통과했고 JAR 서명 metadata를 제외한 제품 ZIP entry 400개의 해시가 unsigned snapshot과 모두 같았다.
+
+signed APK의 대응 source는 같은 디렉터리의 `corresponding-source`다. 최종 manifest SHA-256은 `7615aea4d809a218c2aba6a706eecbef5afb97d289fc777282b33a3ece384419`이며 원 unsigned APK/source manifest hash, 실제 공개 package/version/cert, 최종 signed APK hash를 연결한다. 원 r4 source는 보존했다. 모든 1,134파일의 최종 manifest 대조도 통과했다. `signing-result.json`이 이 결과의 receipt다.
+
+첫 WSL `getpass` 대기 output은 보존하고 실제 private pipe 서명으로 별도 r2를 만들었다. 비밀번호·keystore bytes·DPAPI payload·private key 경로는 source, APK, 공개 보고서에 포함하지 않는다. 설치·동일 서명 업데이트·헤드셋 연결/화질/음성 결과는 root의 실제 설치 회귀 보고서에서 확인하며 서명 성공으로 대체하지 않는다. 이 source manifest의 `hardware_verified`와 `public_release_ready`는 서명 당시의 미검증 상태를 그대로 기록한다.

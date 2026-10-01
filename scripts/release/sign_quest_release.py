@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 
 from prepare_quest_source import sha, verify_manifest
@@ -95,8 +96,25 @@ def apk_payload(apk: Path) -> dict[str, str]:
     return entries
 
 
+def passwords(use_pipe: bool = False) -> tuple[str, str]:
+    if use_pipe:
+        if sys.stdin.isatty():
+            raise ValueError("Password pipe mode cannot read an echoing interactive terminal")
+        lines = [sys.stdin.readline(4097), sys.stdin.readline(4097)]
+        if any(not value.endswith("\n") or len(value) > 4096 for value in lines):
+            raise ValueError("Password pipe requires two bounded newline-terminated values")
+        password, key_password = (value[:-1] for value in lines)
+    else:
+        password = getpass.getpass("Keystore password: ")
+        key_password = getpass.getpass("Key password (Enter = same): ")
+    if any(character in password + key_password for character in "\r\n\x00"):
+        raise ValueError("Signing passwords cannot contain line breaks or NUL")
+    return password, key_password or password
+
+
 def sign(report: dict, apk: Path, output: Path, java: Path, apksigner_jar: Path,
-         zipalign: Path, keystore: Path, alias: str, source: Path | None = None) -> dict:
+         zipalign: Path, keystore: Path, alias: str, source: Path | None = None,
+         passwords_from_stdin: bool = False) -> dict:
     if not report["ready_to_sign"]:
         raise ValueError("Corresponding source, clean build and dependency notices must pass before public signing")
     if output.exists():
@@ -124,10 +142,7 @@ def sign(report: dict, apk: Path, output: Path, java: Path, apksigner_jar: Path,
     before_payload = apk_payload(snapshot)
     tool([str(zipalign), "-P", "16", "4", str(snapshot), str(aligned)])
     tool([str(zipalign), "-c", "-P", "16", "4", str(aligned)])
-    password = getpass.getpass("Keystore password: ")
-    key_password = getpass.getpass("Key password (Enter = same): ") or password
-    if any(character in password + key_password for character in "\r\n\x00"):
-        raise ValueError("Signing passwords cannot contain line breaks or NUL")
+    password, key_password = passwords(passwords_from_stdin)
     argv = [str(java), "-Dfile.encoding=UTF-8", "-jar", str(apksigner_jar), "sign", "--ks", str(keystore),
             "--ks-key-alias", alias, "--ks-pass", "stdin", "--key-pass", "stdin",
             "--pass-encoding", "utf-8",
@@ -195,13 +210,16 @@ def main() -> None:
     parser.add_argument("--zipalign", type=Path)
     parser.add_argument("--keystore", type=Path)
     parser.add_argument("--alias")
+    parser.add_argument("--passwords-from-stdin", action="store_true",
+                        help="Read two password lines from a private pipe; never from an interactive terminal")
     args = parser.parse_args()
     report = audit(args.spec.resolve(), args.unsigned_apk.resolve(), args.source.resolve(), args.aapt2.resolve())
     if args.execute:
         if not all((args.output, args.java, args.apksigner_jar, args.zipalign, args.keystore, args.alias)):
             parser.error("Signing requires --output --java --apksigner-jar --zipalign --keystore --alias")
         report = sign(report, args.unsigned_apk.resolve(), args.output.resolve(), args.java.resolve(),
-                      args.apksigner_jar.resolve(), args.zipalign.resolve(), args.keystore.resolve(), args.alias, args.source.resolve())
+                      args.apksigner_jar.resolve(), args.zipalign.resolve(), args.keystore.resolve(), args.alias, args.source.resolve(),
+                      args.passwords_from_stdin)
     print(json.dumps(report))
 
 

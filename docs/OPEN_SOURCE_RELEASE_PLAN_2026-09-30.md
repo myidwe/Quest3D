@@ -1,8 +1,10 @@
-# GitHub 공개 준비 — 검토안
+# GitHub 공개 준비
 
-기준일: 2026-10-01. 현재 제품을 공개하기 위한 구성·사용 흐름·검증 계획이다. GitHub 저장소 생성·push·Release 게시는 수행하지 않았다. 원본 작업 폴더는 Git 저장소가 아니며 개인 실행 상태와 연구 자료를 포함한다.
+기준일: 2026-10-01. [myidwe/Quest3D](https://github.com/myidwe/Quest3D) Public 저장소와 `main` 소스 게시를 완료했다. 첫 원격 커밋 `3f96913ca6c59cbc21811d40d9337a628224730c`의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36808111632)는 **430검사 통과·139.26초**, 646파일 export 검증도 통과했다. 설치 파일 Release는 새 host/공개 APK의 대응 소스·고지·서명·설치 검증을 마감하며 준비 중이다. 소스 게시와 설치 배포 완료를 구분한다. 원본 작업 폴더는 Git 저장소가 아니며 공개 후보와 분리한다.
 
-## 추가 준비
+아래 이전 후보 준비 기록의 과거 '원격 게시 전' 상태는 첫 게시 이전에 확인한 증거다. 현재 실행 기준은 [공개 체크리스트](PUBLIC_RELEASE_CHECKLIST_2026-10-01.md)를 따른다.
+
+## 이전 후보의 준비 기록
 
 새 A 드라이브 폴더에서 실제 설치607.391초, 모델 새 다운로드·CUDA7종·실제 모델 CUDA추론·Qt6.8.3 QML을 확인했다. 같은 폴더의 c 후보 업데이트343.641초에서도 설정·모델·receipt·비기능 pairing fixture·사용자파일 SHA가 유지됐다. 기존 Python3.12.6을 지정한 이 PC의 분리 설치 결과이며 Python 없는 새 Windows의 자동 설치 결과가 아니다. 방화벽·바로가기·host 송출·Quest 재설치는 실행하지 않았다.
 
@@ -34,7 +36,7 @@ README 첫 부분에 **Windows 다운로드 / Quest 설치 / 시작 안내**를 
 
 Quest ZIP 안 APK를 별도로 올릴 수 있지만 같은 버전·서명·해시의 단일 파일이어야 한다. GitHub 자동 Source code ZIP을 PC 설치 파일로 안내하지 않는다. 모델·Torch/CUDA 의존성까지 몇 GB를 한 번에 저장소에 올리는 방식은 피한다.
 
-## 구현 현황
+## 이전 검토 시점의 구현 현황
 
 실제 Windows 모니터 → GPU 캡처 → 로컬 AI → 좌우 합성 → Sunshine/NVENC → Quest 눈별 표시가 작동한다. Quest 2·Quest 3, PC UI, Scan/Pair, Depth 미세 조절, 윤곽 안정화, HEVC, DAv2/DAD 선택, Quality Preview, 화면·메뉴 설정, PC/Quest 소리 선택이 구현되어 있다.
 

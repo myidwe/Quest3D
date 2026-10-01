@@ -21,13 +21,46 @@ def layout(root):
 
 
 def test_clean_install_uses_its_own_relative_runtime_and_preserves_dev_default(tmp_path):
-    assert layout(tmp_path)['distributed'] is False
+    development = layout(tmp_path)
+    assert development['distributed'] is False and development['host_sha'] == 'a'*64
     write(tmp_path/'config/distribution.json', {'schema': 1, 'host_sha256': 'a'*64,
           'host_runtime': 'artifacts/host/runtime-public', 'hdr_package': 'runtime/capture'})
     value = layout(tmp_path)
     assert value['distributed']
     assert value['runtime'] == tmp_path/'artifacts/host/runtime-public'
     assert value['capture'] == tmp_path/'runtime/capture'
+    assert value['host_sha'] == 'a'*64
+
+
+def test_additional_reviewed_pin_requires_explicit_caller_approval(tmp_path):
+    write(tmp_path/'config/distribution.json', {'schema': 1, 'host_sha256': 'b'*64,
+          'host_runtime': 'artifacts/host/runtime-public', 'hdr_package': 'runtime/capture'})
+    with pytest.raises(ValueError):
+        layout(tmp_path)
+    value = distribution_layout(tmp_path, host_sha='a'*64, runtime='artifacts/host/runtime-dev',
+                                capture='old/capture', approved_host_shas=frozenset({'a'*64, 'b'*64}))
+    assert value['host_sha'] == 'b'*64 and value['distributed']
+
+
+@pytest.mark.parametrize('pin', ['0'*64, '86EB2EE5E3177A892F15ECD5BA869B27D3E1B9131848B1ADACF9A25301767D42', None, [], 1])
+def test_desktop_product_rejects_config_authorized_arbitrary_or_malformed_hash(tmp_path, pin):
+    from quest3d.desktop_backend import DesktopController
+    write(tmp_path/'config/distribution.json', {'schema': 1, 'host_sha256': pin,
+          'host_runtime': 'artifacts/host/runtime-public', 'hdr_package': 'runtime/capture'})
+    with pytest.raises(ValueError):
+        DesktopController(tmp_path, start_worker=False)
+    assert not (tmp_path/'artifacts/desktop').exists(), 'Unapproved config must fail before app state writes'
+
+
+def test_desktop_product_selects_reviewed_public_hash_and_preserves_development_default(tmp_path):
+    from quest3d.desktop_backend import DesktopController, HOST_SHA, PUBLIC_HOST_SHA, RUNTIME
+    development = DesktopController(tmp_path, start_worker=False)
+    assert development.host_sha == HOST_SHA and development.runtime == tmp_path/RUNTIME
+    write(tmp_path/'config/distribution.json', {'schema': 1, 'host_sha256': PUBLIC_HOST_SHA,
+          'host_runtime': 'artifacts/host/runtime-public', 'hdr_package': 'runtime/capture'})
+    installed = DesktopController(tmp_path, start_worker=False)
+    assert installed.distributed and installed.host_sha == PUBLIC_HOST_SHA
+    assert installed.runtime == tmp_path/'artifacts/host/runtime-public'
 
 
 @pytest.mark.parametrize('field,value', [('host_runtime', '../escape'), ('host_runtime', 'runtime/host'),

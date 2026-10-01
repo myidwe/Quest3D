@@ -1,6 +1,6 @@
-# Product scope — 공개 Preview 준비안
+# Product scope — 0.1.0-preview
 
-기준일: 2026-09-30. 현재 구현과 검증 범위를 정리한 문서이며 정식 출시 선언이 아니다.
+기준일: 2026-10-01. 현재 기능과 지원 범위다. 완전한 실기 검증을 마친 정식판이 아닌 제한된 Preview이며 해당 배포 파일의 검증 상태는 Release의 `release-validation.json`을 따른다.
 
 ## 사용 흐름
 
@@ -31,4 +31,4 @@ Quest에서 PC 클릭·드래그·스크롤, 내장 파일 플레이어, 원래 
 
 ## 검증 구분
 
-Quest 2·Quest 3에서 실제 영상과 입체감을 사용자에게 확인받았다. 최신 Quest 3 APK는 설치·시작·설정 보존과 compiled 검사까지 확인했다. 최근 UI의 착용 평가·Quest 2 재검증·소리 청취·AV 오차·장시간·다른 PC 설치는 남아 있다. PC의 새 3D FPS, 반복 게시, Quest 수신, 헤드셋 표시율을 별도로 기록한다.
+기존 개발 앱은 Quest 2·Quest 3의 실제 영상·입체감을 사용자에게 확인받았다. 새 공개 앱은 별도 패키지·장기 서명·공개 header vendor를 사용한다. 이전 개발 앱의 성공을 새 공개 APK 실기 성공으로 옮기지 않는다. 배포 검사에서 actual capture/AI·native source·설치·Quest 수신·착용·소리를 각각 기록한다. PC의 새 3D FPS, 반복 게시, Quest 수신, 헤드셋 표시율도 별도다. 다른 PC·최신 Quest 2·AV 오차·장시간의 미검증 조건은 Preview 제한으로 남긴다.

@@ -54,6 +54,9 @@ trap 'status=$?; python3 - "$EXPORT" "$PHASE" "$status" "$START" "$REPORT_PREFIX
 import hashlib,json,pathlib,sys,time,zipfile
 p=pathlib.Path(sys.argv[1]); apk=p/"Quest3D-public-review-unsigned.apk"
 result={"schema":1,"phase":sys.argv[2],"exit_code":int(sys.argv[3]),"elapsed_seconds":int(time.time())-int(sys.argv[4]),"full_project_export_verified":int(sys.argv[3])==0,"signed":False,"installed":False,"published":False,"public_release_ready":False,"clean_editor_build_verified":False,"godot_java_aar_rebuilt_from_source":False,"vendor_built_from_source":False,"static_dependencies_rebuilt_from_source":False,"dependency_notices_verified":False}
+prep=json.loads((p/"android-export-preparation.json").read_text())
+result["vendor_built_from_source"]=prep.get("vendor_built_from_source",False)
+result["public_vendor_binding"]=prep.get("public_vendor_binding")
 if apk.is_file():
     result["apk"]={"sha256":hashlib.sha256(apk.read_bytes()).hexdigest(),"bytes":apk.stat().st_size}
     with zipfile.ZipFile(apk) as z:

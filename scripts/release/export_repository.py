@@ -32,6 +32,8 @@ PUBLIC_DOCS = (
     "HOST_RELEASE_PREPARATION_2026-09-30.md", "QUEST_RELEASE_PREPARATION_2026-09-30.md",
     "SETUP_PERMISSIONS_2026-09-30.md",
     "QUEST_CLEAN_BUILD_2026-10-01.md",
+    "PUBLIC_RELEASE_CHECKLIST_2026-10-01.md",
+    "RELEASE_0.1.0_PREVIEW.md",
 )
 SOURCE_TREES = ("src/quest3d", "resources", "native", "scripts/release", "scripts/quest", "patches", "tests", ".github")
 EXCLUDED_FILES = set(bundle.LOCAL_ONLY_DIAGNOSTICS) | {
