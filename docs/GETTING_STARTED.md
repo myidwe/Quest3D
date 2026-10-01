@@ -35,7 +35,7 @@ Windows EXE에는 아직 신뢰 코드 서명이 없어 SmartScreen 또는 관�
 
 ### APK 직접 설치
 
-기존 설치 도구를 사용한다면 EXE 옆의 **[APK 직접 다운로드](https://github.com/myidwe/Sterevi/releases/download/v0.1.3-preview/Sterevi-Quest-0.1.3-preview.apk)**를 선택하세요. 개발자 모드와 USB 디버깅 승인은 동일하게 필요합니다. 공식 Platform Tools로 직접 설치할 때는:
+기존 설치 도구를 사용한다면 EXE 옆의 [APK 직접 다운로드](https://github.com/myidwe/Sterevi/releases/download/v0.1.3-preview/Sterevi-Quest-0.1.3-preview.apk)를 선택하세요. 개발자 모드와 USB 디버깅 승인은 동일하게 필요합니다. 공식 Platform Tools로 직접 설치할 때는:
 
 ```powershell
 adb install -r "Sterevi-Quest-0.1.3-preview.apk"
