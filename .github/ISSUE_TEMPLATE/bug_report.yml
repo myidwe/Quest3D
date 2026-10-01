@@ -1,9 +1,9 @@
 name: Bug report
-description: 설치·연결·화질·소리 오류
+description: 설치, 연결, 화질, 소리 문제 신고
 body:
   - type: markdown
     attributes:
-      value: "개인 주소·기기 ID·계정·인증서·서명키를 제거한 자료만 첨부해 주세요"
+      value: "자료를 첨부하기 전에 PC 주소, 기기 ID, 계정 정보, 인증서, 서명키를 지워 주세요."
   - type: input
     id: version
     attributes:
@@ -14,7 +14,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Windows 빌드, GPU·VRAM·드라이버, Quest 모델, 연결 방식
+      description: Windows 빌드, GPU 모델·VRAM·드라이버 버전, Quest 모델, 연결 방식을 적어 주세요.
     validations:
       required: true
   - type: textarea
@@ -27,4 +27,4 @@ body:
     id: diagnostics
     attributes:
       label: Sanitized diagnostics
-      description: 새 3D FPS와 반복 송출 빈도를 구분
+      description: 진단 자료의 개인정보를 지워 주세요. FPS를 기록할 때는 새 3D 프레임 생성과 같은 프레임의 반복 송출을 구분해 주세요.

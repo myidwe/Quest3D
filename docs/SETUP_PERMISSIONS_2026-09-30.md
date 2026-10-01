@@ -32,21 +32,21 @@
 
 | 시점 | 요청·조건 | 현재 동작과 사용자 행동 |
 |---|---|---|
-| PC 설치 | 쓰기 가능한 전용 폴더·인터넷·설치 공간 | 일반 사용자 설치. 폴더·바로가기를 선택하고 Python/고정 라이브러리/모델 준비 시작 |
-| Python 최초 준비 | 드문 시스템 런타임 보완 | per-user 설치 요청. 시스템 C Runtime 보완의 관리자 예외와 새 Windows 설치는 미검증 |
-| PC 연결 허용 | Windows 관리자 승인 | 범위 안내·버튼 → 읽기 상태 확인 → 변경이 필요한 경우만 UAC → 실제 결과 확인 |
-| Windows 네트워크 | 신뢰하는 사설 LAN | 현재 프로필 확인. Public이면 사용자가 신뢰하는 네트워크에 한해 Windows 설정에서 Private 선택 |
-| Quest 초기 설정 | Meta 개발자 팀/계정 확인·개발자 모드 | 사용자가 Meta 공식 화면에서 처리. 우리 앱이 계정·인증 정보나 결제 정보를 받지 않음 |
-| Quest USB 설치 | 데이터 케이블·ADB 드라이버·USB 디버깅 RSA 승인 | 본인 PC의 연결을 헤드셋에서 승인 → 설치창에서 기기 검색·명시적 Quest 선택 |
-| 최초 앱 연결 | Quest의4자리 PIN | PC Connection에서 해당 새 요청 승인. USB 승인과 별개의 앱 연결 |
-| Quest only 소리 | 기존 활성 Steam Streaming Speakers | 선택 기능의 외부 장치 조건. 우리 설치기가 드라이버를 자동 설치·배포하지 않음 |
-| 앱 방화벽 제거 | 관리자 승인 | 필요한 앱 방화벽 정리만 승격. 규칙이 명확히 없으면 생략. 파일·바로가기는 원사용자 권한 |
+| PC 설치 | 쓰기 가능한 전용 폴더·인터넷·설치 공간 | 일반 사용자 권한으로 설치. 폴더와 바로가기를 선택하면 Python, 정해진 라이브러리와 모델 준비 시작 |
+| Python 최초 준비 | 일부 PC의 시스템 런타임 보완 | 현재 사용자용(per-user) 설치 요청. 시스템 C Runtime 보완에 필요한 관리자 승인과 새 Windows 설치는 미검증 |
+| PC 연결 허용 | Windows 관리자 승인 | 허용 범위 확인 → 버튼 클릭 → 현재 상태 조회 → 필요한 경우에만 UAC 요청 → 적용 결과 확인 |
+| Windows 네트워크 | 신뢰하는 로컬 네트워크 | 현재 네트워크 프로필 확인. 신뢰하는 네트워크가 Public으로 설정되어 있다면 Windows 설정에서 Private 선택 |
+| Quest 초기 설정 | Meta 개발자 팀·계정 확인·개발자 모드 | 사용자가 Meta 공식 화면에서 설정. Sterevi는 계정·인증 정보와 결제 정보를 받지 않음 |
+| Quest USB 설치 | 데이터 케이블·ADB 드라이버·USB 디버깅 RSA 승인 | 헤드셋에서 본인 PC의 연결 승인 → 설치창에서 기기 검색 → 설치할 Quest 직접 선택 |
+| 최초 앱 연결 | Quest의 4자리 PIN | PC의 Connection에서 해당 새 연결 요청 승인. USB 승인과는 별개 |
+| Quest only 소리 | 설치·활성화된 Steam Streaming Speakers | 이 옵션을 사용할 때 필요한 외부 출력 장치. Sterevi 설치기는 드라이버를 자동 설치·배포하지 않음 |
+| 앱 방화벽 제거 | 관리자 승인 | Sterevi 방화벽 규칙을 정리할 때만 관리자 권한 사용. 규칙이 없는 것이 확인되면 생략. 파일과 바로가기는 원래 사용자 권한으로 처리 |
 
-기본 폴더는 사용자 `%LOCALAPPDATA%`이며 사용자가 쓸 수 있는 A 드라이브의 전용 폴더도 선택할 수 있다. 보호된 시스템 폴더 설치를 위해 앱 전체를 관리자 모드로 실행하는 흐름을 기본값으로 삼지 않는다. Python은 `InstallAllUsers=0`, PATH·전역 launcher·파일 연결·Python 바로가기 비활성으로 실행하며 HKCU 등록이 생길 수 있다. per-user에서도 시스템 런타임 보완 예외가 있는 것은 [Python 공식 설명](https://docs.python.org/3.12/using/windows.html#installation-steps)을 따른다. 기존 검증은 설치된 Python 재사용이며 이 예외를 실측하지 않았다.
+기본 설치 위치는 사용자의 `%LOCALAPPDATA%`이며, 쓰기 권한이 있는 A 드라이브 등의 전용 폴더도 선택할 수 있습니다. 보호된 시스템 폴더에 설치하기 위해 앱 전체를 관리자 모드로 실행하는 방식은 기본으로 사용하지 않습니다. Python은 `InstallAllUsers=0`으로 설치하고 PATH 변경, 전역 launcher, 파일 연결과 Python 바로가기를 비활성화합니다. 사용자 레지스트리(HKCU)에는 등록 정보가 생길 수 있습니다. 현재 사용자용 설치라도 시스템 런타임을 보완할 때는 예외적으로 관리자 승인이 필요할 수 있습니다. 자세한 내용은 [Python 공식 설명](https://docs.python.org/3.12/using/windows.html#installation-steps)을 확인하세요. 기존 검증에서는 설치된 Python을 재사용했으므로 이 예외 상황은 직접 확인하지 못했습니다.
 
-Private 전환은 사용자 판단이 필요한 설정이다. 신뢰하는 사람·기기의 네트워크에서 선택하도록 안내하며 앱이 자동으로 프로필을 바꾸지 않는다. [Windows 네트워크 프로필 안내](https://support.microsoft.com/en-us/windows/experience/connectivity-networking/essential-network-settings-and-tasks-in-windows)
+Windows 네트워크를 개인(Private)으로 바꿀지는 사용자가 판단해야 합니다. 집처럼 연결된 사람과 기기를 신뢰하는 네트워크에서만 선택하세요. 앱은 네트워크 프로필을 자동으로 바꾸지 않습니다. [Windows 네트워크 프로필 안내](https://support.microsoft.com/en-us/windows/experience/connectivity-networking/essential-network-settings-and-tasks-in-windows)
 
-Quest 개발자 팀·계정 확인·개발자 모드와 Windows ADB 드라이버는 [Meta 공식 기기 설정](https://developers.meta.com/vr/documentation/native/android/mobile-device-setup/)에 연결한다. USB RSA 승인은 해당 PC의 ADB 설치·디버깅 접근을 허용하는 것이며 MTP 파일 접근, PC 앱의 PIN 연결, Windows UAC와 구분한다. [Google ADB 안내](https://developer.android.com/tools/adb) 승인되지 않은 기기를 설치기가 자동 승인하거나 앱 데이터를 지우지 않는다. 최초 설치 이후 영상 연결은 LAN이며 USB 케이블은 일상 시청의 필수 조건이 아니다.
+Quest 개발자 팀과 계정 확인, 개발자 모드와 Windows ADB 드라이버 설정은 [Meta 공식 기기 설정](https://developers.meta.com/vr/documentation/native/android/mobile-device-setup/)을 따릅니다. USB RSA 승인은 해당 PC가 ADB로 앱을 설치하고 디버깅할 수 있도록 허용하는 설정입니다. MTP 파일 접근 승인, PC 앱의 PIN 페어링과 Windows UAC는 각각 별개입니다. [Google ADB 안내](https://developer.android.com/tools/adb)에서 자세한 내용을 확인할 수 있습니다. 설치기는 승인되지 않은 기기를 자동으로 승인하거나 앱 데이터를 지우지 않습니다. 처음 설치한 뒤에는 로컬 네트워크로 영상을 전송하므로 평소 시청할 때 USB 케이블은 필요하지 않습니다.
 
 ## 실제 Quest APK의 권한
 
@@ -65,15 +65,17 @@ Quest 개발자 팀·계정 확인·개발자 모드와 Windows ADB 드라이버
 
 ## 보안 차단과 설치 취소
 
-현재 설치 PS1은 Authenticode 서명이 없다. GitHub 다운로드의 SmartScreen·Mark-of-Web·Smart App Control·회사 정책에 따른 첫 실행은 미검증이다. 다운로드 SHA 확인은 파일 무결성이고 게시자 인증과 다르다. 차단 화면에서는 파일·버전·공식 배포 출처를 확인하도록 설명하고 차단 종류를 구분한다. 백신·SmartScreen·방화벽을 통째로 끄는 안내를 기본 설치법으로 쓰지 않는다. 모든 차단이 사용자의 단순 실행 버튼으로 풀린다고 보장하지 않는다. [Microsoft 앱·브라우저 제어](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)
+현재 설치 PS1에는 Authenticode 서명이 없습니다. GitHub에서 받은 파일의 첫 실행이 SmartScreen, Mark-of-Web, Smart App Control이나 회사 정책에 따라 어떻게 처리되는지는 아직 검증하지 못했습니다. 다운로드한 파일의 SHA를 확인하면 파일 무결성을 검사할 수 있지만, 게시자가 인증되는 것은 아닙니다. 차단 화면이 나오면 파일, 버전과 공식 배포 출처를 확인하고 어떤 보안 기능이 차단했는지 구분해야 합니다. 백신, SmartScreen과 방화벽 전체를 끄는 방법은 기본 설치법으로 안내하지 않습니다. 모든 차단을 사용자가 실행 버튼 한 번으로 해제할 수 있다고 보장하지도 않습니다. [Microsoft 앱·브라우저 제어](https://support.microsoft.com/en-us/windows/security/windows-security/app-browser-control-in-the-windows-security-app)
 
-CMD의 `-ExecutionPolicy Bypass`는 새 PowerShell 프로세스에만 적용하며 시스템의 영구 실행 정책을 바꾸지 않는다. 조직 GPO가 우선하므로 관리 PC의 정책을 우회하는 설치법으로 설명하지 않는다. [Microsoft 실행 정책](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
+CMD의 `-ExecutionPolicy Bypass`는 새로 실행한 PowerShell 프로세스에만 적용하며 시스템에 저장된 실행 정책을 바꾸지 않습니다. 조직의 그룹 정책(GPO)이 우선하므로 관리 PC의 정책을 우회하는 설치 방법은 아닙니다. [Microsoft 실행 정책](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
 
-현재 PC/Quest 설치창은 시작 전 닫을 수 있지만 worker 실행 후 Cancel·timeout 기능은 없다. 작업 중 창 닫기를 제한하고 최소화·완료/실패 후 재시도를 안내한다. 안전한 취소를 지원한다고 표시하지 않는다. 처음 설치 실패는 파일·캐시를 보존하고 업데이트 실패/중단은 별도 복원 기능으로 다룬다.
+PC·Quest 설치창은 작업을 시작하기 전에는 닫을 수 있지만, 시작한 뒤에는 취소나 시간 초과 종료 기능이 없습니다. 작업 중에는 창 닫기를 제한하므로 필요하면 최소화하고, 완료되거나 실패한 뒤 다시 시도하세요. 강제 종료를 안전한 취소 방법으로 안내하지 않습니다. 첫 설치가 실패하면 파일과 캐시를 보존합니다. 업데이트 실패나 중단은 별도의 복원 기능으로 처리합니다.
 
 ## 보완 구현과 남은 검증
 
-일반 설치·읽기 검사·정상 실행에는 새 확인 팝업을 추가하지 않는다. 연결 허용은 클릭 전 버튼 tooltip으로 범위를 설명하고 별도 OK/Cancel 창을 띄우지 않는다. 이미 정확한 앱 규칙이면 UAC도 생략한다. 유효한 조회 결과가 관리자 확인 필요 상태면 설치창에 이유를 표시한 뒤 필요한 Windows 승인만 요청한다. 앱 방화벽을 정리하며 제거할 때는 앱/데이터 보관 의미를 설명하는 기존 한 번의 확인을 유지한다. 제거할 앱 규칙이 명확히 없으면 새 조회로 확인한 뒤 일반 사용자 보관 제거를 진행한다. 조회 오류·소유권 충돌은 부재로 판정하지 않는다. 잘못된 결과 파일·변경된 실행 파일은 관리자 요청을 시작하지 않는다.
+일반 설치, 읽기 전용 검사와 평소 앱 실행에는 확인 팝업을 추가하지 않습니다. **연결 허용**은 버튼에 마우스를 올리면 허용 범위를 보여 주며 별도의 OK/Cancel 창을 띄우지 않습니다. 올바른 앱 규칙이 이미 있으면 UAC도 생략합니다. 조회 결과에 따라 관리자 재확인이 필요하면 설치창에 이유를 표시하고 Windows 승인만 요청합니다.
+
+앱을 제거하고 방화벽을 정리할 때는 앱과 데이터를 보관한다는 의미를 설명하는 기존 확인창을 한 번 띄웁니다. 제거할 앱 규칙이 없는 것이 확인되면 다시 조회한 뒤 일반 사용자 권한으로 파일을 보관하고 앱을 제거합니다. 조회 오류나 소유권 충돌을 규칙이 없다는 뜻으로 처리하지 않습니다. 결과 파일이 잘못되었거나 실행 파일이 변경되었다면 관리자 승인을 요청하지 않습니다.
 
 | 항목 | 소스의 보완 | 실제 OS/배포 검증 |
 |---|---|---|
@@ -91,6 +93,6 @@ CMD의 `-ExecutionPolicy Bypass`는 새 PowerShell 프로세스에만 적용하�
 
 구현: `scripts/release/install-ui.ps1`, `installer-network-task.ps1`, `installer-launcher.ps1`, `uninstall.ps1`, `native/host/configure-installed-network.ps1`. 검증: `tests/test_installed_network.py`, `tests/test_installer_permissions.py`, 기존 installation lifecycle/Quest installer/archive 검사. 새 결과는 `config/network-operations/<GUID32>/result.json`, 호환 journal은 `config/network-rules.json`이다. Status는 방화벽과 호환 journal을 변경하지 않는다. 결과 파일은 프로그램 경로가 들어가는 개인 로컬 자료이며 원문 공개를 기본값으로 하지 않는다.
 
-방화벽 Allow가 존재해도 다른 명시적 Block 또는 조직 정책이 우선할 수 있다. 앱 소유 규칙 확인과 전체 유효 정책·실제 접속은 별도다. 상태 진단은 exact-program Block·네트워크 프로필을 가능한 범위에서 확인하고, 읽지 못한 정보는 unknown으로 남기며 외부 규칙을 자동 삭제하지 않는다. [Microsoft 규칙 우선순위](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules)
+방화벽에 허용(Allow) 규칙이 있어도 명시적인 차단(Block) 규칙이나 조직 정책이 우선할 수 있습니다. Sterevi의 규칙을 확인하는 것과 PC 전체의 유효한 정책이나 실제 접속을 확인하는 것은 별개입니다. 상태 진단에서는 같은 프로그램을 대상으로 하는 차단 규칙과 네트워크 프로필을 가능한 범위에서 확인합니다. 읽지 못한 정보는 unknown으로 남기며 다른 프로그램의 규칙은 자동으로 삭제하지 않습니다. [Microsoft 규칙 우선순위](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules)
 
-Scan은 Sunshine Windows의 `DnsServiceRegister` 경로도 사용한다. 주소 연결 성공과 Scan 성공은 별도이며 host UDP5353을 무조건 추가하는 것으로 완료 처리하지 않는다. DNS Client·사설망 multicast·공유기 격리·여러 NIC/VPN이 별도 확인 조건이다. 이미 사용 중인 개발 규칙과 새 LocalSubnet 배포 규칙도 혼동하지 않는다.
+Scan은 Sunshine의 Windows `DnsServiceRegister` 경로도 사용합니다. 주소로 연결할 수 있다고 해서 Scan으로도 검색된다는 뜻은 아니며, 호스트의 UDP 5353 규칙을 무조건 추가한다고 해결되는 것도 아닙니다. DNS Client, 개인 네트워크의 멀티캐스트, 공유기의 기기 간 통신 제한과 여러 네트워크 어댑터(NIC)·VPN을 따로 확인해야 합니다. 기존 개발용 규칙과 새 배포 설치의 LocalSubnet 규칙도 구분해야 합니다.

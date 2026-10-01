@@ -1,8 +1,12 @@
-# Sterevi 빌드·재현
+# Sterevi 빌드와 재현
 
-현재 배포는 [0.1.3-preview](RELEASE_0.1.3_PREVIEW.md)다. 표시 이름은 Sterevi, Python 모듈은 `quest3d`, Android 공개 패키지는 `app.questto3d.client`를 유지한다. 새 APK는 기존 코드3 대응 입력의 UI 제목만 별도 `patches/quest-brand-sterevi-20261001` 오버레이로 변경하고 같은 native·engine·vendor에서 export한다. `prepare_quest_android_export.py`의 `--display-name Sterevi --version-name 0.1.3-preview --version-code 4`를 사용한다. 동일 서명·증가한 코드·새 UI의 정확한 대응 소스·바이너리 개인정보 검증을 수행한다. 아래 이전 릴리스의 SHA·파일명·재빌드 입력은 당시 기록으로 보존한다.
+현재 배포 버전은 [0.1.3-preview](RELEASE_0.1.3_PREVIEW.md)입니다. 앱에 표시되는 이름은 Sterevi이며, 기존 설치와 호환되도록 Python 모듈 `quest3d`와 Android 공개 패키지 `app.questto3d.client`는 유지합니다.
 
-새 설치 묶음은 `build_bundle.py --release 0.1.3-preview`와 검증된 새 signed APK·해당 대응 소스를 사용한다. 직접 APK는 공개 `Sterevi-Quest-0.1.3-preview.apk`로 바이트를 그대로 복사하고, 두 EXE·세 ZIP과 함께 최종 검증·체크섬에 포함한다. ZIP 내부의 legacy APK 이름은 설치 프로토콜 호환 정보다. 모든 배포 파일은 새 버전으로 게시하며 이전 파일은 덮어쓰지 않는다.
+새 APK는 versionCode 3의 대응 소스에 `patches/quest-brand-sterevi-20261001` 오버레이를 적용해 UI 제목만 변경합니다. 네이티브 코드·엔진·vendor 입력은 그대로 사용합니다. 내보낼 때는 `prepare_quest_android_export.py`에 `--display-name Sterevi --version-name 0.1.3-preview --version-code 4`를 지정합니다. 기존과 같은 서명, 증가한 versionCode, 변경된 UI의 대응 소스, 바이너리의 개인정보 포함 여부를 검증합니다.
+
+설치 묶음은 `build_bundle.py --release 0.1.3-preview`로 만들며, 검증된 서명 APK와 해당 대응 소스를 사용합니다. 직접 설치용 APK는 같은 파일을 `Sterevi-Quest-0.1.3-preview.apk`라는 이름으로 복사해 제공합니다. 파일 내용은 변경하지 않고, 두 EXE·세 ZIP과 함께 최종 검증 및 체크섬 목록에 포함합니다. ZIP 내부의 기존 APK 파일명은 설치 도구와의 호환을 위해 유지합니다. 배포 파일은 새 버전으로 게시하며 이전 파일을 덮어쓰지 않습니다.
+
+아래에 나오는 이전 릴리스의 SHA, 파일명, 재빌드 입력과 검증 결과는 당시 기록입니다. 현재 배포판의 상태와 구분해 읽어 주세요.
 
 0.1.1-preview의 stream은 개인정보 경로 제거를 위해 정적 의존성 13개와 함께 다시 빌드한다. `prepare_quest_private_path_build.py`, `rebuild_quest_private_path_native.sh`, `collect_quest_private_native_proof.py`와 대응 소스의 privacy-native 기록을 따른다. OpenSSL 빌드 정보 소스 패치를 포함하며, 이전 캐시를 재사용하는 `rebuild_quest_baseline.sh`만 실행해 새 stream이 재현되었다고 판단하지 않는다. 최종 signed APK와 ZIP은 `privacy_audit.py`로 검사하고 source·서명·입력 해시 검증도 별도로 완료한다.
 
@@ -38,7 +42,7 @@ bash <SourceZIP폴더>/sources/sunshine/tools/rebuild_host_release.sh <새빌드
 
 `prepare_quest_android_export.py`, `export_quest_unsigned_baseline.sh`, `verify_quest_unsigned_apk.py`, `complete_quest_source_supply.py`가 고정 export·Maven SHA·실제 APK·source/notice gate를 검증한다. 자세한 사용 도구·명령·실패 기록은 [Quest clean build](QUEST_CLEAN_BUILD_2026-10-01.md)에 있다.
 
-새 공개 export에는 준비·APK 검사 양쪽에 **`--public-vendor <공개 vendor 빌드 폴더>`**를 지정한다. 이 입력은 직접 `.so`와 파생 AAR의 native를 함께 고정한다. `.so`만 교체하거나 아래의 역사적 공식 addon 명령을 그대로 사용하는 것은 새 공개판 재현 경로가 아니다.
+새 공개 export에는 준비·APK 검사 양쪽에 `--public-vendor <공개 vendor 빌드 폴더>`를 지정한다. 이 입력은 직접 `.so`와 파생 AAR의 native를 함께 고정한다. `.so`만 교체하거나 아래의 역사적 공식 addon 명령을 그대로 사용하는 것은 새 공개판 재현 경로가 아니다.
 
 공개 패키지는 **`app.questto3d.client`**, 개발 패키지는 `app.questto3d.client.debug`다. `sign_quest_release.py`는 non-debug 공개 unsigned APK·exact source·인증서 fingerprint를 확인하고 외부 장기키로 서명한다. 개인키/암호는 저장소·ZIP·argv·로그에 넣지 않는다. 본인 fork는 별도 패키지·본인 키를 사용한다. 공개 앱 업데이트는 동일 키/패키지와 증가한 versionCode가 필요하다. 소유자는 복구 가능한 외부 키 백업을 유지한다.
 
@@ -53,7 +57,7 @@ python scripts/release/review_assets.py --directory <새출력폴더> --release 
 
 새 호스트는 `--host-release`와 대응 소스를 함께 지정한다. 기본값은 역사 후보 검토용이며 새 공개판 선택을 대신하지 않는다. 각 ZIP의 actual size/SHA, PC↔host source, APK↔Quest source/package/서명, binary↔source 원문 고지를 대조한다. 이 도구는 업로드하지 않는다. `ready_for_public_release: false`는 모든 실기를 완료한 정식판이 아니라는 뜻이며 제한을 명시한 Preview 공개 판단과 구분한다.
 
-GPU 없는 Windows 검사는 `.github/workflows/source-checks.yml`의 고정 pytest/psutil/NumPy와 exact 파일 목록을 사용한다. 제품 소스 import용 **`PYTHONPATH=src`**를 설정한다. CUDA/QML·실제 캡처·제어 ACK·Quest 수신·착용·음성·장시간은 별도 증거다. 같은 PC 격리 설치를 새 Windows 설치로 보고하지 않는다. Release의 `release-validation.json`에 완료·미검증 범위를 기록한다.
+GPU 없는 Windows 검사는 `.github/workflows/source-checks.yml`의 고정 pytest/psutil/NumPy와 exact 파일 목록을 사용한다. 제품 소스 import용 `PYTHONPATH=src`를 설정한다. CUDA/QML·실제 캡처·제어 ACK·Quest 수신·착용·음성·장시간은 별도 증거다. 같은 PC 격리 설치를 새 Windows 설치로 보고하지 않는다. Release의 `release-validation.json`에 완료·미검증 범위를 기록한다.
 
 ## 이전 개발 경로와 준비 기록
 

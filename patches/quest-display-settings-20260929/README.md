@@ -10,7 +10,9 @@ Existing directories are never replaced. The local pinned baseline is required.
 Build the Android native XR library, export via `quest-display-export.sh`,
 assemble/sign the APK, and run `quest-display-verify-runtime.sh` before installation.
 
-Detailed commands and current verification: [display settings record](../../docs/DISPLAY_SETTINGS_2026-09-29.md).
+Historical design and verification notes are not included in this public source
+export. For the current screen and menu controls, see the
+[user guide](../../docs/DESKTOP_USER_GUIDE.md#화질-조절).
 The APK contains only seven changed compiled scripts, one pointer shader, one
 native XR library and the updated sparse index. Streaming/discovery, engine,
 other native libraries and existing assets come from the exact verified APK.

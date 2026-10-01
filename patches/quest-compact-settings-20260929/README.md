@@ -13,4 +13,6 @@ Export, assemble with `--extra-test test_compact_settings`, sign, verify signed
 payloads, then run `scripts/quest-compact-verify-runtime.sh` before installation.
 The fixture tests the signed product GDC rather than replacement product source.
 
-[Design and verification record](../../docs/QUEST_COMPACT_UI_2026-09-29.md)
+Historical design and verification notes are not included in this public source
+export. For the current screen and menu controls, see the
+[user guide](../../docs/DESKTOP_USER_GUIDE.md#화질-조절).
