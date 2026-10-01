@@ -4,6 +4,9 @@
 
 기준: **2026-10-01 공개 절차**. 대상은 `myidwe/Quest3D`다. 이메일·토큰·서명 개인키는 공개 파일과 커밋에 넣지 않는다. 원격 생성·push·Release 공개 여부는 실제 GitHub 결과를 확인해 기록한다. 로컬 `origin` 설정은 업로드 증거가 아니다.
 
+<details>
+<summary>최초 0.1.0-preview 게시 기록 — 다운로드용 안내 아님</summary>
+
 ## 첫 Preview 게시 결과 — 2026-10-01
 
 [0.1.0-preview 다운로드](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)를 공개했다. Desktop ZIP, Quest ZIP, 동일한 standalone APK, native 대응 Source ZIP, 검증 JSON과 해시 파일을 로그인 없이 실제로 다운로드해 원본과 대조했다. 총 6개 파일의 크기·SHA가 일치한다.
@@ -11,6 +14,8 @@
 Release 태그는 `50ff8d219637a3d99eab1070e0ce85b5e2d0e94c`에 고정했다. 해당 소스의 [GitHub CI](https://github.com/myidwe/Quest3D/actions/runs/36814730156)는 686검사 통과다. APK는 공개 패키지·release 인증서를 유지한 versionCode2다. 실제 PC 설정·페어링 보존 업데이트와 Quest 3의 code1→2 업데이트·기존 Pair·HEVC 수신을 확인했다.
 
 새 UI의 착용 확인, Quest 2의 새 공개 APK, Python 없는 새 Windows, 다른 PC·GPU, 정량 AV·장시간은 미검증으로 남겼다. 실제 범위는 Release의 `release-validation.json`을 따른다. 게시된 설치 파일은 변경하지 않으며 이후 문서 갱신과 Release의 고정 소스 커밋을 구분한다.
+
+</details>
 
 ## 공개 단위
 
@@ -22,19 +27,19 @@ Desktop/Quest 설치 파일은 실제 바이너리의 대응 소스·제3자 고
 
 ## 사용자가 만나는 화면
 
-README → Releases → 같은 버전의 **Desktop ZIP / Quest ZIP** → 설치창 → PC 시작 → Quest Scan / Pair / Connect
+README → **Desktop Setup EXE / Quest Setup EXE** → [처음 설치와 연결](GETTING_STARTED.md) → PC 시작 → Quest Scan / Pair / Connect
 
 첫 Release 안내에는 설치 순서·현재 지원 GPU·주요 제한을 먼저 배치한다. 구현 내부의 긴 개발 기록은 유지보수 문서로 연결한다. 자동 생성되는 Source code ZIP은 일반 사용자 설치 파일로 안내하지 않는다. 공개 파일은 한 버전으로 묶고 기존 파일을 조용히 바꿔치기하지 않는다.
 
 | 배포 파일 | 처음 사용할 때 |
 |---|---|
-| Quest3D-Desktop-0.1.0-preview.zip | 전체 압축 해제 → Install-Quest3D.cmd → 설치 → 연결 허용 → 앱 실행 |
-| Quest3D-Quest-0.1.0-preview.zip | 전체 압축 해제 → Install-Quest.cmd → adb.exe 선택 → 기기 검색 → Quest 선택 → 설치 |
-| Quest3D-Source-0.1.0-preview.zip | 개발자용 native 대응 소스·입력·라이선스·재현 안내 |
+| Quest3D-Desktop-Setup-0.1.2-preview.exe | 실행 → 설치 → 연결 허용 → 설치창 닫기 → PC 앱 실행 |
+| Quest3D-Quest-Setup-0.1.2-preview.exe | Windows에서 실행 → adb.exe 선택 → 기기 검색 → Quest 선택 → 설치 |
+| Quest3D-Source-0.1.2-preview.zip | 개발자용 native 대응 소스·입력·라이선스·재현 안내 |
 | SHA256SUMS.txt | 최종 파일의 SHA-256 |
 | release-validation.json | 해당 배포판에서 확인한 결과와 남은 조건 |
 
-이 표는 현재 공개 Preview의 파일 이름이다. 다운로드는 위 Release 링크를 사용한다. 현재 개발 서명 APK와 로컬 review ZIP을 정식 공개판으로 표시하지 않는다. PC 설치 후 Python·GPU 라이브러리·기본 모델 다운로드는 설치창이 담당한다. Quest 개발자 모드와 헤드셋의 USB 승인, Google Platform Tools 준비는 최초 한 번 필요한 사용자 작업이다.
+이 표는 현재 공개 Preview의 파일 이름이다. 다운로드는 [0.1.2-preview Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)를 사용한다. 현재 개발 서명 APK와 로컬 review ZIP을 정식 공개판으로 표시하지 않는다. PC 설치 후 Python·GPU 라이브러리·기본 모델 다운로드는 설치창이 담당한다. Quest 개발자 모드와 헤드셋의 USB 승인, Google Platform Tools 준비는 최초 한 번 필요한 사용자 작업이다.
 
 ## 안전한 소스 준비
 
@@ -84,11 +89,11 @@ origin 예정 값은 `https://github.com/myidwe/Quest3D.git`이다. 기존 저�
 
 ## Release와 이후 업데이트
 
-`v0.1.0-preview` 태그를 실제 공개 커밋에 연결하고 **Draft + Pre-release**로 준비한다. PC·Quest·대응 소스·해시·검증 요약을 모두 첨부한 뒤 파일을 다시 내려받아 검증한다. 그 다음 공개하고 README의 다운로드 링크를 실제 URL로 바꾼다. Draft/Prerelease 기능은 [GitHub 공식 Release 안내](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)를 따른다. 파일 하나는 2 GiB 미만이어야 하며 큰 바이너리·전체 대응 소스는 Git tree에 추가하지 않는다. [GitHub Release 용량 기준](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas)
+다음 버전의 새 태그를 실제 공개 커밋에 연결하고 **Draft + Pre-release**로 준비한다. PC·Quest·대응 소스·해시·검증 요약을 모두 첨부한 뒤 파일을 다시 내려받아 검증한다. 그 다음 공개하고 README의 다운로드 링크를 실제 URL로 바꾼다. Draft/Prerelease 기능은 [GitHub 공식 Release 안내](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)를 따른다. 파일 하나는 2 GiB 미만이어야 하며 큰 바이너리·전체 대응 소스는 Git tree에 추가하지 않는다. [GitHub Release 용량 기준](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas)
 
 출시 담당자는 게시 직후 README 링크·Release asset 목록·태그 커밋·SHA256SUMS를 로그인하지 않은 화면에서도 확인한다. 설치 파일이 아직 없을 때는 Releases를 작동하는 Download 버튼으로 안내하지 않는다. 다음 버전은 새 태그·새 파일로 만들며 이미 공개한 파일의 내용을 같은 이름으로 교체하지 않는다.
 
-일반 사용자의 다음 업데이트는 새 ZIP → 동일 설치 폴더 → 업데이트 → 검증 → 실행. 모델·설정·페어링은 유지한다. host 경로/해시나 Python 버전이 바뀌는 비호환 업데이트는 현재 updater가 차단하므로 별도 마이그레이션 버전으로 다룬다. Quest는 동일 package와 서명을 유지하고 versionCode를 올려 기존 앱 데이터 보존 설치한다. 키 변경은 단순 업데이트가 아니므로 별도 안내가 필요하다. [Android 공식 서명 안내](https://developer.android.com/studio/publish/app-signing)
+일반 사용자의 다음 업데이트는 새 Desktop Setup EXE → 동일 설치 폴더 → 업데이트 → 검증 → 설치창 닫기 → 실행. 모델·설정·페어링은 유지한다. host 경로/해시나 Python 버전이 바뀌는 비호환 업데이트는 현재 updater가 차단하므로 별도 마이그레이션 버전으로 다룬다. Quest는 동일 package와 서명을 유지하고 versionCode를 올려 기존 앱 데이터 보존 설치한다. 키 변경은 단순 업데이트가 아니므로 별도 안내가 필요하다. [Android 공식 서명 안내](https://developer.android.com/studio/publish/app-signing)
 
 버전마다 CHANGELOG·설치 안내·지원표·실측 조건을 함께 갱신한다. Issues에서 사용자 환경·재현 단계·예상/실제 동작을 받고, 개인 로그·인증서·IP·기기 ID는 공유 전 검토하도록 안내한다. 무료 앱의 첫 공개 범위는 검증된 Windows/NVIDIA Turing이며 다른 GPU 지원은 별도 실측 후 확대한다.
 

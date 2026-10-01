@@ -27,6 +27,7 @@ ROOT_FILES = (
     "scripts/prepare-quest-public-ui-build.py",
 )
 PUBLIC_DOCS = (
+    "README.md", "GETTING_STARTED.md", "GETTING_STARTED.en.md",
     "EXE_INSTALLERS.md", "RELEASE_0.1.2_PREVIEW.md",
     "PRIVACY_REMEDIATION_2026-10-01.md", "RELEASE_0.1.1_PREVIEW.md",
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.md", "DESKTOP_USER_GUIDE.html",

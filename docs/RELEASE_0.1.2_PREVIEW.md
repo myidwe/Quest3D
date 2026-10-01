@@ -1,5 +1,7 @@
 # 0.1.2-preview · EXE 설치
 
+**[처음 설치와 연결](GETTING_STARTED.md)** · [사용 방법](DESKTOP_USER_GUIDE.md) · [문서 목차](README.md)
+
 Windows와 Quest USB 설치를 EXE에서 시작하는 배포다. ZIP 압축 해제·CMD 실행을 기본 사용 흐름에서 제거한다. 설치 위치 선택·다운로드·설정 보존 업데이트·복구·방화벽 승인·Quest USB 설치는 기존 검증 로직을 재사용한다.
 
 ## 다운로드
@@ -20,8 +22,11 @@ PC 앱과 설치 묶음은 0.1.2다. **Quest APK는 0.1.1-preview/code3 그대�
 
 1. PC Setup EXE 실행 → 설치 폴더 → 설치 또는 업데이트
 2. 필요한 경우 설치창의 **연결 허용**, Windows 승인 → 설치창 닫기
-3. Quest Setup EXE 실행 → USB 기기 확인 → 설치
-4. **Quest3D Desktop → PC 시작**, Quest의 기존 PC **Connect**
+3. Quest 개발자 모드·USB 디버깅·ADB 준비 → Quest Setup EXE 실행 → USB 기기 확인 → 설치
+4. PC 앱에서 **Settings → Quality → Headset** 확인 → **PC 시작**
+5. 첫 연결은 Quest **Scan Network → PC 선택 → Pair**, PC **Connection → 새 Quest 연결**에서 PIN **연결 승인** → Quest **Connect**
+
+이후에는 **Quest3D Desktop → PC 시작 → Quest의 기존 PC Connect**로 사용한다.
 
 처음 PC 설치에는 인터넷·고정 Python·GPU 라이브러리·모델 다운로드가 필요하다. 이후 AI는 로컬에서 실행한다. 지원 GPU는 기존 NVIDIA Turing(sm75) 범위를 유지한다. Windows 신뢰 서명과 다른 PC의 새 설치·전체 실기 승인은 별도 미검증이다.
 

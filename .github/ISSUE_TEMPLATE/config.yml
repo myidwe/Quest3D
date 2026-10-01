@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 처음 설치와 연결 / First setup
+    url: https://github.com/myidwe/Quest3D/blob/main/docs/GETTING_STARTED.md
+    about: 설치 준비와 첫 연결 순서 · Install prerequisites and pair your Quest
+  - name: 사용 방법과 문제 해결 / User guide
+    url: https://github.com/myidwe/Quest3D/blob/main/docs/DESKTOP_USER_GUIDE.md
+    about: 화질·화면·소리 설정과 연결 문제 · Settings and connection troubleshooting

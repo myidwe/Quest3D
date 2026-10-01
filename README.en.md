@@ -1,68 +1,59 @@
 # Quest3D
 
-View your Windows desktop on a large Meta Quest screen and switch between 2D and stereo 3D using local AI.
+View your Windows desktop on a large Meta Quest screen and switch **2D ↔ stereo 3D** with local AI.
 
-**Windows / NVIDIA Turing · 0.1.2-preview**
+[한국어](README.md) · **0.1.2-preview**
 
-[한국어](README.md)
+## Check compatibility
 
-View your existing browser and applications on a large screen, switching between 2D and stereo 3D. AI runs on the PC. This first public Preview has limited hardware support. The [release guide](docs/RELEASE_0.1.2_PREVIEW.md) and `release-validation.json` separate verified behavior from remaining hardware checks.
+**Windows x64 · NVIDIA Turing (sm75) · Quest 2 / 3 · 16:9 monitor · shared private LAN**
 
-## Install
+Measured on **RTX 2060 SUPER 8GB / Windows 11**. Memory, encoder support, and performance have not been checked for each other Turing model. Other NVIDIA generations, AMD, and Intel GPUs are currently unsupported. [Support and validation scope](docs/RELEASE_0.1.2_PREVIEW.md)
 
-**[Windows download](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Desktop-Setup-0.1.2-preview.exe)** · **[Quest download](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Quest-Setup-0.1.2-preview.exe)** · [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)
+## Download
 
-Download matching Desktop and Quest Setup EXEs. Manual ZIP packages are also available. **Code → Download ZIP** contains developer source, not the installer. The same Release provides complete native corresponding sources, SHA256 checksums and validation results. The Quest APK remains 0.1.1-preview/code3; an existing installation does not need reinstalling.
+| Windows app | Quest app |
+|:---|:---|
+| **[Desktop Setup EXE](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Desktop-Setup-0.1.2-preview.exe)** | **[Quest Setup EXE](https://github.com/myidwe/Quest3D/releases/download/v0.1.2-preview/Quest3D-Quest-Setup-0.1.2-preview.exe)** |
+| Install the PC app | Install the Quest app over USB |
 
-1. Run **Desktop Setup EXE → choose folder → 설치 (Install) → 연결 허용 (Allow connection)**. Windows requests administrator approval only when needed for the app's firewall setup. Close the installer window before opening Quest Setup.
-2. Enable Quest developer mode and approve USB debugging. Run **Quest Setup EXE**, select official Google Platform Tools' `adb.exe`, search devices and select your Quest.
-3. Connect PC and Quest to the same private LAN.
-4. Open **Quest3D Desktop → PC 시작 (PC start)**.
-5. On Quest, **Scan Network → select PC → Pair**. Approve the PIN in the PC app.
-6. Subsequent use: **PC start → Quest Connect**.
+**Run both files on Windows.** The first PC installation requires internet access and downloads several GB of runtime components, GPU libraries, and models. AI then runs on your PC. There are no software fees, subscriptions, or cloud inference charges.
 
-The first installation downloads Python, pinned GPU libraries and the default model. AI runs locally after setup; there are no subscription or cloud inference fees. End users do not need Codex, WSL or native build tools. Read the install guide for developer-mode, USB and supported-GPU requirements.
+The Windows EXEs do not yet have trusted code signing; warnings or policy blocks may appear. [Installation conditions](docs/EXE_INSTALLERS.md#권한과-windows-조건)
+
+## Install and connect
+
+1. **Desktop Setup → 설치 (Install) → 연결 허용 (Allow connection) → close the installer**
+2. Prepare Quest **Developer mode, USB debugging, and ADB** → install with **Quest Setup**
+3. **Quest3D Desktop → PC 시작 (Start PC)**; on Quest: **Scan Network → PC → Pair**
+4. **Approve the Quest PIN** in the PC app → **Connect** on Quest
+
+**[First installation and connection →](docs/GETTING_STARTED.en.md)** — prerequisites and each step of the first setup.
+
+Daily use: **Quest3D Desktop → PC 시작 (Start PC) → Connect on Quest**
 
 ## Features
 
-- Existing browser/application display on the selected monitor
-- 2D/3D switching, fine Depth control and contour stabilization
-- Depth Anything V2 Small default; optional Distill Any Depth Small comparison
-- Standard / Quality · Preview depth inference modes
-- Quest screen size, distance, position, curvature, color, sharpness and saved views
-- Level alignment by default; explicit Free alignment; movable settings panel
-- H.264/HEVC, Quest 2/3 profiles, PC start/stop, PIN pairing and diagnostics
-- PC sound by default; Quest only / PC + Quest options
+- Stream existing browsers and programs; switch 2D/3D and adjust Depth and contour stabilization
+- Adjust screen size, distance, position, curvature, color, and sharpness; save views
+- Quest 2 / 3 quality profiles, H.264 / HEVC, and PC / Quest sound output options
 
-Quest only requires an existing active **Steam Streaming Speakers** device. Quest3D does not install or redistribute that driver. PC + Quest captures the existing PC output without changing its default device.
+[User guide](docs/DESKTOP_USER_GUIDE.md) · [Troubleshooting](docs/DESKTOP_USER_GUIDE.md#문제-해결) · [All documentation](docs/README.md) · [Questions and bugs](https://github.com/myidwe/Quest3D/issues)
 
-## Current support
+## Preview notes
 
-| Component | Scope |
-|---|---|
-| Host | Windows x64; tested on Windows 11 |
-| GPU | CUDA path currently restricted to NVIDIA Turing `sm75` |
-| Tested GPU | RTX 2060 SUPER 8 GB |
-| Headset | Meta Quest 2 / Quest 3 |
-| Network | Same private LAN; USB is for installation/diagnostics |
-| Monitor | Currently 16:9 |
-| Quest 2 stream | 1920×1080 per eye; 3840×1080 full SBS |
-| Quest 3 stream | 2048×1152 per eye; 4096×1152 full SBS, HEVC |
+Use the Windows mouse and keyboard for PC input. Thin objects and occluded backgrounds may retain stereo contour differences. DRM or capture-blocked content is not guaranteed to work. Sound defaults to PC output; Quest only requires existing Steam Streaming Speakers. See the [release guide](docs/RELEASE_0.1.2_PREVIEW.md) for remaining checks on other PCs, the latest Quest 2 UI, measured audio synchronization, and long sessions. Detailed technical documents are currently in Korean.
 
-Individual RTX 20 / GTX 16 models have not all been validated. Other NVIDIA generations, AMD/Intel GPUs and ARM Windows are not current supported targets. A faster or newer GPU does not automatically pass the present kernel architecture checks.
+<details>
+<summary>Development, manual installation, and validation</summary>
 
-## Performance and limitations
+- [All Release files](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview): manual installation ZIPs, corresponding Source ZIP, checksums, and validation reports
+- [Installation, updates, recovery, and removal](docs/DISTRIBUTION.md) · [Setup permissions](docs/SETUP_PERMISSIONS_2026-09-30.md)
+- [Architecture, build, and tests](docs/BUILDING.md) · [Contributing](CONTRIBUTING.md) · [Product scope](docs/PRODUCT_SCOPE.md)
+- [Privacy remediation](docs/PRIVACY_REMEDIATION_2026-10-01.md) · [Dependency and corresponding source audit](docs/DEPENDENCY_AUDIT_2026-09-30.md)
 
-On the development RTX 2060 SUPER, September 22 PC processing measurements produced **38.66 new 3D frames/s** with DAD Standard and **34.64** with Quality · Preview over 60-second runs. These are scene-specific PC results, not Quest received FPS or minimum performance guarantees. Repeating output at 60/s is different from generating 60 new stereo frames/s.
+GitHub's **Code → Download ZIP** provides development source. For the binaries' native corresponding source, use the **Source ZIP** in that Release. Stream FPS and new AI frame generation are different; 60FPS in every scene is not guaranteed.
 
-Thin objects and occluded backgrounds can retain stereo contour artifacts. Quality is not uniformly better across scenes. Reduce Depth or switch to 2D if uncomfortable. Protected/DRM content may not be capturable. Latest Quest 2 UI/audio retesting, wearer listening, A/V offset, long runs and installation on another PC remain unverified.
+</details>
 
-PC interaction from Quest, a built-in media player, in-place region-only 3D conversion, dedicated A/V synchronization correction and complete spatial reconstruction are outside the current product scope.
-
-## Development and license
-
-Pinned baseline: Python 3.12.6, PyTorch 2.7.1+cu126, Qt 6.8.3. Operational capture is `wc_cuda 0.1.2+quest2`, distinct from the `+quest1` wheel referenced in `uv.lock`. Source checkout alone does not supply the native host/capture binaries.
-
-Project code is **GPL v3**; third-party components retain their own licenses. The exact pinned DAv2 Small and DAD Small weight revisions are Apache-2.0 under their official model cards. This does not extend to every size or model.
-
-[Install guide](docs/DISTRIBUTION.md) · [Build instructions](docs/BUILDING.md) · [Contributing](CONTRIBUTING.md) · [Notices](THIRD_PARTY_NOTICES.md) · [Release preparation](docs/GITHUB_PUBLICATION.md)
+Project code: **[GPL-3.0](LICENSE)** · Component and model conditions: [Third-party notices](THIRD_PARTY_NOTICES.md)
