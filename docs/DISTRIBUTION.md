@@ -1,20 +1,21 @@
-# Quest3D 설치·배포 안내
+# Sterevi 설치·배포 안내
 
 처음 설치는 [처음 설치와 연결](GETTING_STARTED.md)에서 시작하세요. 이 문서는 설치 조건·업데이트·복구·제거의 상세 안내입니다. [문서 목차](README.md)
 
-**0.1.2-preview 설치 안내**. [같은 버전의 Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)에서 Desktop Setup EXE와 Quest Setup EXE를 받는다. ZIP은 수동 설치용이다. 기존 개발 앱·이전 검토 ZIP과 구분한다. 현재 지원 범위와 실제 검증 상태는 [배포 안내](RELEASE_0.1.2_PREVIEW.md), Release의 `release-validation.json`을 따른다.
+**0.1.3-preview 설치 안내**. [같은 버전의 Release](https://github.com/myidwe/Sterevi/releases/tag/v0.1.3-preview)에서 Desktop Setup EXE와 Quest Setup EXE 또는 직접 APK를 받는다. ZIP은 수동 설치용이다. 현재 지원 범위와 실제 검증 상태는 [배포 안내](RELEASE_0.1.3_PREVIEW.md), Release의 `release-validation.json`을 따른다. 이전 이름의 설치 폴더를 그대로 업데이트하면 설정·모델·페어링을 보존한다.
 
 ## 받을 파일
 
-GitHub **Releases**에서 같은 버전의 파일을 받는다. EXE는 압축 해제 없이 실행한다. Quest APK는 이전 0.1.1-preview/code3과 동일하며 기존 앱 재설치는 필요 없다. [EXE 설치·빌드·검증](EXE_INSTALLERS.md)을 참고한다. **Code → Download ZIP**은 개발용 소스이며 설치 파일이 아니다. [GitHub 공식 Release 안내](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
+GitHub **Releases**에서 같은 버전의 파일을 받는다. EXE는 압축 해제 없이 실행한다. Quest APK는 같은 공개 패키지·서명의 0.1.3-preview/code4다. 직접 설치는 [APK 설치 안내](GETTING_STARTED.md#apk-직접-설치)를 따른다. [EXE 설치·빌드·검증](EXE_INSTALLERS.md)을 참고한다. **Code → Download ZIP**은 개발용 소스이며 설치 파일이 아니다. [GitHub 공식 Release 안내](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
 
 | 파일 | 용도 |
 |---|---|
-| `Quest3D-Desktop-Setup-<version>.exe` | Windows 앱 설치 |
-| `Quest3D-Quest-Setup-<version>.exe` | Quest USB 설치 |
-| `Quest3D-Desktop-<version>.zip` | 수동 설치용 Windows 묶음 |
-| `Quest3D-Quest-<version>.zip` | Quest APK와 USB 설치 도구 |
-| `Quest3D-Source-<version>.zip` | 해당 바이너리의 대응 소스·고지·빌드 자료 |
+| `Sterevi-Desktop-Setup-<version>.exe` | Windows 앱 설치 |
+| `Sterevi-Quest-Setup-<version>.exe` | Quest USB 설치 |
+| `Sterevi-Quest-<version>.apk` | 기존 설치 도구·ADB로 직접 설치 |
+| `Sterevi-Desktop-<version>.zip` | 수동 설치용 Windows 묶음 |
+| `Sterevi-Quest-<version>.zip` | Quest APK와 USB 설치 도구 |
+| `Sterevi-Source-<version>.zip` | 해당 바이너리의 대응 소스·고지·빌드 자료 |
 | `SHA256SUMS.txt` | 다운로드 파일의 SHA-256 확인 |
 | `release-validation.json` | 실제 확인한 설치·동작과 미검증 범위 |
 | `privacy-audit.json` | 최종 APK·ZIP의 개인정보 검사 결과 |
@@ -48,10 +49,10 @@ Quest 2는 눈별 **1920×1080**, Quest 3는 눈별 **2048×1152**가 PC 출력 
 </details>
 
 1. **Desktop Setup EXE**를 실행한다. 설치 파일을 자동 검증·추출한다.
-2. 열린 설치창에서 폴더와 바로가기를 확인하고 **설치**를 누른다. 기본은 `%LOCALAPPDATA%\Quest3D Desktop`이다. 공간이 부족하면 A 드라이브의 비어 있는 전용 폴더를 선택한다. 경로의 `#`, 따옴표, 줄바꿈은 지원하지 않는다.
+2. 열린 설치창에서 폴더와 바로가기를 확인하고 **설치**를 누른다. 새 설치 기본은 `%LOCALAPPDATA%\Sterevi Desktop`이다. 기존 설치가 감지되면 그 폴더를 그대로 업데이트한다. 공간이 부족하면 A 드라이브의 비어 있는 전용 폴더를 선택한다. 경로의 `#`, 따옴표, 줄바꿈은 지원하지 않는다.
 3. Python **3.12.6 x64**, 고정 GPU 라이브러리, **Depth Anything V2 Small 약 99 MB**를 다운로드한다. **설치 로그**에서 진행·실패를 확인한다. CUDA·실제 앱 화면 검사까지 통과해야 설치 완료다.
 4. **연결 허용**을 누른다. 버튼 안내에 허용 범위를 표시하며 별도 설명 확인창을 반복하지 않는다. 이미 올바른 규칙이면 관리자 요청도 생략한다. 변경이나 관리자 재확인이 필요한 경우 Windows 승인만 받는다. 사설망 로컬 서브넷의 앱 스트리밍 포트만 대상으로 하며 공용망·관리 페이지는 개방하지 않는다.
-5. **앱 실행** 또는 **Quest3D Desktop** 바로가기를 열고 설치창을 닫는다. 송출 중지 상태에서 **Settings → Quality → Headset**의 Quest 2 / Quest 3를 선택하고 모니터를 확인한다.
+5. **앱 실행** 또는 **Sterevi Desktop** 바로가기를 열고 설치창을 닫는다. 송출 중지 상태에서 **Settings → Quality → Headset**의 Quest 2 / Quest 3를 선택하고 모니터를 확인한다.
 6. **PC 시작**을 누르고 영상 준비를 기다린 뒤 Quest에서 Pair/Connect한다.
 
 일상 사용에는 Codex·터미널·Unity·WSL·개발 도구가 필요 없다. 설치 도구는 Windows 자동 시작·서비스·브라우저 설정을 만들거나 바꾸지 않는다. 방화벽 변경은 별도 연결 허용 버튼으로 요청한다.
@@ -63,7 +64,7 @@ Quest 2는 눈별 **1920×1080**, Quest 3는 눈별 **2048×1152**가 PC 출력 
 ## Quest 처음 설치
 
 1. Meta 개발자 팀/계정 확인 요건을 충족하고 모바일 **Meta Horizon 앱 → 헤드셋 설정 → 개발자 모드**를 켠다. 현재 요건·메뉴는 [Meta 공식 기기 설정](https://developers.meta.com/vr/documentation/native/android/mobile-device-setup/)을 따른다.
-2. Windows용 **Oculus ADB Drivers**를 준비한다. 공식 기기 설정의 링크·설치 절차를 사용한다. Quest3D 설치기가 드라이버를 자동 설치하지 않는다.
+2. Windows용 **Oculus ADB Drivers**를 준비한다. 공식 기기 설정의 링크·설치 절차를 사용한다. Sterevi 설치기가 드라이버를 자동 설치하지 않는다.
 3. USB 데이터 케이블로 연결하고 헤드셋 안에서 **USB 디버깅 허용**을 확인한다.
 4. [Google 공식 Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)를 다운로드해 압축을 푼다. Android Studio 전체 설치는 필요하지 않다.
 5. **Quest Setup EXE**를 연다. `adb.exe`를 선택한 뒤 **기기 검색 → 설치할 Quest 선택 → Quest에 설치**를 누른다. 여러 기기가 연결됐으면 대상을 명시적으로 선택한다. 수동 ZIP 설치에서는 전체 압축 해제 후 `Install-Quest.cmd`를 연다.

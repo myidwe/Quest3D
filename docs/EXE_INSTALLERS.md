@@ -2,9 +2,9 @@
 
 ## 사용자 흐름
 
-Windows 사용자는 **Quest3D-Desktop-Setup-0.1.2-preview.exe**를 다운로드하고 실행한다. ZIP 압축 해제나 CMD 실행 없이 설치창이 열린다. 설치 폴더를 선택한 뒤 **설치**를 누른다. 기존 설치 폴더라면 **업데이트**를 사용한다. 설치와 연결 설정을 마친 뒤 설치창을 닫는다. 이후 **Quest3D Desktop** 바로가기로 실행한다.
+Windows 사용자는 **Sterevi-Desktop-Setup-0.1.3-preview.exe**를 다운로드하고 실행한다. ZIP 압축 해제나 CMD 실행 없이 설치창이 열린다. 설치 폴더를 선택한 뒤 **설치**를 누른다. 기존 설치 폴더라면 **업데이트**를 사용한다. 설치와 연결 설정을 마친 뒤 설치창을 닫는다. 이후 **Sterevi Desktop** 바로가기로 실행한다.
 
-Quest는 **Quest3D-Quest-Setup-0.1.2-preview.exe**를 실행한다. 기존 USB 설치창에서 공식 ADB 경로와 연결된 기기를 확인하고 **설치**를 누른다. Quest 개발자 모드·USB 디버깅 승인은 헤드셋에서 직접 진행한다. Quest APK는 검증된 0.1.1-preview/code3과 동일하며 새 APK나 새 Pair가 필요하다는 뜻이 아니다.
+Quest는 **Sterevi-Quest-Setup-0.1.3-preview.exe**를 실행한다. 기존 USB 설치창에서 공식 ADB 경로와 연결된 기기를 확인하고 **설치**를 누른다. Quest 개발자 모드·USB 디버깅 승인은 헤드셋에서 직접 진행한다. Quest APK는 0.1.3-preview/code4다. 동일 공개 패키지·인증서로 설정과 페어링을 유지하는 이름 변경 업데이트다. 같은 APK의 직접 다운로드도 제공한다.
 
 처음 PC 설치의 고정 Python·GPU 라이브러리·모델 다운로드는 여전히 필요하다. 라이브러리 다운로드는 수 GB이며 모델은 약 99 MB다. EXE에 모델·사용자 설정·개인 키·페어링을 넣지 않는다. 첫 모델 설치 이후 AI 처리는 로컬에서 실행한다.
 
@@ -31,8 +31,8 @@ ZIP의 경로·대소문자 중복·링크·Windows 예약 이름·추가 파일
 Windows의 .NET Framework C# 컴파일러로 빌드한다. 추가 NuGet·설치기 제작 도구·유료 서비스가 필요 없다. 기존 ZIP 빌드와 개인정보 검사를 먼저 수행한다.
 
 ```powershell
-python -B scripts/release/build_exe_installer.py --zip <Desktop-ZIP> --target pc --version 0.1.2-preview --output <Desktop-Setup.exe>
-python -B scripts/release/build_exe_installer.py --zip <Quest-ZIP> --target quest --version 0.1.2-preview --output <Quest-Setup.exe>
+python -B scripts/release/build_exe_installer.py --zip <Desktop-ZIP> --target pc --version 0.1.3-preview --output <Desktop-Setup.exe>
+python -B scripts/release/build_exe_installer.py --zip <Quest-ZIP> --target quest --version 0.1.3-preview --output <Quest-Setup.exe>
 ```
 
 빌드 소스·컴파일러·ZIP·stub·최종 EXE의 해시가 검증 자료에 남는다. 디버그 PDB나 개인 빌드 경로는 배포하지 않는다. 개인정보 검사기는 EXE 원문에 이어 footer를 해석해 내부 ZIP·중첩 archive·컴파일 리소스까지 검사한다. 알려진 사용자 식별자는 공식 의존성 안에서도 면제하지 않는다.
@@ -40,7 +40,7 @@ python -B scripts/release/build_exe_installer.py --zip <Quest-ZIP> --target ques
 ## 배포 전 완료 기준
 
 - 실제 PC·Quest EXE 컴파일, 아이콘·버전·일반 사용자 권한 manifest 확인
-- EXE 원문과 내부 ZIP의 전체 개인정보 검사, 기존 공개 APK·native 해시 보존
+- EXE 원문·내부 ZIP·직접 APK의 전체 개인정보 검사, 같은 APK·대응 소스·서명 대조
 - 손상 footer·ZIP·경로 탈출·대소문자 중복·추가 파일·중복 실행 차단
 - A 드라이브의 한글·공백 경로에서 실제 추출, PC·Quest GUI 생성 확인
 - 실제 PC 새 설치와 기존 설치 업데이트, 개인 파일·모델·페어링·원래 Python 보존

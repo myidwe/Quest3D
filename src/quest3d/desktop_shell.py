@@ -28,6 +28,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+from .brand import DESKTOP_NAME
 import time
 
 
@@ -218,7 +219,7 @@ class ShellIntegration:
         data = self._api.NotifyIcon()
         data.cbSize, data.hWnd, data.uID = C.sizeof(data), self._hwnd, 1
         data.uFlags, data.uCallbackMessage = 1 | 2 | 4 | 0x80, self.WM_TRAY
-        data.hIcon, data.szTip, data.uVersion = self._icon, "Quest3D Desktop", 4
+        data.hIcon, data.szTip, data.uVersion = self._icon, DESKTOP_NAME, 4
         return data
 
     def _add_icon(self):

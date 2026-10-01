@@ -222,7 +222,7 @@ def test_quest_only_download_has_the_html_guide_brand_image(tmp_path):
     out = tmp_path / "out"
     out.mkdir()
     release.build_quest(root, out, "test", apk, sha, metadata)
-    with zipfile.ZipFile(out / "Quest3D-Quest-test.zip") as archive:
+    with zipfile.ZipFile(out / "Sterevi-Quest-test.zip") as archive:
         assert archive.read("docs/DESKTOP_USER_GUIDE.html").decode() == guide
         assert archive.read("resources/ui/brand/quest3d-mark.png") == brand.read_bytes()
 
@@ -259,7 +259,7 @@ def test_public_quest_archive_delivers_exact_reviewed_dependency_notices(tmp_pat
     out = tmp_path / "out"
     out.mkdir()
     release.build_quest(root, out, "public-test", apk, release.digest(apk), record, source)
-    with zipfile.ZipFile(out / "Quest3D-Quest-public-test.zip") as archive:
+    with zipfile.ZipFile(out / "Sterevi-Quest-public-test.zip") as archive:
         assert archive.read("notices/quest/NOTICES.md") == (source / "NOTICES.md").read_bytes()
         assert json.loads(archive.read("distribution-manifest.json"))["metadata"]["quest_dependency_notices_verified"] is True
 
@@ -288,7 +288,7 @@ def test_changed_notice_cannot_be_shipped_under_a_valid_source_hash(tmp_path):
     out.mkdir()
     with pytest.raises(ValueError, match="Pinned hash mismatch"):
         release.build_quest(root, out, "public-test", apk, release.digest(apk), record, source)
-    assert not (out / "Quest3D-Quest-public-test.zip").exists()
+    assert not (out / "Sterevi-Quest-public-test.zip").exists()
 
 
 def test_final_byte_gate_blocks_private_owner_inside_nested_apk(tmp_path, monkeypatch):

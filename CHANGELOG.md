@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3-preview — Sterevi
+
+- Public brand Sterevi across the desktop, Quest UI, installers, and repository
+- Preserve legacy package/storage/protocol identities and public APK signing key
+- Data-preserving APK update with versionCode 4, plus direct APK download
+- README production UI captures with privacy-safe sample states
+- Preserve previous release assets; no model, quality, or FPS change claimed
+
 ## 0.1.2-preview — EXE installers
 
 - Single-file Desktop and Quest USB Setup EXEs; no manual ZIP extraction

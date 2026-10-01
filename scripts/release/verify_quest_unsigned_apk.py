@@ -82,6 +82,9 @@ def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path,
     assert metadata["package"] == "app.questto3d.client"
     assert preparation.get("version_code", 1) == version_code
     assert metadata["version_code"] == str(version_code) and metadata["version_name"] == preparation.get("version_name", "0.1.0-review")
+    if preparation.get("display_name"):
+        labels = re.findall(r"^application-label:'([^']+)'", badging, re.M)
+        assert labels == [preparation["display_name"]], "APK display name differs from the prepared product brand"
     assert not metadata["debuggable"]
     run([str(bt / "aapt"), "dump", "xmltree", str(apk), "AndroidManifest.xml"], "apk-manifest")
     signed = run([str(bt / "apksigner"), "verify", "--verbose", "--print-certs", str(apk)], "apk-signature", None)
@@ -158,6 +161,7 @@ def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path,
                                ("llvm-strip", ndkbin / "llvm-strip"), ("llvm-readelf", ndkbin / "llvm-readelf"))},
               "dependency_notices_verified": False, "public_release_ready": False}
     result["public_vendor_binding"] = preparation.get("public_vendor_binding")
+    result["application_display_name"] = preparation.get("display_name")
     (output / "apk-correspondence.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 

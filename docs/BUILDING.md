@@ -1,4 +1,8 @@
-# Quest3D 빌드·재현
+# Sterevi 빌드·재현
+
+현재 배포는 [0.1.3-preview](RELEASE_0.1.3_PREVIEW.md)다. 표시 이름은 Sterevi, Python 모듈은 `quest3d`, Android 공개 패키지는 `app.questto3d.client`를 유지한다. 새 APK는 기존 코드3 대응 입력의 UI 제목만 별도 `patches/quest-brand-sterevi-20261001` 오버레이로 변경하고 같은 native·engine·vendor에서 export한다. `prepare_quest_android_export.py`의 `--display-name Sterevi --version-name 0.1.3-preview --version-code 4`를 사용한다. 동일 서명·증가한 코드·새 UI의 정확한 대응 소스·바이너리 개인정보 검증을 수행한다. 아래 이전 릴리스의 SHA·파일명·재빌드 입력은 당시 기록으로 보존한다.
+
+새 설치 묶음은 `build_bundle.py --release 0.1.3-preview`와 검증된 새 signed APK·해당 대응 소스를 사용한다. 직접 APK는 공개 `Sterevi-Quest-0.1.3-preview.apk`로 바이트를 그대로 복사하고, 두 EXE·세 ZIP과 함께 최종 검증·체크섬에 포함한다. ZIP 내부의 legacy APK 이름은 설치 프로토콜 호환 정보다. 모든 배포 파일은 새 버전으로 게시하며 이전 파일은 덮어쓰지 않는다.
 
 0.1.1-preview의 stream은 개인정보 경로 제거를 위해 정적 의존성 13개와 함께 다시 빌드한다. `prepare_quest_private_path_build.py`, `rebuild_quest_private_path_native.sh`, `collect_quest_private_native_proof.py`와 대응 소스의 privacy-native 기록을 따른다. OpenSSL 빌드 정보 소스 패치를 포함하며, 이전 캐시를 재사용하는 `rebuild_quest_baseline.sh`만 실행해 새 stream이 재현되었다고 판단하지 않는다. 최종 signed APK와 ZIP은 `privacy_audit.py`로 검사하고 source·서명·입력 해시 검증도 별도로 완료한다.
 

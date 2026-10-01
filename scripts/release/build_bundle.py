@@ -39,6 +39,8 @@ LOCAL_ONLY_SCRIPTS = (
 )
 LOCAL_ONLY_DIAGNOSTICS = ("select_quest_codec.py", "dev-firewall.ps1", "run_file_audio_interop.py", "HDR_CANDIDATE.md", "WINDOW_CANDIDATE.md")
 PUBLIC_RELEASE_DOCS = (
+    "RELEASE_0.1.3_PREVIEW.md",
+    "assets/sterevi-desktop.png", "assets/sterevi-quest-home.png", "assets/sterevi-quest-settings.png",
     "README.md", "GETTING_STARTED.md", "GETTING_STARTED.en.md",
     "assets/README.md", "assets/quest3d-workflow.png",
     "assets/quest3d-workflow-v2.png",
@@ -220,7 +222,7 @@ def installer_launcher_cmd(target: str) -> bytes:
         'if exist "%QUEST3D_START_LOG%.details.log" goto choose_log',
         'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\\release\\installer-launcher.ps1" '
         f'-Target {target} -LogPath "%QUEST3D_START_LOG%.details.log" > "%QUEST3D_START_LOG%.log" 2>&1',
-        "if not errorlevel 1 exit /b 0", "echo.", "echo Quest3D installer did not start.",
+        "if not errorlevel 1 exit /b 0", "echo.", "echo Sterevi installer did not start.",
         'type "%QUEST3D_START_LOG%.log"', "echo.",
         'echo Startup log: "%QUEST3D_START_LOG%.log"',
         "echo Check the complete trusted ZIP and docs/DISTRIBUTION.md.",
@@ -350,15 +352,15 @@ def build_pc(root: Path, out: Path, release: str, host_release: dict | None = No
     payload.copy(root / ".tools/desktop/uv.exe", ".tools/desktop/uv.exe", "f13b441ca13bf0a1d02d367e395c8a72e11733c5c29efa4a2f71af6a3a30d5ac")
     payload.tree(root / "scripts/release/licenses", "licenses")
     payload.put("config/distribution.json", json.dumps({"schema": 1, "host_runtime": "artifacts/host/runtime-public", "host_sha256": host_sha, "hdr_package": "runtime/capture", "depth_source": "config/depth-source.json"}, indent=2).encode())
-    payload.put("Install-Quest3D.cmd", installer_launcher_cmd("pc"))
-    payload.put("README-FIRST.txt", ("Quest3D Desktop preview\n\n1. Extract this entire ZIP.\n2. Open Install-Quest3D.cmd. First install downloads Python, GPU dependencies and the model.\n3. Open Quest3D Desktop, start PC, then pair/connect in the Quest app.\n\nRead docs/DISTRIBUTION.md for requirements and verification scope.\n").encode())
+    payload.put("Install-Sterevi.cmd", installer_launcher_cmd("pc"))
+    payload.put("README-FIRST.txt", ("Sterevi Desktop preview\n\n1. Extract this entire ZIP.\n2. Open Install-Sterevi.cmd. First install downloads Python, GPU dependencies and the model.\n3. Open Sterevi Desktop, start PC, then pair/connect in the Quest app.\n\nRead docs/DISTRIBUTION.md for requirements and verification scope.\n").encode())
     # Validate the copied payload itself: checking only the working tree cannot
     # detect an allowlist that accidentally drops runtime CUDA/QML source files.
     if ui_check.verify_resources(payload.destination) != ui_verification or ui_check.verify_runtime_sources(payload.destination) != runtime_sources:
         raise ValueError("Packaged runtime resources differ from the reviewed source")
     payload.manifest(release=release, metadata={"kind": "pc-installer-candidate", "host_sha256": host_sha, "capture_wheel_sha256": CAPTURE_SHA, "model_included": False, "published": False, "ui": ui_verification, "cuda_sources": runtime_sources,
         "host_native_build_verified": bool(host_release), "host_source_and_notices_verified": bool(host_release)})
-    zip_payload(payload.destination, out / f"Quest3D-Desktop-{release}.zip")
+    zip_payload(payload.destination, out / f"Sterevi-Desktop-{release}.zip")
     return payload.destination
 
 
@@ -418,7 +420,7 @@ def build_sources(root: Path, out: Path, release: str, quest_source: Path | None
             payload.copy(quest_source / name, "sources/quest/" + name, expected if isinstance(expected, str) else expected["sha256"])
         payload.copy(manifest_path, "sources/quest/source-manifest.json")
     payload.manifest(release=release, metadata={"kind": "source-candidate", "published": False, "host_binary_source_rebuild_verified": bool(host_release), "quest_source_included": quest_source is not None})
-    zip_payload(payload.destination, out / f"Quest3D-Source-{release}.zip")
+    zip_payload(payload.destination, out / f"Sterevi-Source-{release}.zip")
     return payload.destination
 
 
@@ -544,7 +546,15 @@ def build_quest(root: Path, out: Path, release: str, apk: Path, expected_sha: st
         "quest_dependency_notices_verified": source_manifest.get("dependency_notices_verified") is True,
         "binary_notice_files": notice_names,
         "ready_for_public_release": False})
-    zip_payload(payload.destination, out / f"Quest3D-Quest-{release}.zip")
+    zip_payload(payload.destination, out / f"Sterevi-Quest-{release}.zip")
+    # Offer the exact same signed APK for SideQuest/ADB users without a Windows
+    # installer. Its download name is branding; Android update identity stays unchanged.
+    direct_apk = out / f"Sterevi-Quest-{release}.apk"
+    if direct_apk.exists():
+        raise FileExistsError("Preserve existing direct APK output")
+    shutil.copyfile(apk, direct_apk)
+    if digest(direct_apk) != expected_sha:
+        raise ValueError("Direct APK differs from the signed Quest payload")
     return payload.destination
 
 
@@ -581,7 +591,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--release", default="0.1.2-preview")
+    parser.add_argument("--release", default="0.1.3-preview")
     parser.add_argument("--privacy-reviews", type=Path, help="Exact public-origin fixture review records")
     parser.add_argument("--privacy-markers", type=Path, help="Optional PRIVATE identifier file outside the source/release")
     parser.add_argument("--verify", action="store_true")
@@ -625,12 +635,12 @@ def main(argv=None):
             targets.append(("quest", "Quest"))
         for target, label in targets:
             result = subprocess.run([sys.executable, "-B", str(root / "scripts/release/build_exe_installer.py"),
-                "--zip", str(args.output / f"Quest3D-{label}-{args.release}.zip"),
+                "--zip", str(args.output / f"Sterevi-{label}-{args.release}.zip"),
                 "--target", target, "--version", args.release,
-                "--output", str(args.output / f"Quest3D-{label}-Setup-{args.release}.exe")], capture_output=True)
+                "--output", str(args.output / f"Sterevi-{label}-Setup-{args.release}.exe")], capture_output=True)
             if result.returncode:
                 raise RuntimeError("EXE build failed; preserve the output directory and rerun in a new directory after reviewing compiler/runtime requirements")
-    audit_inputs = sorted(args.output.glob("*.zip")) + sorted(args.output.glob("*.exe"))
+    audit_inputs = sorted(args.output.glob("*.zip")) + sorted(args.output.glob("*.exe")) + sorted(args.output.glob("*.apk"))
     verify_release_privacy(audit_inputs, reviews=args.privacy_reviews,
                            markers=args.privacy_markers,
                            output=args.output / "privacy-audit.json")

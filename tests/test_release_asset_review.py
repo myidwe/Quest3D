@@ -47,7 +47,7 @@ def build_set(tmp_path, *, apk_binding=None, host_binding=None):
                          "binary_source_rebuild_verified": False}).encode())
             meta = {"kind": kind}
         payload.manifest(release=release, metadata=meta)
-        review.bundle.zip_payload(payload.destination, files / f"Quest3D-{label}-{release}.zip")
+        review.bundle.zip_payload(payload.destination, files / f"Sterevi-{label}-{release}.zip")
     return files, release
 
 
@@ -70,7 +70,7 @@ def test_mixed_source_or_host_is_rejected_even_when_all_zip_hashes_are_valid(tmp
 
 def test_missing_asset_is_incomplete_and_not_a_complete_release(tmp_path):
     directory, release = build_set(tmp_path)
-    (directory / f"Quest3D-Quest-{release}.zip").rename(directory / "unrelated.zip")
+    (directory / f"Sterevi-Quest-{release}.zip").rename(directory / "unrelated.zip")
     result = review.review(directory, release)
     assert result["missing_assets"] == ["Quest"]
     assert not result["binary_source_cross_binding_verified"] and not result["ready_for_public_release"]
@@ -78,7 +78,7 @@ def test_missing_asset_is_incomplete_and_not_a_complete_release(tmp_path):
 
 def test_unlisted_zip_entry_is_rejected(tmp_path):
     directory, release = build_set(tmp_path)
-    path = directory / f"Quest3D-Desktop-{release}.zip"
+    path = directory / f"Sterevi-Desktop-{release}.zip"
     with zipfile.ZipFile(path, "a") as archive:
         archive.writestr("personal-note.txt", "unreviewed")
     with pytest.raises(ValueError, match="omits or adds"):
@@ -87,7 +87,7 @@ def test_unlisted_zip_entry_is_rejected(tmp_path):
 
 def test_content_change_with_stale_embedded_manifest_is_rejected(tmp_path):
     directory, release = build_set(tmp_path)
-    path = directory / f"Quest3D-Desktop-{release}.zip"
+    path = directory / f"Sterevi-Desktop-{release}.zip"
     with zipfile.ZipFile(path) as original:
         entries = {info.filename: original.read(info) for info in original.infolist()}
     entries["src/main.py"] = b"changed"
@@ -100,7 +100,7 @@ def test_content_change_with_stale_embedded_manifest_is_rejected(tmp_path):
 
 def test_different_host_bytes_cannot_hide_behind_matching_metadata_strings(tmp_path):
     directory, release = build_set(tmp_path)
-    path = directory / f"Quest3D-Desktop-{release}.zip"
+    path = directory / f"Sterevi-Desktop-{release}.zip"
     with zipfile.ZipFile(path) as original:
         entries = {info.filename: original.read(info) for info in original.infolist()}
     name = "artifacts/host/runtime-public/sunshine.exe"

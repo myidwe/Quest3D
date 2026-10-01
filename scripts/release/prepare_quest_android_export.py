@@ -118,7 +118,8 @@ def complete_template_installation(output: Path, vendor: Path) -> dict:
 
 
 def prepare(source: Path, native: Path, vendor: Path, template: Path, output: Path,
-            public_vendor: Path | None = None, version_name: str = "0.1.0-review", version_code: int = 1) -> dict:
+            public_vendor: Path | None = None, version_name: str = "0.1.0-review", version_code: int = 1,
+            display_name: str = "Quest3D") -> dict:
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.-]+)?", version_name):
         raise ValueError("Invalid public version name")
     if type(version_code) is not int or not 1 <= version_code <= 2100000000:
@@ -163,7 +164,7 @@ def prepare(source: Path, native: Path, vendor: Path, template: Path, output: Pa
         shutil.copyfile(file, target)
         own_native[name] = expected
     preset = project / "export_presets.cfg"
-    preset.write_text(public_preset(preset.read_text("utf-8"), version_code), "utf-8", newline="\n")
+    preset.write_text(public_preset(preset.read_text("utf-8"), version_code, display_name), "utf-8", newline="\n")
     preset.write_text(preset.read_text("utf-8").replace('version/name="0.1.0-review"',
                       'version/name="' + version_name + '"'), "utf-8", newline="\n")
     vendor_files = {}
@@ -228,7 +229,7 @@ def prepare(source: Path, native: Path, vendor: Path, template: Path, output: Pa
         "project_files": project_files, "own_rebuilt_native": own_native,
         "vendor_zip_sha256": VENDOR_SHA, "vendor_inputs": vendor_files,
         "vendor_built_from_source": bool(rebuilt_vendor), "public_vendor_binding": rebuilt_vendor,
-        "version_name": version_name, "version_code": version_code,
+        "version_name": version_name, "version_code": version_code, "display_name": display_name,
         "android_template_sha256": source_tool.sha(template), "android_template_files": template_files,
         "loader_pin_overlay": {"version": "1.1.54", "file": "project/android/build/build.gradle",
                                "before_sha256": before_gradle, "after_sha256": source_tool.sha(gradle)},
@@ -247,9 +248,10 @@ def main(argv=None) -> int:
     parser.add_argument("--public-vendor", type=Path)
     parser.add_argument("--version-name", default="0.1.0-review")
     parser.add_argument("--version-code", type=int, default=1)
+    parser.add_argument("--display-name", default="Quest3D")
     args = parser.parse_args(argv)
     print(json.dumps(prepare(args.source, args.native, args.vendor, args.template, args.output,
-                             args.public_vendor, args.version_name, args.version_code), indent=2))
+                             args.public_vendor, args.version_name, args.version_code, args.display_name), indent=2))
     return 0
 
 

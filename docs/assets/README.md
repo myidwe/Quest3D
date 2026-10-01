@@ -44,3 +44,19 @@ Right: retain the Quest headset and the single virtual display with the clearly 
 Preserve: the original recognizable landscape, coherent three-stage left-to-right story, two arrows, premium editorial 3D rendering, matte navy/charcoal background, restrained icy cyan accent, soft-gray headset, typography and lighting. All three labels remain the SAME font size and exactly "Windows screen", "Local AI", "Quest 2 / 3". Center its "Local AI" label below the enlarged center. Keep all edges and labels inside image bounds.
 Constraints: concept illustration, not actual screenshots or model output. No new text other than permitted L/R labels, no red/cyan anaglyph, blurry or ghosted contours, clouds for processing, performance claims, new branding, personal data, or controllers. No extra objects outside the three-stage workflow. Make the center enlargement and left reduction unmistakable.
 ```
+
+## Sterevi app interface captures · 2026-10-01
+
+These are **actual production interface renders with sample state**, not generated mockups. The Windows capture uses the production Qt Quick/QML window; the Quest home and Display captures use production Godot controls, fonts, icons and theme rendered in a PC viewport. They are not headset photographs, live-stream measurements or model/conversion quality evidence. No service videos, personal desktop contents, PINs or actual host/device names are shown. The documentation-only IP address in the Windows sample is not a user's address.
+
+- [Windows Display](sterevi-desktop.png): idle privacy-safe state, Quest 3 profile and sample monitor. Production `resources/desktop/Main.qml`, `src/quest3d/desktop_qt_adapter.py`.
+- [Quest home](sterevi-quest-home.png): production welcome screen with the new Sterevi title. Sample environment, rendered on PC.
+- [Quest Display settings](sterevi-quest-settings.png): production menu and sample values for mode, size, placement and presets. Rendered on PC.
+
+Images are copied unchanged from the application renderer outputs, with no AI retouching, recoloring, resizing or compositing. Product interface and inherited assets retain the project's GPL and third-party terms in [the notices](../../THIRD_PARTY_NOTICES.md). The introduction banner above remains a separate generated concept illustration.
+
+| Capture | SHA-256 | Bytes |
+|---|---|---:|
+| `sterevi-desktop.png` | `8699338093b2e8b3d121fe12c5f7eab091fbb950e6d87e12617876493bdd472a` | 47674 |
+| `sterevi-quest-home.png` | `d2e7879448d5013d8c534e788275f0232f715d2f84be3305b4138c5aeb4958d2` | 2026711 |
+| `sterevi-quest-settings.png` | `4ab52e845b52e7eecc247638cc63eea6b6dd1a6594ab7d3c77dc2d584f1af483` | 72268 |

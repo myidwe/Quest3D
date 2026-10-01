@@ -33,11 +33,13 @@ jobs:
           tests/test_host_release_inputs.py tests/test_host_release_unpack.py
           tests/test_pairing_host.py
           tests/test_quest_public_ui_build.py
+          tests/test_quest_brand_source.py
           tests/test_diagnostic_privacy.py tests/test_release_privacy_audit.py
           tests/test_python_discovery.py
           tests/test_quest_native_privacy_source.py
           tests/test_exe_installer.py tests/test_exe_payload_privacy.py
           tests/test_installer_single_instance.py
+          tests/test_sterevi_install_migration.py
           -q -p no:cacheprovider --basetemp="${{ runner.temp }}/quest3d-source-tests"
       - name: Verify export contents without uploading
         run: python -B scripts/release/export_repository.py --output artifacts/ci-repository

@@ -83,6 +83,21 @@ def test_unsigned_public_identity_and_retained_xr_network_settings():
     assert "[preset.1]" not in result
 
 
+def test_brand_display_name_retains_update_identity_and_internal_export_name():
+    result = baseline.public_preset(PRESET, 4, "Sterevi")
+    assert 'package/name="Sterevi"' in result
+    assert 'package/unique_name="app.questto3d.client"' in result
+    assert "version/code=4" in result
+    assert 'name="Quest3DPublicReview"' in result
+    assert "package/signed=false" in result
+
+
+@pytest.mark.parametrize("name", ["", " Sterevi", "Sterevi ", 'Sterevi\"', "Sterevi\npackage/signed=true", None])
+def test_invalid_brand_cannot_inject_preset_fields(name):
+    with pytest.raises(ValueError, match="display name"):
+        baseline.public_preset(PRESET, 4, name)
+
+
 @pytest.mark.parametrize("broken", [PRESET.replace("package/signed=true\n", ""), PRESET + "package/signed=true\n", ""])
 def test_ambiguous_or_incomplete_export_identity_is_rejected(broken):
     with pytest.raises(ValueError):

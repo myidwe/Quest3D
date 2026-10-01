@@ -67,4 +67,4 @@ Write-Output "$($model -join '') · APK 확인 완료"
 if ($CheckOnly) { return }
 & $Adb -s $Serial install -r --no-streaming $apk
 if ($LASTEXITCODE -ne 0) { throw '설치 실패. 기존 앱과 데이터는 보존했습니다. 서명 불일치라면 해당 앱과 같은 서명의 배포판이 필요합니다. 자동으로 앱을 삭제하지 않습니다.' }
-Write-Output '설치 완료 · Quest 앱 → 알 수 없는 출처 → Quest3D. PC 시작 후 Quest에서 Scan Network → Pair → Connect. 업데이트 후에는 기존 PC의 Connect를 누릅니다.'
+Write-Output '설치 완료 · Quest 앱 → 알 수 없는 출처 → Sterevi. PC 시작 후 Quest에서 Scan Network → Pair → Connect. 업데이트 후에는 기존 PC의 Connect를 누릅니다.'

@@ -91,7 +91,7 @@ def prepare(export: Path, output: Path, owner: str, name: str, user_id: int) -> 
     staged = {value.decode("utf-8") for value in git(repository, "ls-files", "-z").split(b"\0") if value}
     if staged != selected:
         raise ValueError("Git ignored required source files or added unexpected files")
-    git(repository, "commit", "--no-gpg-sign", "-m", "Prepare Quest3D open-source preview")
+    git(repository, "commit", "--no-gpg-sign", "-m", "Prepare Sterevi open-source preview")
     git(repository, "remote", "add", "origin", remote)
     commit = git(repository, "rev-parse", "HEAD").decode().strip()
     blobs = {}
@@ -127,7 +127,7 @@ def main(argv=None):
     parser.add_argument("--export", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--owner", required=True)
-    parser.add_argument("--name", default="Quest3D")
+    parser.add_argument("--name", default="Sterevi")
     parser.add_argument("--github-user-id", type=int, required=True)
     args = parser.parse_args(argv)
     if not shutil.which("git"):

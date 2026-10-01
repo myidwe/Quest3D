@@ -1,6 +1,6 @@
-# Quest3D 문서
+# Sterevi 문서
 
-처음 사용하는 분은 [처음 설치와 연결](GETTING_STARTED.md)부터 읽으세요. 현재 설치 파일은 [0.1.2-preview Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)에서 받습니다.
+처음 사용하는 분은 [처음 설치와 연결](GETTING_STARTED.md)부터 읽으세요. 현재 설치 파일은 [0.1.3-preview Release](https://github.com/myidwe/Sterevi/releases/tag/v0.1.3-preview)에서 받습니다.
 
 [English getting started](GETTING_STARTED.en.md) · [프로젝트 소개](../README.md)
 
@@ -13,7 +13,7 @@
 | 매번 사용·화질·화면 위치·종료 | [사용 방법](DESKTOP_USER_GUIDE.md) |
 | PC / Quest only / PC + Quest 소리 선택 | [소리 출력](DESKTOP_USER_GUIDE.md#sound--소리-출력) |
 | PC 검색·PIN·검은 영상·시작 오류 | [문제 해결](DESKTOP_USER_GUIDE.md#문제-해결) |
-| 현재 버전과 지원·검증 범위 | [0.1.2-preview 배포 안내](RELEASE_0.1.2_PREVIEW.md) |
+| 현재 버전과 지원·검증 범위 | [0.1.3-preview 배포 안내](RELEASE_0.1.3_PREVIEW.md) |
 | EXE 설치본·Windows 서명 조건 | [EXE 설치 안내](EXE_INSTALLERS.md) |
 | 설치와 연결 허용의 권한 | [설정·권한 안내](SETUP_PERMISSIONS_2026-09-30.md) |
 
@@ -26,7 +26,7 @@
 
 ## 검증/지난 기록
 
-현재 버전의 실제 완료·미검증 항목은 [배포 안내](RELEASE_0.1.2_PREVIEW.md)와 [Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)의 `release-validation.json`을 기준으로 확인합니다. 날짜가 있는 문서는 당시의 검토·실험·변경 기록입니다.
+현재 버전의 실제 완료·미검증 항목은 [배포 안내](RELEASE_0.1.3_PREVIEW.md)와 [Release](https://github.com/myidwe/Sterevi/releases/tag/v0.1.3-preview)의 `release-validation.json`을 기준으로 확인합니다. 날짜가 있는 문서는 당시의 검토·실험·변경 기록입니다.
 
 - [EXE 설치본 검증 기준](EXE_INSTALLERS.md#배포-전-완료-기준)
 - [공개 전 확인 목록](PUBLIC_RELEASE_CHECKLIST_2026-10-01.md)

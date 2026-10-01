@@ -196,6 +196,19 @@ def test_higher_version_export_preserves_public_identity_and_records_upgrade_cod
     assert "version/code=1" in args[0].joinpath("project/export_presets.cfg").read_text()
 
 
+def test_rebrand_export_preserves_package_and_binds_android_display_name(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    output = tmp_path / "rebrand-export"
+    export.prepare(*args, output, version_name="0.1.3-preview", version_code=4, display_name="Sterevi")
+    proof = json.loads((output / "android-export-preparation.json").read_text())
+    assert proof["display_name"] == "Sterevi" and proof["version_code"] == 4
+    preset = (output / "project/export_presets.cfg").read_text()
+    assert 'package/name="Sterevi"' in preset
+    assert 'package/unique_name="app.questto3d.client"' in preset
+    assert 'version/name="0.1.3-preview"' in preset
+    assert args[0].joinpath("project/export_presets.cfg").read_text() == PRESET
+
+
 @pytest.mark.parametrize("code", [True, False, 0, -1, 2100000001, 2.5, "2"])
 def test_invalid_upgrade_code_cannot_create_export(tmp_path, monkeypatch, code):
     args = inputs(tmp_path, monkeypatch)

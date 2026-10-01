@@ -19,10 +19,10 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("Quest3D Setup")]
-[assembly: AssemblyDescription("Quest3D per-user installation bootstrap")]
-[assembly: AssemblyCompany("Quest3D contributors")]
-[assembly: AssemblyProduct("Quest3D")]
+[assembly: AssemblyTitle("Sterevi Setup")]
+[assembly: AssemblyDescription("Sterevi per-user installation bootstrap")]
+[assembly: AssemblyCompany("Sterevi contributors")]
+[assembly: AssemblyProduct("Sterevi")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: TargetFramework(".NETFramework,Version=v4.8", FrameworkDisplayName = ".NET Framework 4.8")]
 
@@ -84,7 +84,7 @@ internal static class Quest3DSetup
             {
                 bool held = false;
                 try { held = mutex.WaitOne(0); } catch (AbandonedMutexException) { held = true; }
-                if (!held) throw Error("busy", "다른 Quest3D 설치 창이 열려 있습니다");
+                if (!held) throw Error("busy", "다른 Sterevi 설치 창이 열려 있습니다");
                 try
                 {
                     if (options.Mode == "ui") return ShowProgress(options);
@@ -101,7 +101,7 @@ internal static class Quest3DSetup
             string code = known != null ? known.Code : "setup_failed";
             string message = known != null ? known.Message : "설치 준비 실패. 파일을 다시 다운로드하거나 쓰기 가능한 드라이브에서 실행해 주세요";
             Console.WriteLine(Json.Serialize(new Dictionary<string, object> { { "bootstrap", BootstrapMarker }, { "passed", false }, { "error", code }, { "exception_kind", failure.GetType().Name }, { "exit_code", 1 } }));
-            if (args.Length == 0) MessageBox.Show(message, "Quest3D Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (args.Length == 0) MessageBox.Show(message, "Sterevi Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
     }
@@ -111,10 +111,10 @@ internal static class Quest3DSetup
         Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
         using (Form form = new Form())
         {
-            form.Text = "Quest3D Setup"; form.ClientSize = new Size(490, 145); form.StartPosition = FormStartPosition.CenterScreen;
+            form.Text = "Sterevi Setup"; form.ClientSize = new Size(490, 145); form.StartPosition = FormStartPosition.CenterScreen;
             form.FormBorderStyle = FormBorderStyle.FixedDialog; form.MaximizeBox = false; form.MinimizeBox = false;
             form.BackColor = Color.FromArgb(24, 26, 31); form.ForeColor = Color.FromArgb(236, 239, 244); form.Font = new Font("Segoe UI", 10);
-            Label title = new Label { Text = BuildInfo.Target == "pc" ? "Quest3D Desktop" : "Quest3D Quest", AutoSize = true, Location = new Point(28, 21), Font = new Font("Segoe UI", 16, FontStyle.Bold) };
+            Label title = new Label { Text = BuildInfo.Target == "pc" ? "Sterevi Desktop" : "Sterevi Quest", AutoSize = true, Location = new Point(28, 21), Font = new Font("Segoe UI", 16, FontStyle.Bold) };
             Label detail = new Label { Text = "설치 파일 확인", AutoSize = true, Location = new Point(30, 68) };
             ProgressBar progress = new ProgressBar { Location = new Point(30, 103), Size = new Size(430, 6), Style = ProgressBarStyle.Marquee };
             form.Controls.Add(title); form.Controls.Add(detail); form.Controls.Add(progress);
@@ -130,7 +130,7 @@ internal static class Quest3DSetup
                 catch (Exception error)
                 {
                     SetupException known = error as SetupException;
-                    MessageBox.Show(known != null ? known.Message : "설치 준비 실패. 파일을 다시 다운로드하거나 쓰기 가능한 드라이브에서 실행해 주세요", "Quest3D Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(known != null ? known.Message : "설치 준비 실패. 파일을 다시 다운로드하거나 쓰기 가능한 드라이브에서 실행해 주세요", "Sterevi Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 finally { finished = true; form.Close(); }
             };
@@ -174,7 +174,7 @@ internal static class Quest3DSetup
                         using (Mutex installer = new Mutex(false, "Local\\Quest3D.Installer." + WindowsIdentity.GetCurrent().User.Value))
                         {
                             bool held = false; try { held = installer.WaitOne(0); } catch (AbandonedMutexException) { held = true; }
-                            if (!held) throw Error("busy", "다른 Quest3D 설치 창이 열려 있습니다");
+                            if (!held) throw Error("busy", "다른 Sterevi 설치 창이 열려 있습니다");
                             try { code = Child(stage, values); } finally { installer.ReleaseMutex(); }
                         }
                         report["installed_confirmed"] = code == 0;

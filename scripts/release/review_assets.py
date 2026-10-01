@@ -67,7 +67,7 @@ def review(directory: Path, release: str, private_markers=()) -> dict:
     rows = {}
     missing = []
     for label, kind in KINDS.items():
-        path = directory / f"Quest3D-{label}-{release}.zip"
+        path = directory / f"Sterevi-{label}-{release}.zip"
         if not path.is_file():
             missing.append(label)
             continue
@@ -83,6 +83,9 @@ def review(directory: Path, release: str, private_markers=()) -> dict:
                 apk_sha = hashlib.file_digest(stream, "sha256").hexdigest()
             if apk_sha != install.get("sha256") or apk_sha != quest_source.get("apk_sha256") or apk_sha != rows["Quest"]["metadata"].get("apk_sha256"):
                 raise ValueError("Quest APK/install/source cross-binding mismatch")
+            direct_path = directory / f"Sterevi-Quest-{release}.apk"
+            if direct_path.is_file() and bundle.digest(direct_path) != apk_sha:
+                raise ValueError("Direct APK differs from the signed Quest installer payload")
             expected = bundle.quest_install_metadata(quest_source, apk_sha)
             if install != expected:
                 raise ValueError("Quest install metadata differs from the reviewed APK source")
@@ -158,7 +161,9 @@ def review(directory: Path, release: str, private_markers=()) -> dict:
             "ready_for_public_release": False,
             "native_source_and_signing_verified": native_verified,
             "pending_acceptance": pending,
-            "assets": rows}
+            "assets": rows,
+            "direct_apk_present": (directory / f"Sterevi-Quest-{release}.apk").is_file(),
+            "direct_apk_matches_quest_payload": binding and (directory / f"Sterevi-Quest-{release}.apk").is_file()}
 
 
 def main(argv=None):

@@ -85,11 +85,115 @@ function Get-Quest3DPackage([string]$Root, [switch]$VerifyFiles) {
 function Get-Quest3DOwnedInstall([string]$Root) {
     $package = Get-Quest3DPackage $Root
     $ownerPath = Get-Quest3DInstallPath $package.root 'quest3d-install.json'
-    if (!(Test-Path -LiteralPath $ownerPath -PathType Leaf)) { throw 'Existing folder is not an owned Quest3D installation; it was preserved.' }
+    if (!(Test-Path -LiteralPath $ownerPath -PathType Leaf)) { throw 'Existing folder is not an owned Sterevi installation; it was preserved.' }
     $owner = Get-Content -LiteralPath $ownerPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($owner.product -cne 'Quest3D Desktop' -or $owner.package_manifest_sha256 -ine $package.hash -or
         $owner.release -cne $package.manifest.release -or $owner.completed -isnot [bool]) { throw 'Installation ownership does not match its manifest; preserved.' }
     return @{package=$package;owner=$owner;root=$package.root}
+}
+
+function Test-Quest3DShortcutOwner([object]$Shortcut, [string]$Root) {
+    $rootPath = Get-Quest3DInstallRoot $Root
+    $argumentRoot = $rootPath
+    if ($argumentRoot.EndsWith('\')) { $argumentRoot += '\' }
+    try {
+        return [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($Shortcut.TargetPath), (Join-Path $rootPath '.venv/Scripts/pythonw.exe')) -and
+            [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($Shortcut.WorkingDirectory), $rootPath) -and
+            $Shortcut.Arguments -ceq ('-m quest3d.desktop --root "' + $argumentRoot + '"') -and
+            $Shortcut.Description -cin @(('Quest3D Desktop | ' + $rootPath), ('Sterevi Desktop | ' + $rootPath))
+    } catch { return $false }
+}
+
+function Get-Quest3DPreferredInstallRoot {
+    param([string]$LocalAppData=$env:LOCALAPPDATA, [string[]]$ShortcutDirectories)
+    # Prefer existing owned folders; do not move settings, environments or Pair keys.
+    $fresh = Join-Path $LocalAppData 'Sterevi Desktop'
+    foreach ($candidate in @($fresh, (Join-Path $LocalAppData 'Quest3D Desktop'))) {
+        try {
+            $installed = Get-Quest3DOwnedInstall $candidate
+            return $installed.root
+        } catch {
+            try {
+                $transaction = Get-Quest3DTransaction $candidate
+                if ($transaction -and $transaction.journal.phase -notin @('committed','rolled-back')) { return $transaction.root }
+            } catch { }
+        }
+    }
+    $shell = New-Object -ComObject WScript.Shell
+    try {
+        if (!$PSBoundParameters.ContainsKey('ShortcutDirectories')) {
+            $ShortcutDirectories = @([Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory),
+                                     [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs))
+        }
+        foreach ($directory in $ShortcutDirectories) {
+            if ([string]::IsNullOrWhiteSpace($directory)) { continue }
+            foreach ($name in @('Sterevi Desktop.lnk', 'Quest3D Desktop.lnk')) {
+                $path = Join-Path $directory $name
+                $link = $null
+                try {
+                    Assert-Quest3DNoReparse $path
+                    if (!(Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+                    $link = $shell.CreateShortcut($path)
+                    $installed = Get-Quest3DOwnedInstall $link.WorkingDirectory
+                    if ($installed.owner.completed -and (Test-Quest3DShortcutOwner $link $installed.root)) { return $installed.root }
+                } catch { } finally {
+                    if ($null -ne $link) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) }
+                }
+            }
+        }
+    } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }
+    return Get-Quest3DInstallRoot $fresh
+}
+
+function Restore-Quest3DShortcutMigration([string]$Root, [string]$RelativeReceipt) {
+    if ($RelativeReceipt -cnotmatch '^\.cache/install/shortcut-migrations/[a-f0-9]{32}/receipt\.json$') { throw 'Invalid shortcut recovery receipt.' }
+    $rootPath = Get-Quest3DInstallRoot $Root
+    $receiptPath = Get-Quest3DInstallPath $rootPath $RelativeReceipt
+    $directory = Split-Path -Parent $receiptPath
+    $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($receipt.schema -ne 1 -or $receipt.root -ine $rootPath -or
+        $receipt.phase -notin @('prepared','committed','restored')) { throw 'Invalid shortcut migration ownership.' }
+    if ($receipt.phase -eq 'restored') { return }
+    $shell = New-Object -ComObject WScript.Shell
+    try {
+        $seen = @{}
+        $index = 0
+        # Validate every existing link and backup before restoring any.
+        foreach ($action in $receipt.actions) {
+            $path = [IO.Path]::GetFullPath([string]$action.path)
+            Assert-Quest3DNoReparse $path
+            if ((Split-Path -Leaf $path) -cnotin @('Sterevi Desktop.lnk','Quest3D Desktop.lnk') -or $seen.ContainsKey($path)) { throw 'Unsafe shortcut recovery path.' }
+            $seen[$path] = $true
+            if ($action.before_sha256) {
+                if ($action.before_sha256 -cnotmatch '^[a-f0-9]{64}$' -or $action.before_file -cne ('before-' + $index.ToString('D4') + '.lnk')) { throw 'Invalid shortcut backup record.' }
+                $backup = Get-Quest3DInstallPath $directory $action.before_file
+                if (!(Test-Path -LiteralPath $backup -PathType Leaf) -or (Get-FileHash -LiteralPath $backup).Hash -ine $action.before_sha256) { throw 'Shortcut backup changed; preserved.' }
+                $link = $shell.CreateShortcut($backup)
+                try {
+                    if (!(Test-Quest3DShortcutOwner $link $action.before_root)) { throw 'Shortcut backup is not owned; preserved.' }
+                    if ($action.before_root -ine $rootPath) { $null = Get-Quest3DOwnedInstall $action.before_root }
+                } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) }
+            } elseif ($action.before_file -or $action.before_root) { throw 'Unexpected shortcut backup metadata.' }
+            if ($action.after_sha256 -and $action.after_sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid new shortcut hash.' }
+            if (Test-Path -LiteralPath $path) {
+                if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw 'Shortcut recovery target is not a file; preserved.' }
+                $hash = (Get-FileHash -LiteralPath $path).Hash
+                if ($hash -ine $action.before_sha256 -and $hash -ine $action.after_sha256) { throw 'Shortcut changed after migration; preserved.' }
+                $link = $shell.CreateShortcut($path)
+                try {
+                    $expectedRoot = if ($hash -ieq $action.after_sha256) { $rootPath } else { $action.before_root }
+                    if (!$expectedRoot -or !(Test-Quest3DShortcutOwner $link $expectedRoot)) { throw 'Shortcut recovery target is not owned; preserved.' }
+                } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) }
+            }
+            $index++
+        }
+        foreach ($action in $receipt.actions) {
+            if ($action.before_sha256) { Copy-Quest3DAtomic (Get-Quest3DInstallPath $directory $action.before_file) $action.path }
+            elseif (Test-Path -LiteralPath $action.path -PathType Leaf) { Remove-Item -LiteralPath $action.path }
+        }
+        $receipt.phase = 'restored'
+        Write-Quest3DJson $receiptPath $receipt
+    } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }
 }
 
 function Assert-Quest3DInstallStopped([string]$Root) {
@@ -97,7 +201,7 @@ function Assert-Quest3DInstallStopped([string]$Root) {
     $running = @(Get-CimInstance Win32_Process -Filter "Name = 'sunshine.exe' OR Name = 'python.exe' OR Name = 'pythonw.exe'" |
         Where-Object { ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($rootPath + '\', [StringComparison]::OrdinalIgnoreCase)) -or
             ($_.CommandLine -and $_.CommandLine.IndexOf($rootPath, [StringComparison]::OrdinalIgnoreCase) -ge 0) })
-    if ($running.Count) { throw 'This installation is running. Use PC stop and exit in Quest3D Desktop first.' }
+    if ($running.Count) { throw 'This installation is running. Use PC stop and exit in Sterevi Desktop first.' }
 }
 
 function Assert-Quest3DTreeNoReparse([string]$Root) {
@@ -296,6 +400,8 @@ function Restore-Quest3DUpdate([string]$Root) {
         Assert-Quest3DTreeNoReparse $oldEnvironment
         if (Test-Path -LiteralPath $environment) { Assert-Quest3DTreeNoReparse $environment }
     }
+    $shortcutMigration = $transaction.journal.PSObject.Properties['shortcut_migration']
+    if ($shortcutMigration) { Restore-Quest3DShortcutMigration $transaction.root $shortcutMigration.Value }
     foreach ($action in $transaction.journal.actions) {
         $target = Get-Quest3DInstallPath $transaction.root $action.path
         $backup = Get-Quest3DInstallPath $transaction.directory ('payload/' + $action.path)

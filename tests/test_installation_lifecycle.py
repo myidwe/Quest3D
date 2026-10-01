@@ -320,7 +320,7 @@ def test_owned_shortcut_replacement_uses_real_com_in_fixture_directory(tmp_path)
     installed(new)
     script = ROOT / "scripts/install-desktop-shortcut.ps1"
     ps(tmp_path, f"& {q(script)} -Root {q(old)} -ShortcutDirectory {q(links)}")
-    shortcut = links / "Quest3D Desktop.lnk"
+    shortcut = links / "Sterevi Desktop.lnk"
     old_bytes = shortcut.read_bytes()
     ps(tmp_path, f"& {q(script)} -Root {q(new)} -ShortcutDirectory {q(links)}", expect=1)
     assert shortcut.read_bytes() == old_bytes
@@ -333,13 +333,13 @@ def test_unowned_shortcut_is_preserved_even_with_replace_owned(tmp_path):
     installed(old)
     installed(new)
     links.mkdir()
-    shortcut = links / "Quest3D Desktop.lnk"
+    shortcut = links / "Sterevi Desktop.lnk"
     script = ROOT / "scripts/install-desktop-shortcut.ps1"
     ps(tmp_path, f"$shell=New-Object -ComObject WScript.Shell\n$link=$shell.CreateShortcut({q(shortcut)})\n$link.TargetPath=$env:ComSpec\n$link.Description='User owned launcher'\n$link.Save()")
     before = shortcut.read_bytes()
     ps(tmp_path, f"& {q(script)} -Root {q(new)} -ShortcutDirectory {q(links)} -ReplaceOwned", expect=1)
     assert shortcut.read_bytes() == before
-    assert not (new / "Quest3D Desktop.lnk").exists()
+    assert not (new / "Sterevi Desktop.lnk").exists()
 
 
 def test_uninstall_retains_all_personal_data_and_removes_only_owned_shortcuts(tmp_path):
@@ -353,7 +353,7 @@ def test_uninstall_retains_all_personal_data_and_removes_only_owned_shortcuts(tm
     archive = Path(result["archive"])
     assert result["success"] and result["data_retained"] and not result["disk_space_reclaimed"]
     assert archive.parent == old.parent and archive.name.startswith(".Quest3D-removed-")
-    assert not old.exists() and not (links / "Quest3D Desktop.lnk").exists()
+    assert not old.exists() and not (links / "Sterevi Desktop.lnk").exists()
     assert private_bytes(archive) == before
 
 

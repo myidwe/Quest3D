@@ -107,7 +107,7 @@ class DesktopWindow:
         self._pairing_open = False
         self._depth.trace_add("write", self._depth_changed)
 
-        root.title("Quest3D 데스크톱")
+        root.title("Sterevi 데스크톱")
         root.configure(background=BACKGROUND)
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
@@ -155,7 +155,7 @@ class DesktopWindow:
         header = ttk.Frame(shell, style="Q.TFrame")
         header.grid(row=0, column=0, sticky="ew", pady=(0, p(18)))
         header.columnconfigure(0, weight=1)
-        ttk.Label(header, text="Quest3D", style="Q.Title.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text="Sterevi", style="Q.Title.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(header, text="익숙한 PC 화면, 새로운 입체감.", style="Q.Subtitle.TLabel").grid(row=1, column=0, sticky="w", pady=(p(4), 0))
         self.hide_button = ttk.Button(header, text="트레이로 숨기기", style="Q.TButton", command=self.on_hide)
         self.hide_button.grid(row=0, column=1, rowspan=2, sticky="e")

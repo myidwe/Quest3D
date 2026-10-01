@@ -45,7 +45,7 @@ try {
     $launcherMutex = New-Object Threading.Mutex($false, $mutexName)
     try { $launcherMutexOwned = $launcherMutex.WaitOne(0) }
     catch [Threading.AbandonedMutexException] { $launcherMutexOwned = $true }
-    if (!$launcherMutexOwned) { throw '다른 Quest3D 설치창이 열려 있습니다. 기존 창에서 계속 진행해 주세요.' }
+    if (!$launcherMutexOwned) { throw '다른 Sterevi 설치창이 열려 있습니다. 기존 창에서 계속 진행해 주세요.' }
     $temporary = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\','/')
     if (!$LogPath) { $LogPath = Join-Path $temporary ('Quest3D-Start-' + [Guid]::NewGuid().ToString('N') + '.details.log') }
     $candidateLog = [IO.Path]::GetFullPath($LogPath)
@@ -95,7 +95,7 @@ try {
     if (!$NoDialog) {
         try {
             Add-Type -AssemblyName System.Windows.Forms
-            [void][Windows.Forms.MessageBox]::Show($message,'Quest3D installer startup',[Windows.Forms.MessageBoxButtons]::OK,[Windows.Forms.MessageBoxIcon]::Error)
+            [void][Windows.Forms.MessageBox]::Show($message,'Sterevi installer startup',[Windows.Forms.MessageBoxButtons]::OK,[Windows.Forms.MessageBoxIcon]::Error)
         } catch { }
     }
     exit 1

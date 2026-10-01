@@ -16,6 +16,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from .paths import ROOT
+from .brand import DISPLAY_NAME
 
 
 def _qt_message(kind, context, message):
@@ -197,7 +198,7 @@ def main(argv=None):
     from .desktop_backend import DesktopController
     from .desktop_qt_adapter import DesktopQtAdapter
     from .desktop_shell import ShellIntegration
-    parser = argparse.ArgumentParser(description='Quest3D Windows desktop')
+    parser = argparse.ArgumentParser(description=DISPLAY_NAME + ' Windows desktop')
     parser.add_argument('--root', type=Path, default=ROOT)
     args = parser.parse_args(argv)
     directory = args.root.resolve()
@@ -215,7 +216,7 @@ def main(argv=None):
         QQuickStyle.setStyle('Basic')
         application = QGuiApplication(sys.argv[:1])
         application.setApplicationName('Quest3D')
-        application.setApplicationDisplayName('Quest3D')
+        application.setApplicationDisplayName(DISPLAY_NAME)
         application.setQuitOnLastWindowClosed(False)
         application.setWindowIcon(QIcon(str(directory/'resources/desktop.ico')))
         for font in (directory/'resources/ui/fonts').glob('*.otf'):
@@ -265,5 +266,5 @@ if __name__ == '__main__':
         sys.exit(main())
     except Exception as error:
         logging.exception('Qt desktop failed')
-        ctypes.windll.user32.MessageBoxW(None, 'Quest3D 실행 실패\n'+str(error), 'Quest3D', 0x10)
+        ctypes.windll.user32.MessageBoxW(None, DISPLAY_NAME + ' 실행 실패\n'+str(error), DISPLAY_NAME, 0x10)
         sys.exit(1)

@@ -1,8 +1,8 @@
 # GitHub 공개·릴리스 운영
 
-현재 사용자 설치는 [0.1.2 EXE 설치 안내](EXE_INSTALLERS.md)를 따른다. Desktop/Quest Setup EXE가 기본이며 아래 0.1.0 게시 증거·파일 목록은 당시 기록이다. 0.1.0 APK/Quest ZIP은 개인정보 수정 과정에서 철회됐으므로 새 설치에 사용하지 않는다. 새 검증 결과는 해당 Release의 보고서를 따른다.
+현재 사용자 설치는 [0.1.3-preview 안내](RELEASE_0.1.3_PREVIEW.md)를 따른다. Sterevi Desktop/Quest Setup EXE와 같은 APK의 직접 다운로드를 제공한다. 아래 0.1.0 게시 증거·파일 목록은 당시 기록이다. 0.1.0 APK/Quest ZIP은 개인정보 수정 과정에서 철회됐으므로 새 설치에 사용하지 않는다. 새 검증 결과는 해당 Release의 보고서를 따른다.
 
-기준: **2026-10-01 공개 절차**. 대상은 `myidwe/Quest3D`다. 이메일·토큰·서명 개인키는 공개 파일과 커밋에 넣지 않는다. 원격 생성·push·Release 공개 여부는 실제 GitHub 결과를 확인해 기록한다. 로컬 `origin` 설정은 업로드 증거가 아니다.
+기준: **2026-10-01 공개 절차**. 대상은 `myidwe/Sterevi`다. 기존 저장소 이름 변경으로 이력·태그·이슈를 유지한다. 이메일·토큰·서명 개인키는 공개 파일과 커밋에 넣지 않는다. 원격 생성·push·Release 공개 여부는 실제 GitHub 결과를 확인해 기록한다. 로컬 `origin` 설정은 업로드 증거가 아니다.
 
 <details>
 <summary>최초 0.1.0-preview 게시 기록 — 다운로드용 안내 아님</summary>
@@ -27,19 +27,20 @@ Desktop/Quest 설치 파일은 실제 바이너리의 대응 소스·제3자 고
 
 ## 사용자가 만나는 화면
 
-README → **Desktop Setup EXE / Quest Setup EXE** → [처음 설치와 연결](GETTING_STARTED.md) → PC 시작 → Quest Scan / Pair / Connect
+README → **Desktop Setup EXE / Quest Setup EXE 또는 APK** → [처음 설치와 연결](GETTING_STARTED.md) → PC 시작 → Quest Scan / Pair / Connect
 
 첫 Release 안내에는 설치 순서·현재 지원 GPU·주요 제한을 먼저 배치한다. 구현 내부의 긴 개발 기록은 유지보수 문서로 연결한다. 자동 생성되는 Source code ZIP은 일반 사용자 설치 파일로 안내하지 않는다. 공개 파일은 한 버전으로 묶고 기존 파일을 조용히 바꿔치기하지 않는다.
 
 | 배포 파일 | 처음 사용할 때 |
 |---|---|
-| Quest3D-Desktop-Setup-0.1.2-preview.exe | 실행 → 설치 → 연결 허용 → 설치창 닫기 → PC 앱 실행 |
-| Quest3D-Quest-Setup-0.1.2-preview.exe | Windows에서 실행 → adb.exe 선택 → 기기 검색 → Quest 선택 → 설치 |
-| Quest3D-Source-0.1.2-preview.zip | 개발자용 native 대응 소스·입력·라이선스·재현 안내 |
+| Sterevi-Desktop-Setup-0.1.3-preview.exe | 실행 → 설치 → 연결 허용 → 설치창 닫기 → PC 앱 실행 |
+| Sterevi-Quest-Setup-0.1.3-preview.exe | Windows에서 실행 → adb.exe 선택 → 기기 검색 → Quest 선택 → 설치 |
+| Sterevi-Quest-0.1.3-preview.apk | 기존 설치 도구 또는 ADB로 직접 설치·업데이트 |
+| Sterevi-Source-0.1.3-preview.zip | 개발자용 native 대응 소스·입력·라이선스·재현 안내 |
 | SHA256SUMS.txt | 최종 파일의 SHA-256 |
 | release-validation.json | 해당 배포판에서 확인한 결과와 남은 조건 |
 
-이 표는 현재 공개 Preview의 파일 이름이다. 다운로드는 [0.1.2-preview Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)를 사용한다. 현재 개발 서명 APK와 로컬 review ZIP을 정식 공개판으로 표시하지 않는다. PC 설치 후 Python·GPU 라이브러리·기본 모델 다운로드는 설치창이 담당한다. Quest 개발자 모드와 헤드셋의 USB 승인, Google Platform Tools 준비는 최초 한 번 필요한 사용자 작업이다.
+이 표는 현재 Preview의 파일 이름이다. 다운로드는 [0.1.3-preview Release](https://github.com/myidwe/Sterevi/releases/tag/v0.1.3-preview)를 사용한다. 개발 서명 APK와 로컬 review ZIP을 공개판으로 표시하지 않는다. PC 설치 후 Python·GPU 라이브러리·기본 모델 다운로드는 설치창이 담당한다. Quest 개발자 모드와 헤드셋의 USB 승인, Google Platform Tools 준비는 최초 한 번 필요한 사용자 작업이다. 새 공개 APK는 기존 공개 서명과 packageID를 유지한다.
 
 ## 안전한 소스 준비
 

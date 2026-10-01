@@ -1,6 +1,6 @@
 # Third-party notices
 
-Quest3D project code is licensed under GNU GPL version 3 (LICENSE). Dependencies retain their licenses and copyrights. No upstream project, Meta, NVIDIA, Netflix or Laftel endorses this app.
+Sterevi project code is licensed under GNU GPL version 3 (LICENSE). Dependencies retain their licenses and copyrights. No upstream project, Meta, NVIDIA, Netflix or Laftel endorses this app. Quest3D in legacy technical identifiers and previous release records refers to this project's former working name; it does not imply affiliation with any earlier product using that name.
 
 | Component | Pin | License |
 |---|---|---|

@@ -278,7 +278,13 @@ Model weights and signing private keys are not included in this APK/source.
             raise ValueError('Reviewed UI overlay changed before source supply')
         shutil.copytree(overlay,output/'ui-refinement')
         copy(repo/'scripts/prepare-quest-public-ui-build.py',build/'prepare-quest-public-ui-build.py')
+    if original.get('branding'):
+        copy(repo/'scripts/release/prepare_quest_brand_source.py',build/'prepare_quest_brand_source.py')
     proof_public={key:value for key,value in proof.items() if key not in ('commands','tool_sha256')}
+    if original.get('branding'):
+        proof_public.update(display_name=original['branding']['display_name'],
+                            native_runtime_rebuilt_in_this_brand_change=False,
+                            brand_provenance=original['branding'])
     if privacy_report:
         proof_public.update(stream_static_dependencies_rebuilt=True,old_stream_static_dependencies_reused=False,
                             native_privacy_proof_sha256=sha(privacy_native_proof/'privacy-native-proof.json'))
@@ -323,6 +329,20 @@ compile command evidence and private-path counts are in
 dependency-supply/native/privacy-remediation. Other native runtime inputs,
 including Godot/XR/vendor/loader, retain their independently verified hashes.
 Final signed APK/archive privacy gates and device checks remain separate.
+''')
+    if original.get('branding'):
+        with (output/'SOURCE_BUILD_NOTES.md').open('a',encoding='utf-8') as stream:
+            stream.write('''
+Sterevi brand release: the visible production UI titles, Android application
+label and version were newly exported. app.questto3d.client, the existing
+release certificate and the Nightfall Godot user-data name are preserved.
+The engine, stream/XR/vendor/loader native binaries and audited runtime
+dependencies are exact reused inputs from the earlier verified public build;
+they were not recompiled during this brand change. The prior native privacy
+remediation ledger describes that earlier rebuild, not a new one. See
+BRAND_PROVENANCE.json and brand-overlay for the exact UI-only changes.
+The complete modified project is supplied and does not require reapplying
+the historical overlay. Device installation and hardware checks are separate.
 ''')
     # Historical evidence stays readable under an explicit historical name.
     (output/'SOURCE_PROVENANCE.json').rename(output/'HISTORICAL_SOURCE_PROVENANCE.json')

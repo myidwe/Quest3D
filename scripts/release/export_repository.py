@@ -31,6 +31,8 @@ PUBLIC_DOCS = (
     "assets/README.md", "assets/quest3d-workflow.png",
     "assets/quest3d-workflow-v2.png",
     "assets/quest3d-workflow-v3.png",
+    "assets/sterevi-desktop.png", "assets/sterevi-quest-home.png",
+    "assets/sterevi-quest-settings.png", "RELEASE_0.1.3_PREVIEW.md",
     "EXE_INSTALLERS.md", "RELEASE_0.1.2_PREVIEW.md",
     "PRIVACY_REMEDIATION_2026-10-01.md", "RELEASE_0.1.1_PREVIEW.md",
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.md", "DESKTOP_USER_GUIDE.html",

@@ -3,7 +3,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Root = (Join-Path $env:LOCALAPPDATA 'Quest3D Desktop'),
+    [string]$Root,
     [switch]$RemoveNetworkRules,
     [string]$NetworkOperationId,
     [ValidateSet('remove','status')][string]$NetworkReceiptAction='remove',
@@ -14,6 +14,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'installation-lifecycle.ps1')
+if (!$PSBoundParameters.ContainsKey('Root')) { $Root = Get-Quest3DPreferredInstallRoot }
 $networkReceipt = $null
 try {
     $installed = Get-Quest3DOwnedInstall $Root
@@ -27,12 +28,16 @@ try {
     $archive = Join-Path $parent ('.Quest3D-removed-' + [Guid]::NewGuid().ToString('N'))
     $archive = Get-Quest3DInstallRoot $archive
     if ((Split-Path -Parent $archive) -ine $parent -or (Test-Path -LiteralPath $archive)) { throw 'Invalid retirement destination; preserved.' }
-    $shortcuts = @((Join-Path $installed.root 'Quest3D Desktop.lnk'))
+    $shortcutDirectories = @($installed.root)
     if (!$NoSystemShortcuts) {
-        $shortcuts += Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)) 'Quest3D Desktop.lnk'
-        $shortcuts += Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)) 'Quest3D Desktop.lnk'
+        $shortcutDirectories += [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
+        $shortcutDirectories += [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
     }
-    if ($ShortcutDirectory) { $shortcuts += Join-Path (Get-Quest3DInstallRoot $ShortcutDirectory) 'Quest3D Desktop.lnk' }
+    if ($ShortcutDirectory) { $shortcutDirectories += Get-Quest3DInstallRoot $ShortcutDirectory }
+    $shortcuts = @($shortcutDirectories | ForEach-Object {
+        Join-Path $_ 'Sterevi Desktop.lnk'
+        Join-Path $_ 'Quest3D Desktop.lnk'
+    })
     $owned = @{}
     $shell = New-Object -ComObject WScript.Shell
     try {
@@ -41,10 +46,7 @@ try {
             if (!(Test-Path -LiteralPath $path -PathType Leaf)) { continue }
             $link = $shell.CreateShortcut($path)
             try {
-                if ($link.TargetPath -ieq (Join-Path $installed.root '.venv/Scripts/pythonw.exe') -and
-                    $link.WorkingDirectory -ieq $installed.root -and
-                    $link.Arguments -ceq ('-m quest3d.desktop --root "' + $installed.root + '"') -and
-                    $link.Description -ceq ('Quest3D Desktop | ' + $installed.root)) {
+                if (Test-Quest3DShortcutOwner $link $installed.root) {
                     $owned[$path] = @{hash=(Get-FileHash -LiteralPath $path).Hash;bytes=[IO.File]::ReadAllBytes($path)}
                 }
             } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) }

@@ -1,10 +1,4 @@
-﻿<#
-Creates a workspace shortcut by default. Desktop/Start Menu placement is opt-in:
-  .\scripts\install-desktop-shortcut.ps1
-  .\scripts\install-desktop-shortcut.ps1 -Desktop -StartMenu
-Uses the existing venv pythonw; never installs packages, starts the app, creates
-autostart entries, tasks or services. Existing unowned shortcuts are preserved.
-#>
+﻿<# Create Sterevi shortcuts; migrate only verified owned legacy links, with backups. #>
 [CmdletBinding()]
 param(
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
@@ -16,124 +10,111 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'release/installation-lifecycle.ps1')
-
 $workspaceRoot = (Resolve-Path -LiteralPath $Root).ProviderPath
 Assert-Quest3DNoReparse $workspaceRoot
-if (-not (Test-Path -LiteralPath $workspaceRoot -PathType Container)) { throw 'Root must be an existing directory.' }
-$pythonw = Join-Path $workspaceRoot '.venv\Scripts\pythonw.exe'
-$desktopModule = Join-Path $workspaceRoot 'src\quest3d\desktop.py'
-if (-not (Test-Path -LiteralPath $pythonw -PathType Leaf)) { throw "Existing venv pythonw is missing: $pythonw" }
-if (-not (Test-Path -LiteralPath $desktopModule -PathType Leaf)) { throw "Desktop module is missing: $desktopModule" }
+$pythonw = Join-Path $workspaceRoot '.venv/Scripts/pythonw.exe'
+$desktopModule = Join-Path $workspaceRoot 'src/quest3d/desktop.py'
+if (!(Test-Path -LiteralPath $pythonw -PathType Leaf) -or !(Test-Path -LiteralPath $desktopModule -PathType Leaf)) { throw 'Existing application and venv pythonw are required.' }
 if ($workspaceRoot.IndexOfAny([char[]]"`"`r`n") -ge 0) { throw 'Root cannot contain quotes or line breaks.' }
-
-# A quoted Windows argv value ending in a backslash needs that final slash doubled.
 $argumentRoot = $workspaceRoot
 if ($argumentRoot.EndsWith('\')) { $argumentRoot += '\' }
 $launchArguments = '-m quest3d.desktop --root "' + $argumentRoot + '"'
-$ownershipDescription = 'Quest3D Desktop | ' + $workspaceRoot
-$shortcutName = 'Quest3D Desktop.lnk'
-$destinations = [System.Collections.Generic.List[string]]::new()
-$destinations.Add((Join-Path $workspaceRoot $shortcutName))
-if ($ShortcutDirectory) {
-    $customDirectory = Get-Quest3DInstallRoot $ShortcutDirectory
-    $destinations.Add((Join-Path $customDirectory $shortcutName))
-}
-if ($Desktop) {
-    $desktopDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
-    if ([string]::IsNullOrWhiteSpace($desktopDirectory)) { throw 'Windows Desktop directory is unavailable.' }
-    $destinations.Add((Join-Path $desktopDirectory $shortcutName))
-}
-if ($StartMenu) {
-    $programsDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
-    if ([string]::IsNullOrWhiteSpace($programsDirectory)) { throw 'Windows user Start Menu directory is unavailable.' }
-    $destinations.Add((Join-Path $programsDirectory $shortcutName))
-}
-$targets = @($destinations | Select-Object -Unique)
+$description = 'Sterevi Desktop | ' + $workspaceRoot
+$directories = [Collections.Generic.List[string]]::new()
+$directories.Add($workspaceRoot)
+if ($ShortcutDirectory) { $directories.Add((Get-Quest3DInstallRoot $ShortcutDirectory)) }
+if ($Desktop) { $directories.Add([Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)) }
+if ($StartMenu) { $directories.Add([Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)) }
+$directories = @($directories | Select-Object -Unique)
+if (@($directories | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count) { throw 'Windows shortcut directory is unavailable.' }
 $shell = New-Object -ComObject WScript.Shell
-
-function Assert-OwnedShortcut([string]$Path) {
+$receiptPath = $null
+$relativeReceipt = $null
+function Get-OwnedLinkRoot([string]$Path) {
     Assert-Quest3DNoReparse $Path
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-    $item = Get-Item -LiteralPath $Path -Force
-    if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-        throw "Refusing to replace a directory or reparse point: $Path"
-    }
-    $existing = $shell.CreateShortcut($Path)
+    if (!(Test-Path -LiteralPath $Path)) { return $null }
+    if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Existing shortcut path is not a file; preserved.' }
+    $link = $shell.CreateShortcut($Path)
     try {
-        $sameTarget = [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($existing.TargetPath), $pythonw)
-        $sameDirectory = [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($existing.WorkingDirectory), $workspaceRoot)
-        if ($sameTarget -and $sameDirectory -and $existing.Arguments -ceq $launchArguments -and
-                  $existing.Description -ceq $ownershipDescription) { return }
+        if (Test-Quest3DShortcutOwner $link $workspaceRoot) { return $workspaceRoot }
         if ($ReplaceOwned) {
-            $previousRoot = Get-Quest3DInstallRoot $existing.WorkingDirectory
-            $previousInstall = Get-Quest3DOwnedInstall $previousRoot
-            $previousPython = Join-Path $previousRoot '.venv/Scripts/pythonw.exe'
-            $previousArguments = '-m quest3d.desktop --root "' + $previousRoot + '"'
-            if ($previousInstall.owner.completed -and
-                [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($existing.TargetPath), $previousPython) -and
-                $existing.Arguments -ceq $previousArguments -and $existing.Description -ceq ('Quest3D Desktop | ' + $previousRoot)) { return }
+            $previous = Get-Quest3DOwnedInstall $link.WorkingDirectory
+            if ($previous.owner.completed -and (Test-Quest3DShortcutOwner $link $previous.root)) { return $previous.root }
         }
-        throw "Existing shortcut is not owned by this installation; preserved: $Path"
-    } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($existing) }
+        throw 'Existing shortcut is not owned by this installation; preserved.'
+    } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) }
 }
-
 try {
-    # Check all requested destinations before writing any shortcut.
-    $originalHashes = @{}
-    $originalBytes = @{}
-    $written = @{}
-    foreach ($target in $targets) {
-        Assert-OwnedShortcut $target
-        $originalHashes[$target] = if (Test-Path -LiteralPath $target) {
-            (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
-        } else { $null }
-        $originalBytes[$target] = if (Test-Path -LiteralPath $target) { [IO.File]::ReadAllBytes($target) } else { $null }
+    $actions = @()
+    # Every new-name collision is checked before writing anything. Unowned old-name links remain untouched.
+    foreach ($directory in $directories) {
+        $path = Join-Path $directory 'Sterevi Desktop.lnk'
+        $beforeRoot = Get-OwnedLinkRoot $path
+        $actions += @{path=$path;before_root=$beforeRoot;before_sha256=$(if($beforeRoot){(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant()}else{$null});before_file=$null;after_sha256=$null;legacy=$false}
     }
-    foreach ($target in $targets) {
-        $parent = Split-Path -Parent $target
-        if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-            [void](New-Item -ItemType Directory -Path $parent)
+    foreach ($directory in $directories) {
+        $path = Join-Path $directory 'Quest3D Desktop.lnk'
+        try { $beforeRoot = Get-OwnedLinkRoot $path } catch { continue }
+        if ($beforeRoot) { $actions += @{path=$path;before_root=$beforeRoot;before_sha256=(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant();before_file=$null;after_sha256=$null;legacy=$true} }
+    }
+    $id = [Guid]::NewGuid().ToString('N')
+    $relativeReceipt = '.cache/install/shortcut-migrations/' + $id + '/receipt.json'
+    $receiptPath = Get-Quest3DInstallPath $workspaceRoot $relativeReceipt
+    $backupDirectory = Split-Path -Parent $receiptPath
+    [void](New-Item -ItemType Directory -Path $backupDirectory)
+    $index = 0
+    foreach ($action in $actions) {
+        if ($action.before_sha256) {
+            $action.before_file = 'before-' + $index.ToString('D4') + '.lnk'
+            Copy-Quest3DAtomic $action.path (Join-Path $backupDirectory $action.before_file)
+            if ((Get-FileHash -LiteralPath (Join-Path $backupDirectory $action.before_file)).Hash -ine $action.before_sha256) { throw 'Shortcut changed while backing up; preserved.' }
         }
-        $temporary = Join-Path $parent ('.Quest3DDesktop.' + [Guid]::NewGuid().ToString('N') + '.lnk')
-        try {
-            $shortcut = $shell.CreateShortcut($temporary)
+        if (!$action.legacy) {
+            $prepared = Join-Path $backupDirectory ('after-' + $index.ToString('D4') + '.lnk')
+            $link = $shell.CreateShortcut($prepared)
             try {
-                $shortcut.TargetPath = $pythonw
-                $shortcut.Arguments = $launchArguments
-                $shortcut.WorkingDirectory = $workspaceRoot
-                $shortcut.Description = $ownershipDescription
-                $taskIcon = Join-Path $workspaceRoot 'resources\desktop.ico'
-                $shortcut.IconLocation = if (Test-Path -LiteralPath $taskIcon) { "$taskIcon,0" } else { "$pythonw,0" }
-                $shortcut.WindowStyle = 1
-                $shortcut.Save()
-            } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) }
-            Assert-OwnedShortcut $temporary
-            # Preserve files that appeared/changed after the initial ownership check.
-            $currentHash = if (Test-Path -LiteralPath $target) {
-                (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
-            } else { $null }
-            if ($currentHash -cne $originalHashes[$target]) { throw "Shortcut changed during installation; preserved: $target" }
-            Assert-OwnedShortcut $target
-            if (Test-Path -LiteralPath $target) { [IO.File]::Replace($temporary, $target, [NullString]::Value) }
-            else { [IO.File]::Move($temporary, $target) }
-            $written[$target] = (Get-FileHash -LiteralPath $target).Hash
-            [pscustomobject]@{ shortcut = $target; target = $pythonw; arguments = $launchArguments;
-                working_directory = $workspaceRoot; autostart = $false; application_started = $false }
-        } finally {
-            if (Test-Path -LiteralPath $temporary -PathType Leaf) { Remove-Item -LiteralPath $temporary }
+                $link.TargetPath = $pythonw
+                $link.Arguments = $launchArguments
+                $link.WorkingDirectory = $workspaceRoot
+                $link.Description = $description
+                $icon = Join-Path $workspaceRoot 'resources/desktop.ico'
+                $link.IconLocation = if (Test-Path -LiteralPath $icon -PathType Leaf) { "$icon,0" } else { "$pythonw,0" }
+                $link.WindowStyle = 1
+                $link.Save()
+                if (!(Test-Quest3DShortcutOwner $link $workspaceRoot)) { throw 'Prepared shortcut ownership differs.' }
+            } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($link) }
+            $action.after_sha256 = (Get-FileHash -LiteralPath $prepared).Hash.ToLowerInvariant()
         }
+        $index++
     }
+    $receipt = @{schema=1;root=$workspaceRoot;phase='prepared';actions=$actions}
+    Write-Quest3DJson $receiptPath $receipt
+    $index = 0
+    foreach ($action in $actions) {
+        $current = if (Test-Path -LiteralPath $action.path -PathType Leaf) { (Get-FileHash -LiteralPath $action.path).Hash.ToLowerInvariant() } else { $null }
+        Assert-Quest3DNoReparse $action.path
+        if ($current -cne $action.before_sha256) { throw 'Shortcut changed during installation; preserved.' }
+        if ($current) { $null = Get-OwnedLinkRoot $action.path }
+        if ($action.legacy) {
+            # Move into this verified installation's recovery folder; never delete the original bytes.
+            Move-Item -LiteralPath $action.path -Destination (Join-Path $backupDirectory ('retired-' + $index.ToString('D4') + '.lnk'))
+        } else {
+            Copy-Quest3DAtomic (Join-Path $backupDirectory ('after-' + $index.ToString('D4') + '.lnk')) $action.path
+        }
+        $index++
+    }
+    $receipt.phase = 'committed'
+    Write-Quest3DJson $receiptPath $receipt
+    foreach ($action in $actions | Where-Object { !$_.legacy }) {
+        [pscustomobject]@{shortcut=$action.path;target=$pythonw;arguments=$launchArguments;working_directory=$workspaceRoot;autostart=$false;application_started=$false}
+    }
+    [pscustomobject]@{migration_receipt=$relativeReceipt;legacy_shortcuts_migrated=@($actions | Where-Object {$_.legacy}).Count;original_bytes_retained=$true}
 } catch {
-    $shortcutFailure = $_
-    foreach ($target in $written.Keys) {
-        Assert-Quest3DNoReparse $target
-        if (!(Test-Path -LiteralPath $target -PathType Leaf) -or (Get-FileHash -LiteralPath $target).Hash -ine $written[$target]) { continue }
-        if ($null -eq $originalBytes[$target]) { Remove-Item -LiteralPath $target }
-        else {
-            $temporary = $target + '.restore-' + [Guid]::NewGuid().ToString('N') + '.lnk'
-            [IO.File]::WriteAllBytes($temporary, $originalBytes[$target])
-            [IO.File]::Replace($temporary, $target, [NullString]::Value)
+    $failure = $_
+    if ($receiptPath -and (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+        try { Restore-Quest3DShortcutMigration $workspaceRoot $relativeReceipt } catch {
+            throw ('Shortcut update failed; recovery backup retained. Recovery error: ' + $_.Exception.Message + '. Original error: ' + $failure.Exception.Message)
         }
     }
-    throw $shortcutFailure
+    throw $failure
 } finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }

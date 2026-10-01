@@ -10,7 +10,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 $form = New-Object Windows.Forms.Form
-$form.Text = 'Quest3D · Quest 앱 설치'
+$form.Text = 'Sterevi · Quest 앱 설치'
 $form.Size = New-Object Drawing.Size(680, 530)
 $form.MinimumSize = $form.Size
 $form.StartPosition = 'CenterScreen'

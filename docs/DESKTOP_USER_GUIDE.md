@@ -1,10 +1,10 @@
-# Quest3D 사용 방법
+# Sterevi 사용 방법
 
 처음 사용하는 분은 [처음 설치와 연결](GETTING_STARTED.md)부터 읽으세요. [문서 목차](README.md)에서 설치·사용·개발 안내를 찾을 수 있습니다.
 
 ## 매번 사용하는 순서
 
-1. 바탕화면이나 시작 메뉴의 **Quest3D Desktop**을 엽니다.
+1. 바탕화면이나 시작 메뉴의 **Sterevi Desktop**을 엽니다.
 2. **PC 시작**을 누르고 영상 준비를 기다립니다.
 3. Quest 앱에서 이 PC의 **Connect**를 누릅니다.
 
@@ -77,4 +77,4 @@ PC 설정은 `config/desktop.json`, Quest 설정은 헤드셋 앱에 저장됩�
 
 ## License · 대응 소스
 
-[프로젝트 라이선스](../LICENSE) · [제3자 고지](../THIRD_PARTY_NOTICES.md)를 확인할 수 있습니다. PC 설치 폴더의 `artifacts/host/runtime-public/notices/THIRD_PARTY_NOTICES.md`에는 호스트 의존성의 상세 고지가 있습니다. Quest ZIP의 `notices/quest` 폴더에는 APK 구성 요소의 원문 고지가 있습니다. 수정·재빌드를 위한 완전한 native 소스는 같은 GitHub Release의 **Quest3D-Source ZIP**으로 제공합니다.
+[프로젝트 라이선스](../LICENSE) · [제3자 고지](../THIRD_PARTY_NOTICES.md)를 확인할 수 있습니다. PC 설치 폴더의 `artifacts/host/runtime-public/notices/THIRD_PARTY_NOTICES.md`에는 호스트 의존성의 상세 고지가 있습니다. Quest ZIP의 `notices/quest` 폴더에는 APK 구성 요소의 원문 고지가 있습니다. 수정·재빌드를 위한 완전한 native 소스는 같은 GitHub Release의 **Sterevi-Source ZIP**으로 제공합니다.

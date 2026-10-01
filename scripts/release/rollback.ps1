@@ -1,8 +1,9 @@
 ﻿<# Restore only a journaled, stopped Quest3D update. No data or pairing reset. #>
 [CmdletBinding()]
-param([string]$Root = (Join-Path $env:LOCALAPPDATA 'Quest3D Desktop'), [string]$ReportPath)
+param([string]$Root, [string]$ReportPath)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'installation-lifecycle.ps1')
+if (!$PSBoundParameters.ContainsKey('Root')) { $Root = Get-Quest3DPreferredInstallRoot }
 try {
     $result = Restore-Quest3DUpdate $Root
     if (!$result.restored) { throw 'No restorable update backup is available.' }

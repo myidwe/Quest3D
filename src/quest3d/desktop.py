@@ -65,7 +65,7 @@ class DesktopApp:
         self.closing = False
         logging.error('Desktop callback failed', exc_info=(kind, error, trace))
         self.show()
-        messagebox.showerror('Quest3D', '화면 작업을 마치지 못했습니다.\n'+str(error), parent=self.root)
+        messagebox.showerror('Sterevi', '화면 작업을 마치지 못했습니다.\n'+str(error), parent=self.root)
 
     def _events(self):
         while not self.events.empty():
@@ -94,7 +94,7 @@ class DesktopApp:
             self.root.withdraw()
         else:
             self.show()
-            messagebox.showinfo('Quest3D', '트레이 아이콘을 만들지 못해 창을 유지합니다.\n'
+            messagebox.showinfo('Sterevi', '트레이 아이콘을 만들지 못해 창을 유지합니다.\n'
                                 '창을 열어 둔 채 사용할 수 있습니다.', parent=self.root)
 
     def request_exit(self):
@@ -103,7 +103,7 @@ class DesktopApp:
         self.show()
         state = self.controller.get_snapshot()
         if state['busy'] or state['phase'] == 'checking':
-            messagebox.showinfo('Quest3D', '현재 작업을 마친 뒤 종료할 수 있습니다.', parent=self.root)
+            messagebox.showinfo('Sterevi', '현재 작업을 마친 뒤 종료할 수 있습니다.', parent=self.root)
             return
         if not (state['running'] or state['host_running']):
             self.finish()
@@ -112,7 +112,7 @@ class DesktopApp:
             self.dialog.lift()
             return
         dialog = self.dialog = tk.Toplevel(self.root)
-        dialog.title('Quest3D 창 닫기')
+        dialog.title('Sterevi 창 닫기')
         dialog.resizable(False, False)
         dialog.transient(self.root)
         panel = ttk.Frame(dialog, padding=22, style='Q.Card.TFrame')
@@ -153,7 +153,7 @@ class DesktopApp:
         elif state['running'] or state['host_running'] or state['error']:
             self.closing = False
             self.show()
-            messagebox.showerror('Quest3D', '정상 종료를 확인하지 못해 앱을 열어 둡니다.\n'
+            messagebox.showerror('Sterevi', '정상 종료를 확인하지 못해 앱을 열어 둡니다.\n'
                                 +(state['error'] or '중지 상태를 확인해 주세요.'), parent=self.root)
         else:
             self.finish()
@@ -178,7 +178,7 @@ class DesktopApp:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Quest3D Windows desktop app')
+    parser = argparse.ArgumentParser(description='Sterevi Windows desktop app')
     parser.add_argument('--root', type=Path, default=ROOT)
     args = parser.parse_args(argv)
     directory = args.root.resolve()
@@ -197,8 +197,8 @@ def main(argv=None):
         return result
     except Exception as exc:
         logging.exception('Desktop failed')
-        ctypes.windll.user32.MessageBoxW(None, 'Quest3D 실행 실패\n'+str(exc)
-            +'\n\n복구 안내: docs/DESKTOP_USER_GUIDE.html', 'Quest3D', 0x10)
+        ctypes.windll.user32.MessageBoxW(None, 'Sterevi 실행 실패\n'+str(exc)
+            +'\n\n복구 안내: docs/DESKTOP_USER_GUIDE.html', 'Sterevi', 0x10)
         return 1
     return 0
 

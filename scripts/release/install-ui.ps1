@@ -10,7 +10,7 @@ $packageRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 # Release a native current-directory handle when this is the installed management UI.
 [Environment]::CurrentDirectory = [IO.Path]::GetTempPath()
 $form = New-Object Windows.Forms.Form
-$form.Text = 'Quest3D Desktop 설치'
+$form.Text = 'Sterevi Desktop 설치'
 $form.Size = New-Object Drawing.Size(700, 580)
 $form.MinimumSize = New-Object Drawing.Size(700, 580)
 $form.StartPosition = 'CenterScreen'
@@ -26,7 +26,7 @@ $locationLabel = New-Object Windows.Forms.Label
 $locationLabel.Text = '설치 폴더'
 $locationLabel.SetBounds(24, 145, 100, 24)
 $location = New-Object Windows.Forms.TextBox
-$location.Text = Join-Path $env:LOCALAPPDATA 'Quest3D Desktop'
+$location.Text = Get-Quest3DPreferredInstallRoot
 $location.SetBounds(24, 175, 520, 28)
 $browse = New-Object Windows.Forms.Button
 $browse.Text = '폴더 선택'
@@ -148,7 +148,7 @@ if (Test-Path -LiteralPath (Join-Path $packageRoot 'quest3d-install.json') -Path
 Refresh-Quest3DInstallChoice
 $browse.Add_Click({
     $dialog = New-Object Windows.Forms.FolderBrowserDialog
-    $dialog.Description = '비어 있는 Quest3D 전용 설치 폴더를 선택하세요.'
+    $dialog.Description = '비어 있는 Sterevi 전용 설치 폴더를 선택하세요.'
     $dialog.SelectedPath = $location.Text
     if ($dialog.ShowDialog($form) -eq [Windows.Forms.DialogResult]::OK) { $location.Text = $dialog.SelectedPath }
     $dialog.Dispose()
@@ -213,7 +213,7 @@ function Confirm-Quest3DNetworkChange([string]$Action) {
     if ($Action -cne 'remove') { throw '앱 제거 확인은 remove 작업에만 사용합니다.' }
     $message = '앱 소유 방화벽만 정리합니다. 취소하면 앱을 보존합니다. 이후 현재 사용자 권한으로 앱과 데이터를 복구용 보관합니다. Windows 관리자 확인이 이어집니다.'
     if ($script:adminStatusVerification) { $message = '현재 사용자 권한으로 앱 규칙을 확인하지 못했습니다. 관리자 권한으로 소유권과 상태를 다시 확인합니다. ' + $message }
-    return [Windows.Forms.MessageBox]::Show($form,$message,'Quest3D 연결 설정',[Windows.Forms.MessageBoxButtons]::OKCancel,[Windows.Forms.MessageBoxIcon]::Information) -eq [Windows.Forms.DialogResult]::OK
+    return [Windows.Forms.MessageBox]::Show($form,$message,'Sterevi 연결 설정',[Windows.Forms.MessageBoxButtons]::OKCancel,[Windows.Forms.MessageBoxIcon]::Information) -eq [Windows.Forms.DialogResult]::OK
 }
 function Start-Quest3DInstallerNetworkChange([string]$Root) {
     try {

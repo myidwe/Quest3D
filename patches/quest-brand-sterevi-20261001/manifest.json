@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "kind": "visible-product-name-only",
+  "display_name": "Sterevi",
+  "base_source_manifest_sha256": "bb9d184f48fb36b32e5fca5f427bc4a2d1d9691de1e2c2e6c4962dda74f6f852",
+  "files": {
+    "src/welcome_screen.gd": {
+      "before_sha256": "c7d7f689f74a270527c338cf7b0cbdd19cb59a020947d5c9bfdd877d36bc8e19",
+      "sha256": "698fa19fa26238004731308f2b853bd695ae6c0e83d3c3b6e146091fda191b2d",
+      "bytes": 32651
+    },
+    "src/precision_ui.gd": {
+      "before_sha256": "3b04c20918951653bddef1bca9293093573fd2f5bc4de31f1be85f152938a50b",
+      "sha256": "62899b94303d2a99ae2cb676852a580bec1140b6b033439b898865c8305e99a5",
+      "bytes": 41880
+    }
+  }
+}

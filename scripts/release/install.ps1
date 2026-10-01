@@ -1,7 +1,7 @@
 ﻿<# Per-user installer. No service, startup task, firewall rule or browser setting is changed. #>
 [CmdletBinding()]
 param(
-    [string]$Destination = (Join-Path $env:LOCALAPPDATA 'Quest3D Desktop'),
+    [string]$Destination,
     [string]$Python,
     [switch]$VerifyOnly,
     [switch]$PrepareOnly,
@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'installation-lifecycle.ps1')
+if (!$PSBoundParameters.ContainsKey('Destination')) { $Destination = Get-Quest3DPreferredInstallRoot }
 $packageRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $manifestPath = Join-Path $packageRoot 'distribution-manifest.json'
 if (!(Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Extract the complete installer ZIP first.' }
@@ -64,11 +65,11 @@ if (Test-Path -LiteralPath $installRoot -PathType Container) {
 if (Test-Path -LiteralPath $installRoot) {
     if ((Get-Item -LiteralPath $installRoot -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Destination cannot be a reparse point.' }
     if (@(Get-ChildItem -LiteralPath $installRoot -Force).Count -gt 0) {
-        if (!(Test-Path -LiteralPath $owner -PathType Leaf)) { throw 'Existing folder is not a Quest3D installation; it was preserved. Choose an empty folder.' }
+        if (!(Test-Path -LiteralPath $owner -PathType Leaf)) { throw 'Existing folder is not an owned Sterevi installation; it was preserved. Choose an empty folder.' }
         $previous = Get-Content -LiteralPath $owner -Raw | ConvertFrom-Json
         $installed = Get-Quest3DOwnedInstall $installRoot
         if ($previous.package_manifest_sha256 -ine $packageHash) {
-            if (!$Update) { throw 'Another Quest3D version is installed. Select Update to preserve its settings and pairing.' }
+            if (!$Update) { throw 'Another application version is installed. Select Update to preserve its settings and pairing.' }
             if ($PrepareOnly) { throw 'Files-only preparation cannot commit an update; use the complete installer.' }
             $transaction = Start-Quest3DUpdate $installRoot $reviewedPackage
         }
@@ -76,7 +77,7 @@ if (Test-Path -LiteralPath $installRoot) {
     $running = @(Get-CimInstance Win32_Process -Filter "Name = 'sunshine.exe' OR Name = 'python.exe' OR Name = 'pythonw.exe'" |
         Where-Object { ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($installRoot + '\', [StringComparison]::OrdinalIgnoreCase)) -or
             ($_.CommandLine -and $_.CommandLine.IndexOf($installRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0) })
-    if ($running.Count) { throw 'This installation is running. Use PC stop and exit in Quest3D Desktop, then run the installer again.' }
+    if ($running.Count) { throw 'This installation is running. Use PC stop and exit in Sterevi Desktop, then run the installer again.' }
 }
 [void](New-Item -ItemType Directory -Force -Path $installRoot)
 try {
@@ -165,12 +166,20 @@ try {
     & $applicationPython (Join-Path $installRoot 'scripts/release/verify_installed_ui.py') --root $installRoot --report (Join-Path $installRoot '.cache/install/ui-check.json')
     if ($LASTEXITCODE -ne 0) { throw 'Application screen validation failed. Review the install log and retry; this installation is not marked complete.' }
     Write-Host '[6/6] Creating desktop and Start menu shortcuts...'
-    if (!$NoShortcuts) { & (Join-Path $installRoot 'scripts/install-desktop-shortcut.ps1') -Root $installRoot -Desktop -StartMenu -ReplaceOwned }
+    if (!$NoShortcuts) {
+        $shortcutResult = @(& (Join-Path $installRoot 'scripts/install-desktop-shortcut.ps1') -Root $installRoot -Desktop -StartMenu -ReplaceOwned)
+        if ($transaction) {
+            $migration = @($shortcutResult | Where-Object { $_.PSObject.Properties.Name -contains 'migration_receipt' })
+            if ($migration.Count -ne 1) { throw 'Shortcut recovery receipt is missing.' }
+            $transaction.journal | Add-Member -NotePropertyName 'shortcut_migration' -NotePropertyValue $migration[0].migration_receipt -Force
+            Write-Quest3DJson $transaction.path $transaction.journal
+        }
+    }
     @{ product = 'Quest3D Desktop'; package_manifest_sha256 = $packageHash; release = $manifest.release; completed = $true; python = $localPython } |
         ConvertTo-Json | Set-Content -LiteralPath $owner -Encoding UTF8
     if ($transaction) { Complete-Quest3DUpdate $transaction }
     Write-Host "Installed: $installRoot"
-    Write-Host 'Open Quest3D Desktop -> PC start -> pair/connect from Quest.'
+    Write-Host 'Open Sterevi Desktop -> PC start -> pair/connect from Quest.'
 } finally {
     Set-Location -LiteralPath $oldLocation
     $env:UV_CACHE_DIR = $previousUvCache

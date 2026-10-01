@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 740
     minimumHeight: 590
     visible: true
-    title: "Quest3D"
+    title: "Sterevi"
     color: style.background
     flags: Qt.Window | Qt.FramelessWindowHint
     font.family: style.family
@@ -99,7 +99,7 @@ ApplicationWindow {
         Row {
             x: 20; anchors.verticalCenter: parent.verticalCenter; spacing: 2
             Image { source: "../ui/brand/quest3d-mark.png"; width: 40; height: 40; fillMode: Image.PreserveAspectFit; sourceSize.width: 80; sourceSize.height: 80; anchors.verticalCenter: parent.verticalCenter }
-            QText { text: "Quest3D"; font.pixelSize: 23; font.weight: Font.DemiBold }
+            QText { text: "Sterevi"; font.pixelSize: 23; font.weight: Font.DemiBold }
         }
         Row {
             anchors.right: parent.right; anchors.rightMargin: 12; y: 8; spacing: 2
@@ -418,7 +418,7 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        QText { objectName: "aiQualityHint"; width: parent.width; text: (window.state.ai_quality === "quality" ? "세밀한 깊이 분석 · 처리 속도 감소" : "빠른 깊이 분석") + (!window.state.canSelectAiQuality ? "\n변경하려면 PC 중지" : ""); color: style.muted; font.pixelSize: 13; wrapMode: Text.Wrap }
+                        QText { objectName: "aiQualityHint"; width: parent.width; text: (window.state.ai_quality === "quality" ? "세밀한 깊이 분석 · 장면에 따라 입체감 변화 · 처리 속도 감소" : "빠른 깊이 분석") + (!window.state.canSelectAiQuality ? "\n변경하려면 PC 중지" : ""); color: style.muted; font.pixelSize: 13; wrapMode: Text.Wrap }
                         QText { objectName: "aiInputSize"; width: parent.width; text: window.state.ai_input_text || "실제 AI 입력 확인 전"; color: style.muted; font.pixelSize: 13; wrapMode: Text.Wrap }
                     }
                     Column { width: parent.width; spacing: 8
