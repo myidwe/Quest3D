@@ -322,7 +322,7 @@ ApplicationWindow {
                     Rectangle { width: parent.width; height: 1; color: style.line }
                     Column { width: parent.width; spacing: 12
                         QText { text: "처음 사용하는 PC"; font.pixelSize: 17; font.weight: Font.Medium }
-                        QText { width: parent.width; text: "PC 시작 시 로컬 전송 서버 준비\n같은 사설 네트워크 · 설치 중 연결 허용 필요"; color: style.muted; lineHeight: 1.5; wrapMode: Text.Wrap }
+                        QText { width: parent.width; text: "PC 시작 후 Quest에서 Connect\n같은 Wi-Fi·유선망 사용 · 최초 설치 시 방화벽 허용"; color: style.muted; lineHeight: 1.5; wrapMode: Text.Wrap }
                         QButton { text: "설치 안내"; iconName: "external-link"; enabled: !!window.state.canUtility; onClicked: bridge.openGuide() }
                     }
                 }
@@ -401,7 +401,7 @@ ApplicationWindow {
                                     if (row) bridge.selectAiQuality(row.id)
                                     currentIndex = Qt.binding(function() { return window.aiQualityIndex() })
                                 }
-                                contentItem: QText { objectName: "aiQualityLabel"; text: (window.state.running && !window.state.active_ai_quality ? "다음 시작 · " : "") + aiQuality.displayText; leftPadding: 14; rightPadding: 36; verticalAlignment: Text.AlignVCenter; color: aiQuality.enabled ? style.text : style.muted }
+                                contentItem: QText { objectName: "aiQualityLabel"; text: (window.state.running && !window.state.active_ai_quality ? "재시작 시 적용 · " : "") + aiQuality.displayText; leftPadding: 14; rightPadding: 36; verticalAlignment: Text.AlignVCenter; color: aiQuality.enabled ? style.text : style.muted }
                                 indicator: QSymbol { name: "chevron-down"; x: parent.width - 31; y: 11; size: 20; tint: aiQuality.enabled ? style.text : style.faint }
                                 background: Rectangle { radius: 9; color: aiQuality.hovered && aiQuality.enabled ? "#F4F5F6" : style.background; border.width: aiQuality.activeFocus ? 2 : 1; border.color: aiQuality.activeFocus ? style.accent : "#CDD2D9" }
                                 delegate: ItemDelegate {
@@ -418,7 +418,7 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        QText { objectName: "aiQualityHint"; width: parent.width; text: (window.state.ai_quality === "quality" ? "세부 분석 강화 · 장면에 따라 입체감 변화" : "기존 깊이 분석 · 빠른 처리") + (!window.state.canSelectAiQuality ? "\n변경 전 PC 송출 중지" : ""); color: style.muted; font.pixelSize: 13; wrapMode: Text.Wrap }
+                        QText { objectName: "aiQualityHint"; width: parent.width; text: (window.state.ai_quality === "quality" ? "세밀한 깊이 분석 · 처리 속도 감소" : "빠른 깊이 분석") + (!window.state.canSelectAiQuality ? "\n변경하려면 PC 중지" : ""); color: style.muted; font.pixelSize: 13; wrapMode: Text.Wrap }
                         QText { objectName: "aiInputSize"; width: parent.width; text: window.state.ai_input_text || "실제 AI 입력 확인 전"; color: style.muted; font.pixelSize: 13; wrapMode: Text.Wrap }
                     }
                     Column { width: parent.width; spacing: 8
@@ -481,7 +481,7 @@ ApplicationWindow {
                     objectName: "helpPage"; visible: window.page === 3; width: parent.width; spacing: 16
                     QText { id: questViewHelp; objectName: "questViewHelp"; text: "Quest view"; font.pixelSize: 17; font.weight: Font.Medium; activeFocusOnTab: true }
                     QText { width: parent.width; text: "Quest Display\nSize  화면 크기 · Position  거리·이동·기울기\nViews  보기 저장 · Environment  곡률·배경\nFraming  위·아래 여백 자르기"; lineHeight: 1.65; wrapMode: Text.Wrap }
-                    QText { width: parent.width; text: "Center  현재 시선 정렬 · Lock  화면 조절 잠금\n설정창 배율·포인터  Connect → Menu / Pointer"; color: style.muted; lineHeight: 1.6; font.pixelSize: 13; wrapMode: Text.Wrap }
+                    QText { width: parent.width; text: "Center  정면으로 이동 · Lock  화면 위치 잠금\n설정창 크기·포인터  Connect → Menu / Pointer"; color: style.muted; lineHeight: 1.6; font.pixelSize: 13; wrapMode: Text.Wrap }
                     QText { width: parent.width; text: "PC  원본·입체감·송출 품질\nQuest  가상 화면 배치·감상 환경"; color: style.muted; lineHeight: 1.6; font.pixelSize: 13; wrapMode: Text.Wrap }
                     Rectangle { width: parent.width; height: 1; color: style.line }
                     QText { text: "시작 순서"; font.pixelSize: 17; font.weight: Font.Medium }

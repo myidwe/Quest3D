@@ -18,7 +18,9 @@ Windows 화면을 Quest에서 보고 로컬 AI로 2D/스테레오 3D를 전환�
 
 새 호스트와 전체 Quest APK를 실제 소스로 빌드했다. 배포 binary·대응 source·라이선스 고지·package/version/서명의 관계를 파일 해시로 대조한다. APK 빌드 중 발견한 AAR의 이전 native 우선 선택은 수정했고, 잘못된 첫 APK는 서명·배포하지 않았다. OpenXR vendor는 고정 Khronos 공개 헤더를 사용한다. 사용하지 않는 Meta preview SDK/header 바이트는 대응 소스에 포함하지 않는다.
 
-공개 Quest 패키지는 **`app.questto3d.client`**, versionCode **1**이다. 기존 `app.questto3d.client.debug` 앱을 삭제하지 않는다. 새 공개 앱에서 다시 Pair한다. 앞으로 같은 공개 패키지·서명키와 더 높은 versionCode로 데이터를 보존해 업데이트한다.
+공개 Quest 패키지는 **`app.questto3d.client`**, versionCode **2**다. 기존 `app.questto3d.client.debug` 앱을 삭제하지 않는다. 공개 앱의 최초 설치에서는 다시 Pair한다. 공개 Preview 검증판에서 업데이트하는 경우 같은 패키지·서명으로 페어링과 설정을 유지한다.
+
+Quest 메뉴의 아이콘 누락을 수정하고 한국어 안내를 다듬었다. Distance는 화면까지의 거리다. **보이는 크기 유지**를 끄면 멀어질수록 작게 보이고, 켜면 거리와 함께 화면 크기도 조절한다. 곡률·화면 크기에 따라 가능한 거리 범위를 표시한다.
 
 APK 공개 서명 지문(SHA-256):
 

@@ -46,8 +46,10 @@ def safe_new_output(path: Path, source: Path) -> Path:
     return target
 
 
-def public_preset(raw: str) -> str:
+def public_preset(raw: str, version_code: int = 1) -> str:
     """A single unsigned release preset; reject ambiguous or absent identity."""
+    if type(version_code) is not int or not 1 <= version_code <= 2100000000:
+        raise ValueError("Invalid Android version code")
     parts = re.split(r"(?m)^\[preset\.\d+\]\s*$", raw)
     if len(parts) < 2:
         raise ValueError("Android export preset missing")
@@ -55,7 +57,7 @@ def public_preset(raw: str) -> str:
     preset = re.sub(r"(?m)^\[preset\.\d+\.options\]$", "[preset.0.options]", preset)
     replacements = {
         "name": '"Quest3DPublicReview"', "export_path": '"./Quest3D-public-review-unsigned.apk"',
-        "version/code": "1", "version/name": '"0.1.0-review"',
+        "version/code": str(version_code), "version/name": '"0.1.0-review"',
         "package/unique_name": '"app.questto3d.client"', "package/name": '"Quest3D"',
         "package/signed": "false", "graphics/opengl_debug": "false",
     }

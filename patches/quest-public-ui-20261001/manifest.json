@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "kind": "public-quest-icons-copy-distance-refinement",
+  "base_source_manifest_sha256": "33d34c1f4926f4d74004dc00c11ba0cb96f6874d0be6e2aa151a04857fd2f060",
+  "files": {
+    "src/precision_depth_slider.gd": {
+      "before_sha256": "0a4e965463323ebde9c416f36009154e70188b08bfd8a413d3a8db61bf047596",
+      "sha256": "d629b1becade15d8fff95cd178409d46076ef31ed3f5df8f5fa68f9a5c7f75a2"
+    },
+    "src/precision_ui.gd": {
+      "before_sha256": "73c05f0090c21fcc7724745d81c11e878201833fe2fd78ce5dd3ac141db81966",
+      "sha256": "3b04c20918951653bddef1bca9293093573fd2f5bc4de31f1be85f152938a50b"
+    },
+    "src/product_theme.gd": {
+      "before_sha256": "2158ecee726ef3754dd3a0883ce23749ee47298008eff391febeeecb52cd2740",
+      "sha256": "e82551b8692522679afde4c20dcc68b7e7acefe42bed93c34131260e80e6ec65"
+    },
+    "src/screen_manager.gd": {
+      "before_sha256": "276c7cc9e4eb31d55296e75f4be4c7aecf07a282bb34672e2c4bbdcceeb7160b",
+      "sha256": "88c848a87aba5d9b506450316c2d09e7afda2e2aa7e127ef1edea4514ac69034"
+    },
+    "src/vr_screen.gd": {
+      "before_sha256": "d568b133b96bf67597d2bcbf4c1226f500c9cc4b35f23552607e38ecc716dd77",
+      "sha256": "b890e655ac994d048ac9a2add6c7ec8a2f68962b153a6019689595190845ff52"
+    },
+    "src/welcome_screen.gd": {
+      "before_sha256": "3ff2e03a866e9eb34ec0b263673d93e3a7180fc8993b2bdeff97d23af3263e08",
+      "sha256": "c7d7f689f74a270527c338cf7b0cbdd19cb59a020947d5c9bfdd877d36bc8e19"
+    },
+    "test/render_product_ui.gd": {
+      "before_sha256": "4fc2def7c09e858ec57cb17f2c15f3f7b666e1e2da3dec06132b9099e1652df8",
+      "sha256": "b42f9600edfb3b2bb89130966a64c7b19daf26b1efedba139adf82af8a5cb362"
+    },
+    "test/test_display_view_settings.gd": {
+      "before_sha256": "4fa520d92eaca4510cbe99ba0d9c8157966cfae056ce91a1fe132e968f4954e2",
+      "sha256": "dd399ba5b9f05e42235284cdecb7abce4c50d1f12cbb94f5de3a1858c1abf17f"
+    },
+    "test/test_distance_settings.gd": {
+      "before_sha256": null,
+      "sha256": "8addf0050974dbd5c709555df91d68cbc7136e4cf882bac99792219b752b0847"
+    },
+    "test/test_distance_settings.gd.uid": {
+      "before_sha256": null,
+      "sha256": "09f7cd8285c6057b2c392853e81835d061396814f0a832e6d0c2478c6acc19e3"
+    },
+    "test/test_product_icons.gd": {
+      "before_sha256": null,
+      "sha256": "da268dfacba4c4407b8f4336926d1118c890637aa849b757a3b3133a93a1e048"
+    },
+    "test/test_product_icons.gd.uid": {
+      "before_sha256": null,
+      "sha256": "694c6113de9581e4158a04fe2ec396ae48856113b51c35bbecaf1bd06620a4ff"
+    },
+    "test/validate_product_icons_export.sh": {
+      "before_sha256": null,
+      "sha256": "57d626d3e48ec6eb02a6c0c281a6b899c08c9eca88637345405020c30f9f2723"
+    }
+  },
+  "native_sources_changed": false,
+  "preference_version_changed": false,
+  "model_or_transport_settings_changed": false
+}

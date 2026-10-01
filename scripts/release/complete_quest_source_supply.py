@@ -56,6 +56,10 @@ def complete(source:Path,dependencies:Path,vendor:Path,export:Path,verification:
     apk=export/'Quest3D-public-review-unsigned.apk'
     if sha(apk)!=proof['apk_sha256'] or not proof['native_binding_verified'] or not proof['unsigned_verified']:
         raise ValueError('Fresh unsigned APK verification must pass')
+    metadata=proof['metadata']
+    version_code=int(metadata['version_code'])
+    if metadata['package']!='app.questto3d.client' or metadata['debuggable'] or not 1<=version_code<=2100000000:
+        raise ValueError('Invalid public APK identity')
     vendor_build=json.loads((vendor/'vendor-build-summary.json').read_text())
     if not vendor_build['vendor_built_from_source'] or vendor_build['meta_preview_headers_selected']:
         raise ValueError('Public vendor must not select proprietary preview inputs')
@@ -148,6 +152,7 @@ def complete(source:Path,dependencies:Path,vendor:Path,export:Path,verification:
             copy(f,licenses/'maven'/f.relative_to(dest/'maven/notices'))
     copy(dest/'maven/LICENSE-APACHE-2.0.txt',licenses/'Maven-Apache-2.0.txt')
     copy(source/'project/src/assets/precision/fonts/OFL-Pretendard.txt',licenses/'Pretendard-OFL.txt')
+    copy(source/'project/src/assets/precision/icons/LICENSE-Lucide.txt',licenses/'Lucide-ISC.txt')
     miniaudio=(source/'project/addons/nightfall-stream/include/miniaudio.h').read_text('utf-8')
     license_start=miniaudio.rfind('ALTERNATIVE 2 - MIT No Attribution')
     if license_start<0:raise ValueError('Embedded miniaudio license missing')
@@ -166,6 +171,7 @@ Godot changes, native source, build recipes and exact dependency source are
 provided in this corresponding-source package. Godot and godot-cpp: MIT;
 Godot COPYRIGHT/AUTHORS and bundled third-party notices are in licenses/.
 Pretendard fonts: SIL Open Font License, preserved in licenses/Pretendard-OFL.txt.
+Lucide icons: ISC license and Feather attribution, preserved in licenses/Lucide-ISC.txt.
 miniaudio: MIT No Attribution; the selected license text is retained in licenses/.
 
 nightfall-stream links the GPL-enabled FFmpeg 7.1.2 build, Moonlight common C,
@@ -200,6 +206,12 @@ Model weights and signing private keys are not included in this APK/source.
                  'verify_quest_unsigned_apk.py','prepare_quest_build_baseline.py','rebuild_quest_baseline.sh','rebuild_quest_engine.sh',
                  'prepare_quest_source.py','prepare_host_source.py','build_bundle.py','complete_quest_source_supply.py'):
         copy(repo/'scripts/release'/name,build/name)
+    if original.get('ui_refinement'):
+        overlay=repo/'patches/quest-public-ui-20261001'
+        if sha(overlay/'manifest.json')!=original['ui_refinement']['overlay_manifest_sha256']:
+            raise ValueError('Reviewed UI overlay changed before source supply')
+        shutil.copytree(overlay,output/'ui-refinement')
+        copy(repo/'scripts/prepare-quest-public-ui-build.py',build/'prepare-quest-public-ui-build.py')
     proof_public={key:value for key,value in proof.items() if key not in ('commands','tool_sha256')}
     (output/'PUBLIC_APK_BUILD.json').write_text(json.dumps(proof_public,indent=2)+'\n')
     (output/'SOURCE_BUILD_NOTES.md').write_text('''# Quest3D public build source
@@ -218,6 +230,17 @@ Use WSL, an explicit new output path and the pinned build cache. Private key
 generation and device installation are separate from corresponding source.
 Hardware results are not implied by source/build/notice completion.
 ''','utf-8')
+    if original.get('ui_refinement'):
+        with (output/'SOURCE_BUILD_NOTES.md').open('a',encoding='utf-8') as stream:
+            stream.write('''
+Public UI refinement: imported icon resources, Korean help and local view
+distance controls were newly exported with a higher Android versionCode.
+The exact previously rebuilt native libraries, public vendor, Android Java
+template and pinned dependency sources were reused. All six final native
+entries are compared against those previous inputs. The UI overlay/recipe is
+in ui-refinement and release-build; the complete modified project is already
+provided and does not need the historical overlay reapplied.
+''')
     # Historical evidence stays readable under an explicit historical name.
     (output/'SOURCE_PROVENANCE.json').rename(output/'HISTORICAL_SOURCE_PROVENANCE.json')
     (output/'NATIVE_INPUT_VERIFICATION.json').rename(output/'HISTORICAL_NATIVE_INPUT_VERIFICATION.json')
@@ -232,7 +255,7 @@ Hardware results are not implied by source/build/notice completion.
     files={f.relative_to(output).as_posix():sha(f) for f in sorted(output.rglob('*')) if f.is_file() and f.name!='source-manifest.json'}
     for name in files:safe_name(name)
     result=dict(original,apk_sha256=sha(apk),package='app.questto3d.client',
-                apk_metadata={'package':'app.questto3d.client','version_code':1,'version_name':proof['metadata']['version_name'],'signing_kind':'unsigned'},
+                apk_metadata={'package':'app.questto3d.client','version_code':version_code,'version_name':proof['metadata']['version_name'],'signing_kind':'unsigned'},
                 source_complete=True,clean_build_verified=True,dependency_notices_verified=True,public_release_ready=False,
                 hardware_verified=False,files=files,source_supply_reason='Actual rebuilt APK + exact source/patch/dependency supply; hardware readiness separate',
                 historical_development_apk_sha256=original['apk_sha256'],

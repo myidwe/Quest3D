@@ -24,6 +24,7 @@ ROOT_FILES = (
     ".python-version", "pyproject.toml", "uv.lock", "config/models.json",
     "scripts/install-desktop-shortcut.ps1", "scripts/stop-verified-host.py",
     "scripts/build-host.ps1", "scripts/build-quest.ps1",
+    "scripts/prepare-quest-public-ui-build.py",
 )
 PUBLIC_DOCS = (
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.md", "DESKTOP_USER_GUIDE.html",
@@ -34,6 +35,7 @@ PUBLIC_DOCS = (
     "QUEST_CLEAN_BUILD_2026-10-01.md",
     "PUBLIC_RELEASE_CHECKLIST_2026-10-01.md",
     "RELEASE_0.1.0_PREVIEW.md",
+    "QUEST_PUBLIC_UI_REFINEMENT_2026-10-01.md",
 )
 SOURCE_TREES = ("src/quest3d", "resources", "native", "scripts/release", "scripts/quest", "patches", "tests", ".github")
 EXCLUDED_FILES = set(bundle.LOCAL_ONLY_DIAGNOSTICS) | {

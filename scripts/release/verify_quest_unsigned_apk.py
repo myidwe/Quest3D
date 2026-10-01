@@ -41,7 +41,9 @@ def identity(badging: str) -> dict:
 
 
 def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path, attempt: str = "first",
-           public_vendor: Path | None = None) -> dict:
+           public_vendor: Path | None = None, version_code: int = 1) -> dict:
+    if type(version_code) is not int or not 1 <= version_code <= 2100000000:
+        raise ValueError("Invalid Android version code")
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,31}", attempt):
         raise ValueError("Invalid export attempt")
     apk = export / "Quest3D-public-review-unsigned.apk"
@@ -78,7 +80,8 @@ def verify(export: Path, rebuilt: Path, vendor: Path, tools: Path, output: Path,
     metadata = identity(badging)
     preparation = json.loads((export / "android-export-preparation.json").read_text())
     assert metadata["package"] == "app.questto3d.client"
-    assert metadata["version_code"] == "1" and metadata["version_name"] == preparation.get("version_name", "0.1.0-review")
+    assert preparation.get("version_code", 1) == version_code
+    assert metadata["version_code"] == str(version_code) and metadata["version_name"] == preparation.get("version_name", "0.1.0-review")
     assert not metadata["debuggable"]
     run([str(bt / "aapt"), "dump", "xmltree", str(apk), "AndroidManifest.xml"], "apk-manifest")
     signed = run([str(bt / "apksigner"), "verify", "--verbose", "--print-certs", str(apk)], "apk-signature", None)
@@ -165,8 +168,9 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--attempt", default="first")
     parser.add_argument("--public-vendor", type=Path)
+    parser.add_argument("--version-code", type=int, default=1)
     args = parser.parse_args()
-    result = verify(args.export, args.rebuilt, args.vendor, args.tools, args.output, args.attempt, args.public_vendor)
+    result = verify(args.export, args.rebuilt, args.vendor, args.tools, args.output, args.attempt, args.public_vendor, args.version_code)
     print(json.dumps({k: result[k] for k in ("apk_sha256", "metadata", "native_binding_verified", "unsigned_verified", "zip_alignment_16k_verified", "public_release_ready")}, indent=2))
 
 

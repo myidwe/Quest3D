@@ -182,6 +182,31 @@ def test_unverified_native_and_unpinned_vendor_fail_before_output(tmp_path, monk
     assert not output.exists()
 
 
+def test_higher_version_export_preserves_public_identity_and_records_upgrade_code(tmp_path, monkeypatch):
+    args = inputs(tmp_path, monkeypatch)
+    output = tmp_path / "upgrade-export"
+    export.prepare(*args, output, version_name="0.1.0-preview", version_code=2)
+    proof = json.loads((output / "android-export-preparation.json").read_text())
+    assert proof["version_code"] == 2
+    assert proof["version_name"] == "0.1.0-preview"
+    preset = (output / "project/export_presets.cfg").read_text()
+    assert "version/code=2" in preset
+    assert 'package/unique_name="app.questto3d.client"' in preset
+    assert "package/signed=false" in preset
+    assert "version/code=1" in args[0].joinpath("project/export_presets.cfg").read_text()
+
+
+@pytest.mark.parametrize("code", [True, False, 0, -1, 2100000001, 2.5, "2"])
+def test_invalid_upgrade_code_cannot_create_export(tmp_path, monkeypatch, code):
+    args = inputs(tmp_path, monkeypatch)
+    output = tmp_path / "bad-upgrade-export"
+    with pytest.raises(ValueError, match="version code"):
+        export.prepare(*args, output, version_code=code)
+    assert not output.exists()
+    with pytest.raises(ValueError, match="version code"):
+        export.public_preset(PRESET, code)
+
+
 @pytest.mark.parametrize("member", ["../escape", "/absolute", "C:/drive", "NUL.txt", "case", "symlink"])
 def test_unsafe_template_cannot_write_outside_candidate(tmp_path, member):
     template = tmp_path / "template.zip"

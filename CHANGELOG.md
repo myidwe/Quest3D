@@ -1,5 +1,12 @@
 # Changelog
 
+## Preview UI corrections — 2026-10-01
+
+- Exported Quest icons use imported resources, including Back and settings icons
+- Distance shows actual curved-screen limits and distinguishes apparent-size preservation
+- Natural Korean hints while retaining familiar setting names
+- Public APK versionCode 2 under the same release signing identity
+
 ## 0.1.0-preview — 2026-10-01
 
 - Windows 모니터 캡처 → 로컬 깊이 AI → 좌우 합성 → Quest 표시
