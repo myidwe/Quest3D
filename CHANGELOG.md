@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1-preview — privacy correction
+
+- Rebuild stream and pinned static dependencies to remove personal build paths
+- Redact shared diagnostics while preserving local logs and pairing/settings
+- Opt out child PowerShell telemetry and gate actual final release bytes
+- Withdraw affected 0.1.0-preview APK/Quest ZIP; retain corresponding source
+- Same public signing identity, Android versionCode 3
+
 ## Preview UI corrections — 2026-10-01
 
 - Exported Quest icons use imported resources, including Back and settings icons

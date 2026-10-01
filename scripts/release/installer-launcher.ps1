@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param([ValidateSet('pc','quest')][string]$Target='pc', [string]$LogPath, [switch]$NoDialog, [switch]$SelfTest)
 $ErrorActionPreference = 'Stop'
+$env:POWERSHELL_TELEMETRY_OPTOUT = 'true'
 if ($PSVersionTable.PSVersion.Major -le 5) {
     foreach ($module in @('Utility','Management')) {
         Import-Module (Join-Path $PSHOME ('Modules/Microsoft.PowerShell.' + $module + '/Microsoft.PowerShell.' + $module + '.psd1')) -ErrorAction Stop

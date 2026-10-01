@@ -300,6 +300,7 @@ def test_real_installer_update_failure_restores_files_environment_and_pairing(tm
     changes = {
         "src/quest3d/desktop.py": b"new source",
         "scripts/release/install.ps1": (ROOT / "scripts/release/install.ps1").read_bytes(),
+        "scripts/release/python-discovery.ps1": (ROOT / "scripts/release/python-discovery.ps1").read_bytes(),
         "scripts/release/installation-lifecycle.ps1": HELPER.read_bytes(),
     }
     package(new, "new", changed=changes)
@@ -395,6 +396,7 @@ def test_actual_installer_cache_is_local_and_previous_env_is_restored_on_failure
         "scripts/release/install.ps1": (ROOT / "scripts/release/install.ps1").read_bytes(),
         "scripts/release/installation-lifecycle.ps1": HELPER.read_bytes(),
         ".tools/desktop/uv.exe": probe.read_bytes(),
+        "scripts/release/python-discovery.ps1": (ROOT / "scripts/release/python-discovery.ps1").read_bytes(),
     })
     checked = ps(tmp_path, f"""
 $env:UV_CACHE_DIR='C:\\fixture-cache-that-must-not-be-used'

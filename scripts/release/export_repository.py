@@ -27,6 +27,7 @@ ROOT_FILES = (
     "scripts/prepare-quest-public-ui-build.py",
 )
 PUBLIC_DOCS = (
+    "PRIVACY_REMEDIATION_2026-10-01.md", "RELEASE_0.1.1_PREVIEW.md",
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.md", "DESKTOP_USER_GUIDE.html",
     "OPEN_SOURCE_RELEASE_PLAN_2026-09-30.md", "DEPENDENCY_AUDIT_2026-09-30.md",
     "PRODUCT_SCOPE.md", "RELEASE_NOTES_TEMPLATE.md", "GITHUB_PUBLICATION.md",
@@ -61,12 +62,21 @@ def default_private_markers() -> tuple[str, ...]:
 
 def content_findings(name: str, data: bytes, private_markers=()) -> list[dict]:
     """Report the location/type only; never print matched sensitive contents."""
-    if Path(name).suffix.casefold() in BINARY_ASSETS:
-        return []
     value = data.decode("utf-8-sig", errors="replace")
     findings = [{"file": name, "kind": kind} for kind, pattern in SECRET_PATTERNS.items() if pattern.search(value)]
     if any(marker and marker.casefold() in value.casefold() for marker in private_markers):
         findings.append({"file": name, "kind": "private-marker"})
+    # Text decoding misses UTF-16 and native/image metadata. Check every byte
+    # payload for the current owner's identifiers, even known public fixtures.
+    spec = importlib.util.spec_from_file_location("export_privacy_audit", Path(__file__).with_name("privacy_audit.py"))
+    privacy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(privacy)
+    markers = privacy.default_private_markers()
+    if private_markers:
+        markers["explicit-export-marker"] = list(private_markers)
+    for finding in privacy.Auditor(markers=markers).scan_bytes(data):
+        if finding["category"].startswith("private-marker:"):
+            findings.append({"file": name, "kind": finding["category"]})
     return findings
 
 
@@ -143,9 +153,12 @@ def main(argv=None):
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--privacy-reviews", type=Path, default=Path(__file__).with_name("privacy-public-reviews.json"))
     args = parser.parse_args(argv)
     markers = default_private_markers()
     result = verify_repository(args.output, markers) if args.verify else export_repository(args.root, args.output, markers)
+    bundle.verify_release_privacy([args.output], reviews=args.privacy_reviews if args.privacy_reviews.is_file() else None,
+                                 output=args.output.parent / (args.output.name + "-privacy-audit.json"))
     print(json.dumps(result, indent=2))
 
 

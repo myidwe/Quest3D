@@ -1,5 +1,8 @@
 # Quest3D 빌드·재현
 
+0.1.1-preview의 stream은 개인정보 경로 제거를 위해 정적 의존성 13개와 함께 다시 빌드한다. `prepare_quest_private_path_build.py`, `rebuild_quest_private_path_native.sh`, `collect_quest_private_native_proof.py`와 대응 소스의 privacy-native 기록을 따른다. OpenSSL 빌드 정보 소스 패치를 포함하며, 이전 캐시를 재사용하는 `rebuild_quest_baseline.sh`만 실행해 새 stream이 재현되었다고 판단하지 않는다. 최종 signed APK와 ZIP은 `privacy_audit.py`로 검사하고 source·서명·입력 해시 검증도 별도로 완료한다.
+
+
 ## 0.1.0-preview 공개 빌드 — 2026-10-01
 
 사용자 설치는 [DISTRIBUTION](DISTRIBUTION.md)을 따른다. GitHub 저장소는 제품 코드·설치 도구·검사를 제공한다. native fork와 의존성의 완전한 입력은 **같은 Release의 Quest3D-Source ZIP**으로 제공한다. 자동 `Source code.zip`만으로 전체 앱이 빌드되는 것은 아니다. 빌드 도구와 모델 다운로드도 필요하다.

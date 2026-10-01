@@ -1,0 +1,22 @@
+[
+  {
+    "sha256": "5a577aee1783fcfb6b0cc2b8284ed487fde497908f42b26e35f804813873a73a",
+    "scope": "synthetic-fixture",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "repository:tests/test_desktop_backend.py",
+    "reason": "Controlled fixture-user Linux home paths exercise diagnostic privacy redaction; no real owner values."
+  },
+  {
+    "sha256": "7be6ef3fd7335c4b868f2fd6a7727e55e0f1a7ee6ee007345910807eab21b413",
+    "scope": "synthetic-fixture",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 2,
+    "origin": "repository:tests/test_diagnostic_privacy.py",
+    "reason": "Controlled fixture-user Linux home paths exercise diagnostic privacy redaction; no real owner values."
+  }
+]

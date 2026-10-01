@@ -103,17 +103,19 @@ foreach ($entry in $manifest.files.PSObject.Properties) {
 Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $installRoot 'distribution-manifest.json') -Force
 if ($PrepareOnly) { Write-Output "Prepared files only: $installRoot. Python/dependencies/shortcuts were not installed."; return }
 
-function Test-Python([string]$Candidate) {
-    if (!$Candidate -or !(Test-Path -LiteralPath $Candidate -PathType Leaf)) { return $false }
-    & $Candidate -I -c "import sys,tkinter,struct; assert sys.version_info[:3] == (3,12,6); assert struct.calcsize('P') == 8; assert tkinter.TkVersion >= 8.6" 2>$null
-    return $LASTEXITCODE -eq 0
-}
+. (Join-Path $PSScriptRoot 'python-discovery.ps1')
+function Test-Python([string]$Candidate) { return Test-Quest3DPythonRuntime $Candidate }
 Write-Host '[3/6] Preparing Python 3.12.6 with Tk...'
 $localPython = Join-Path $installRoot '.tools/python/python.exe'
 if ($Python) {
     if (!(Test-Python $Python)) { throw 'The selected Python must be 64-bit Python 3.12.6 with Tk.' }
     $localPython = [IO.Path]::GetFullPath($Python)
 } elseif (!(Test-Python $localPython)) {
+    $existingPython = Get-Quest3DExistingPythonRuntime
+    if ($existingPython.reused) {
+        $localPython = $existingPython.path
+        Write-Host 'Reusing compatible Python; existing installations are preserved.'
+    } else {
     $downloadDirectory = Join-Path $installRoot '.cache/install'
     [void](New-Item -ItemType Directory -Force -Path $downloadDirectory)
     $installer = Join-Path $downloadDirectory 'python-3.12.6-amd64.exe'
@@ -134,6 +136,7 @@ if ($Python) {
     $process = Start-Process -FilePath $installer -ArgumentList $arguments -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -notin @(0, 3010) -or !(Test-Python $localPython)) {
         throw 'Python installation did not complete. If Python 3.12 is already installed, rerun with -Python <path-to-python.exe> (3.12.6 + Tk required).'
+    }
     }
 }
 Write-Host '[4/6] Installing pinned GPU libraries. The first download is several GB...'

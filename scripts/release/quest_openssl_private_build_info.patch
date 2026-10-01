@@ -1,0 +1,15 @@
+diff --git a/util/mkbuildinf.pl b/util/mkbuildinf.pl
+--- a/util/mkbuildinf.pl
++++ b/util/mkbuildinf.pl
+@@ -11,7 +11,10 @@ use strict;
+ use warnings;
+ 
+ my $platform = pop @ARGV;
+-my $cflags = join(' ', @ARGV);
++# Compiler commands can contain the builder's home, toolchain and build paths.
++# Keep diagnostic platform/date and the complete build recipe in corresponding
++# source, but do not embed those machine-local paths in the runtime library.
++my $cflags = 'Quest3D release (compiler paths omitted; see source build recipe)';
+ $cflags =~ s(\\)(\\\\)g;
+ $cflags = "compiler: $cflags";
+ 

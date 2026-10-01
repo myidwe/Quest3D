@@ -28,12 +28,13 @@ from . import audio_output
 from .paths import ROOT
 from .model_choice import DEFAULT_DEPTH_MODEL, DAD_DEPTH_MODEL, DEPTH_MODEL_IDS, DEPTH_MODEL_LABELS, validate_depth_model
 from .desktop_setup import distribution_layout
+from .diagnostic_privacy import DiagnosticRedactor
 from .session_control import atomic_json, read_json, send_control, validate_request
 
 HOST_SHA = '77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63'
 PUBLIC_HOST_SHA = '86eb2ee5e3177a892f15ecd5ba869b27d3e1b9131848b1adacf9a25301767d42'
 APPROVED_HOST_SHAS = frozenset({HOST_SHA, PUBLIC_HOST_SHA})
-RUNTIME = 'artifacts/host/runtime-20260909-233013-03efb525'
+RUNTIME = 'artifacts/host/runtime-public'
 HDR_PACKAGE = 'artifacts/capture/hdr-experimental/package-0d8bea69406e'
 OUTPUT_PROFILES = {'quest2': (1920, 1080), 'quest3': (2048, 1152)}
 AI_QUALITY_PROFILES = {'standard': 280, 'quality': 322}
@@ -654,6 +655,8 @@ class DesktopController:
                                       str(self.python.parent), env.get('PATH', '')])
         env['UV_OFFLINE'] = '1'
         env['UV_NO_SYNC'] = '1'
+        # PowerShell reads this before startup, including pairing helpers.
+        env['POWERSHELL_TELEMETRY_OPTOUT'] = 'true'
         return env
 
     def _run(self, argv, label, *, timeout=90):
@@ -1038,14 +1041,21 @@ class DesktopController:
     def _export_diagnostics(self):
         destination = self.logs/('diagnostics-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6])
         destination.mkdir()
-        # Deliberate allowlist: no credentials, pairing keys, screenshots or media.
-        atomic_json(destination/'desktop.json', {'state': self.get_snapshot(), 'preferences': self.preferences,
-                                                'producer': self._producer, 'host': self._host})
+        # Live logs remain local. Only allowlisted, redacted copies are shared.
+        redactor = DiagnosticRedactor((str(self.root), str(Path.home()),
+                                       os.environ.get('USERNAME'), os.environ.get('USER'),
+                                       os.environ.get('COMPUTERNAME')))
+        atomic_json(destination/'desktop.json', redactor.value(
+            {'state': self.get_snapshot(), 'preferences': self.preferences,
+             'producer': self._producer, 'host': self._host}))
         if self._status:
-            atomic_json(destination/'status.json', self._status)
+            atomic_json(destination/'status.json', redactor.value(self._status))
         for name, path in [('host.log', self.root/'artifacts/host/dev/sunshine.log'),
                            ('desktop-events.jsonl', self.logs/'events.jsonl'),
                            ('producer.log', self._last_log_dir/'producer.log')]:
-            (destination/name).write_text(bounded_tail(path, 65536), encoding='utf-8')
-        self._set(last_diagnostics=str(destination), message='진단 기록을 저장했습니다. 진단 폴더 열기로 확인할 수 있습니다.')
+            (destination/name).write_text(redactor.log(bounded_tail(path, 65536)), encoding='utf-8')
+        atomic_json(destination/'privacy.json', {'schema': 1, 'redacted': True,
+            'redactions': redactor.redactions, 'raw_logs_included': False,
+            'notice': '주소·기기 식별자·경로·인증 정보 가림 적용. 공유 전 파일 내용을 확인하세요.'})
+        self._set(last_diagnostics=str(destination), message='개인정보를 가린 진단 기록을 저장했습니다. 공유 전 내용을 확인해 주세요.')
         self._event('diagnostics_saved', directory=str(destination))

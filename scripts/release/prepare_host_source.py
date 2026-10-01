@@ -20,7 +20,8 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 PIN = "cb72dffa3233c5815cd5ba88f09f049dd679ba75"
 HOST_SHA = "77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63"
-SNAPSHOT = "artifacts/host/patch-reproduction-f6e4f3c7490a4c9eac9cf2ea37a4342d"
+SNAPSHOT = "artifacts/host/historical-source-overlay"
+RUNTIME = "artifacts/host/runtime-historical/sunshine.exe"
 REQUIRED_WINDOWS_MODULES = {
     "third-party/build-deps", "third-party/glad", "third-party/libdisplaydevice",
     "third-party/libvirtualhid", "third-party/lizardbyte-common",
@@ -109,7 +110,7 @@ def finalize(root: Path, output: Path) -> dict:
     actual = hashes(output / "source")
     if actual != expected or hashes(output / "historical-overlay") != snapshot_hashes:
         raise ValueError("Assembled source does not match archived authority")
-    runtime = root / "artifacts/host/runtime-20260909-233013-03efb525/sunshine.exe"
+    runtime = root / RUNTIME
     if bundle.digest(runtime) != HOST_SHA:
         raise ValueError("Historical runtime changed")
     state = {"schema": 1, "kind": "historical-host-source-investigation", "published": False,
@@ -136,7 +137,7 @@ def prepare(root: Path, output: Path) -> dict:
         raise FileExistsError("Use a new host-source preparation directory")
     source = root / "third_party/sunshine"
     snapshot = root / SNAPSHOT
-    runtime = root / "artifacts/host/runtime-20260909-233013-03efb525/sunshine.exe"
+    runtime = root / RUNTIME
     bundle.assert_regular(runtime, root)
     if bundle.digest(runtime) != HOST_SHA or git(source, "rev-parse", "HEAD").decode().strip() != PIN:
         raise ValueError("Historical host identity differs")

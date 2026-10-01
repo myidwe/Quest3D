@@ -734,6 +734,34 @@ def test_environment_never_syncs_away_the_hdr_candidate_wheel(rig):
     assert env["UV_OFFLINE"] == "1"
     assert env.get("UV_NO_SYNC") == "1"
     assert str(rig.c.root / backend.HDR_PACKAGE) in env["PYTHONPATH"]
+    assert env['POWERSHELL_TELEMETRY_OPTOUT'] == 'true'
+
+
+def test_shared_diagnostics_redact_copies_and_preserve_local_logs_and_preferences(rig):
+    c = rig.c
+    private_log = 'Connected 192.0.2.10\npassword=fixture-private-password\nFPS=59.4\n'
+    source_log = c.root / 'artifacts/host/dev/sunshine.log'
+    source_log.write_text(private_log, encoding='utf-8')
+    c._producer = dict(rig.state.producer)
+    c._host = dict(rig.state.host)
+    c._status = {**rig.status, 'session_id': 'fixture-session-id',
+                 'path': '/home/fixture-user/private/movie.mp4', 'token': 'fixture-status-secret'}
+    c.preferences['monitor_device'] = 'fixture-private-monitor'
+    c._set(pc_address='192.0.2.10')
+    original_status, original_preferences = copy.deepcopy(c._status), dict(c.preferences)
+    c._export_diagnostics()
+    destination = Path(c.get_snapshot()['last_diagnostics'])
+    files = {p.name: p.read_text(encoding='utf-8') for p in destination.iterdir()}
+    assert set(files) == {'desktop.json', 'status.json', 'host.log', 'desktop-events.jsonl', 'producer.log', 'privacy.json'}
+    for contents in files.values():
+        for private in ('192.0.2.10', 'fixture-private-password', 'fixture-status-secret',
+                        'fixture-private-monitor', 'fixture-session-id', 'movie.mp4', str(c.root)):
+            assert private not in contents
+    assert 'FPS=59.4' in files['host.log']
+    assert json.loads(files['status.json'])['published_frames'] == rig.status['published_frames']
+    assert json.loads(files['privacy.json'])['raw_logs_included'] is False
+    assert source_log.read_text(encoding='utf-8') == private_log
+    assert c._status == original_status and c.preferences == original_preferences
 
 
 @pytest.mark.parametrize("fault", [None, "manifest_runtime", "manifest_hash", "binary_hash", "missing_port", "dead_process"])

@@ -289,3 +289,20 @@ def test_changed_notice_cannot_be_shipped_under_a_valid_source_hash(tmp_path):
     with pytest.raises(ValueError, match="Pinned hash mismatch"):
         release.build_quest(root, out, "public-test", apk, release.digest(apk), record, source)
     assert not (out / "Quest3D-Quest-public-test.zip").exists()
+
+
+def test_final_byte_gate_blocks_private_owner_inside_nested_apk(tmp_path, monkeypatch):
+    monkeypatch.setenv("USERNAME", "synthetic-owner-account")
+    apk = tmp_path / "client.apk"
+    with zipfile.ZipFile(apk, "w") as archive:
+        archive.writestr("lib/arm64-v8a/stream.so", b"ELF synthetic-owner-account")
+    installer = tmp_path / "installer.zip"
+    with zipfile.ZipFile(installer, "w") as archive:
+        archive.write(apk, "client.apk")
+    report = tmp_path / "audit.json"
+    with pytest.raises(ValueError, match="Final-byte privacy gate failed"):
+        release.verify_release_privacy([installer], output=report)
+    result = json.loads(report.read_text())
+    assert result["private_marker_gate_passed"] is False
+    assert any(item["path"].endswith("stream.so") for item in result["findings"])
+    assert "synthetic-owner-account" not in report.read_text()

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HOST_SHA = "77c950b526ba6b944589b8697cbaaa76b26955e3ae2e412a4cfba7bc93626b63"
 CAPTURE_SHA = "0d8bea69406e930dc424694061ed109489cc230b6948721e18ec5838505a4496"
 AUDIO_PROBE_SHA = "1511eb13904a5164f8b6b7bce15abbb76115fb42ecd9cdc7a2b1548014657944"
-HOST = "artifacts/host/runtime-20260909-233013-03efb525"
+HOST = "artifacts/host/runtime-public"
 SOURCE_SUFFIXES = {".py", ".ps1", ".sh", ".h", ".hpp", ".c", ".cpp", ".cu", ".cuh", ".rs", ".toml", ".json", ".lock", ".patch", ".cmake", ".txt", ".md", ".gd", ".gdshader", ".gdshaderinc", ".tscn", ".tres", ".godot", ".cfg", ".java", ".xml", ".gradle", ".properties", ".in", ".yml", ".yaml", ".bat", ".cmd", ".rc", ".manifest", ".uid", ".qml", ".qrc", ".svg", ".ttf", ".otf", ".png", ".ico"}
 SOURCE_SUFFIXES.add(".gdextension")
 # Device operations and developer-specific probes are not corresponding source.
@@ -37,6 +37,7 @@ LOCAL_ONLY_SCRIPTS = (
 )
 LOCAL_ONLY_DIAGNOSTICS = ("select_quest_codec.py", "dev-firewall.ps1", "run_file_audio_interop.py", "HDR_CANDIDATE.md", "WINDOW_CANDIDATE.md")
 PUBLIC_RELEASE_DOCS = (
+    "PRIVACY_REMEDIATION_2026-10-01.md", "RELEASE_0.1.1_PREVIEW.md",
     "QUEST_PUBLIC_UI_REFINEMENT_2026-10-01.md",
     "DISTRIBUTION.md", "BUILDING.md", "DESKTOP_USER_GUIDE.html", "DESKTOP_USER_GUIDE.md",
     "PRODUCT_SCOPE.md", "OPEN_SOURCE_RELEASE_PLAN_2026-09-30.md",
@@ -206,7 +207,7 @@ def installer_launcher_cmd(target: str) -> bytes:
     if target not in {"pc", "quest"}:
         raise ValueError("Unknown installer target")
     lines = [
-        "@echo off", "setlocal", ":choose_log",
+        "@echo off", "setlocal", 'set "POWERSHELL_TELEMETRY_OPTOUT=true"', ":choose_log",
         'set "QUEST3D_START_LOG=%TEMP%\\Quest3D-Start-%RANDOM%-%RANDOM%"',
         'if exist "%QUEST3D_START_LOG%.log" goto choose_log',
         'if exist "%QUEST3D_START_LOG%.details.log" goto choose_log',
@@ -419,7 +420,7 @@ def build_historical_host_sources(root: Path, payload: Payload) -> None:
     sunshine_pin = "cb72dffa3233c5815cd5ba88f09f049dd679ba75"
     sunshine = root / "third_party/sunshine"
     payload.put("sources/sunshine/upstream.tar", git_bytes(sunshine, "archive", "--format=tar", sunshine_pin))
-    snapshot = root / "artifacts/host/patch-reproduction-f6e4f3c7490a4c9eac9cf2ea37a4342d"
+    snapshot = root / "artifacts/host/historical-source-overlay"
     payload.put("sources/sunshine/quest3d-host-20260909-2253.tar", snapshot_tar(snapshot))
     submodules = []
     def submodule_sources(repository: Path, pin: str, prefix: str = ""):
@@ -540,11 +541,42 @@ def build_quest(root: Path, out: Path, release: str, apk: Path, expected_sha: st
     return payload.destination
 
 
+def verify_release_privacy(paths, *, reviews: Path | None = None, markers: Path | None = None,
+                           output: Path | None = None) -> dict:
+    """Final-byte gate, including nested archives and native libraries.
+
+    Packaging helpers deliberately never publish. Publication callers must run
+    this gate against the exact signed APK and ZIP bytes they intend to upload.
+    Review records bind public fixtures to exact hashes; owner identifiers are
+    always blocked regardless of any review.
+    """
+    spec = importlib.util.spec_from_file_location("bundle_privacy_audit", Path(__file__).with_name("privacy_audit.py"))
+    privacy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(privacy)
+    if reviews is not None:
+        records = privacy.read_reviews(reviews)
+    else:
+        records = []
+        for name in ("privacy-public-reviews.json", "privacy-dependency-reviews.json"):
+            policy = Path(__file__).with_name(name)
+            if policy.is_file():
+                records.extend(privacy.read_reviews(policy))
+    report = privacy.Auditor(markers=privacy.read_markers(markers), reviews=records).audit([Path(path) for path in paths])
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", "utf-8")
+    if not report["passed"]:
+        raise ValueError("Final-byte privacy gate failed; inspect redacted audit report")
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--release", default="0.1.0-preview")
+    parser.add_argument("--release", default="0.1.1-preview")
+    parser.add_argument("--privacy-reviews", type=Path, help="Exact public-origin fixture review records")
+    parser.add_argument("--privacy-markers", type=Path, help="Optional PRIVATE identifier file outside the source/release")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--sources", action="store_true")
     parser.add_argument("--quest-source", type=Path)
@@ -554,6 +586,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.verify:
         result = verify_directory(args.output)
+        verify_release_privacy([args.output], reviews=args.privacy_reviews, markers=args.privacy_markers)
         print(json.dumps({"verified": True, "files": len(result["files"])}))
         return
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", args.release):
@@ -578,6 +611,9 @@ def main(argv=None):
     if args.quest_apk:
         build_quest(root, args.output.resolve(), args.release, args.quest_apk.resolve(), args.quest_sha256, quest_manifest, args.quest_source.resolve())
     verify_directory(destination)
+    verify_release_privacy(sorted(args.output.glob("*.zip")), reviews=args.privacy_reviews,
+                           markers=args.privacy_markers,
+                           output=args.output / "privacy-audit.json")
     print(json.dumps({"pc": str(destination), "published": False}, indent=2))
 
 

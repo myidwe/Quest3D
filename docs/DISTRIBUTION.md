@@ -1,6 +1,6 @@
 # Quest3D 설치·배포 안내
 
-**0.1.0-preview 설치 안내**. [같은 버전의 Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.0-preview)에서 Desktop ZIP과 Quest ZIP을 받는다. 기존 개발 앱·이전 검토 ZIP과 구분한다. 현재 지원 범위와 실제 검증 상태는 [배포 안내](RELEASE_0.1.0_PREVIEW.md), Release의 `release-validation.json`을 따른다.
+**0.1.1-preview 설치 안내**. [같은 버전의 Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.1-preview)에서 Desktop ZIP과 Quest ZIP을 받는다. 기존 개발 앱·이전 검토 ZIP과 구분한다. 현재 지원 범위와 실제 검증 상태는 [배포 안내](RELEASE_0.1.1_PREVIEW.md), Release의 `release-validation.json`을 따른다.
 
 ## 받을 파일
 
@@ -13,6 +13,7 @@ GitHub **Releases**에서 같은 버전의 파일을 받는다. **Code → Downl
 | `Quest3D-Source-<version>.zip` | 해당 바이너리의 대응 소스·고지·빌드 자료 |
 | `SHA256SUMS.txt` | 다운로드 파일의 SHA-256 확인 |
 | `release-validation.json` | 실제 확인한 설치·동작과 미검증 범위 |
+| `privacy-audit.json` | 최종 APK·ZIP의 개인정보 검사 결과 |
 
 모델 가중치·개인 인증서·페어링·미디어·사용 로그는 ZIP에 넣지 않는다. 첫 PC 설치에서 고정 모델을 다운로드하고 이후 AI는 로컬에서 실행한다. 앱 구독·클라우드 추론료는 없다.
 
@@ -32,6 +33,8 @@ AMD·Intel GPU, 다른 NVIDIA 아키텍처, ARM Windows, macOS/Linux 호스트�
 Quest 2는 눈별 **1920×1080**, Quest 3는 눈별 **2048×1152**가 PC 출력 프로필이다. Quest 3의 좌우 합친 **4096×1152 Full SBS**는 HEVC를 사용한다. 영상 전송 크기는 헤드셋 패널 해상도와 다르다. AI 갱신 FPS, 반복 송출 FPS, 헤드셋 표시율도 서로 다르다.
 
 ## PC 처음 설치
+
+기존의 호환되는 Python 3.12.6(x64·Tk)이 있으면 재사용한다. 등록된 Python 3.12가 손상되었거나 버전이 다르면 자동 재설치를 차단하여 다른 프로그램의 환경을 보존한다. 이 경우 기존 환경을 복구하거나 호환되는 Python을 설치 명령의 `-Python`으로 지정한다. 오류 로그의 안내를 따르며 기존 Python 폴더를 삭제하지 않는다.
 
 10월1일 새 호스트 후보는 개발 PC의 별도 A 드라이브 폴더에서 기존 Python3.12.6을 지정해 약3분54초에 설치했다. 고정 라이브러리·모델 새 다운로드, CUDA7종·Qt 화면을 통과했고 이후 실제 캡처·모델 추론·송출 시작도 확인했다. 이전 후보의 약10분7초와 조건이 같지는 않으며 설치 시간을 보장하지 않는다. 인터넷·디스크·기존 Python 상태에 따라 달라진다. 이전 설치·cache 명목 합계는 약10.7GiB였고 하드링크를 포함하므로 최소 공간 요구와 같지 않다. 업데이트 백업도 공간을 사용한다. Python 없는 새 Windows의 자동 설치·등록 검증은 남아 있다.
 

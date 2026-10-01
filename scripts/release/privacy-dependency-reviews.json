@@ -1,0 +1,1206 @@
+[
+  {
+    "sha256": "5a577aee1783fcfb6b0cc2b8284ed487fde497908f42b26e35f804813873a73a",
+    "scope": "synthetic-fixture",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "repository:tests/test_desktop_backend.py",
+    "reason": "Controlled fixture-user Linux home paths exercise diagnostic privacy redaction; no real owner values."
+  },
+  {
+    "sha256": "7be6ef3fd7335c4b868f2fd6a7727e55e0f1a7ee6ee007345910807eab21b413",
+    "scope": "synthetic-fixture",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 2,
+    "origin": "repository:tests/test_diagnostic_privacy.py",
+    "reason": "Controlled fixture-user Linux home paths exercise diagnostic privacy redaction; no real owner values."
+  },
+  {
+    "sha256": "c9eccb0e5313ced30e7da3903c27f1a97c6e8b0793a0a91160c4bee346f3ee02",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "0bb37c45575cbcccc279a4250fb7f0d87de5c0a3ddc16565542a6ed0e5682c6b",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "ab3fcf87aba83ac429fb040d5c36a4b7e9af334c923f8f27041c93046d2af9cb",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "95dd96afb294c5243f369b1f8510d5f70c15715746982470382362c0e88f1d4d",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "aefde47dbcb4e96a0280630138430e74d518e4eff79967377d05104b4c40707f",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "879c8631777b621ff25e939f021f06dfb2745c3a98e8cd5a281f6eee9da77aa6",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "3911583223b79925600ded3e48b13681064bebb9ebb6125d3a2f42a14d445873",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "f13b441ca13bf0a1d02d367e395c8a72e11733c5c29efa4a2f71af6a3a30d5ac",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "origin": "https://github.com/astral-sh/uv/releases/download/0.10.12/uv-x86_64-pc-windows-msvc.zip",
+    "reason": "Exact leaf bytes from independently downloaded official asset; whole archive SHA256 verified against fresh GitHub API digest; publisher build/example paths are not owner paths."
+  },
+  {
+    "sha256": "8d5a8acd5661ce884ef467394c6f58b7d77f7df5db352e04956cf8dc892151ca",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/KhronosGroup/OpenXR-SDK-Source/tar.gz/58e026e7efa5a4f6a612c554560b53aa482f04d4",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "dd8009fa43a5f5d9a14999613f8345b240d5fd8b7be54bda4be99cc63f604758",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/godotengine/godot-cpp/tar.gz/58d1de720b8ffe9f8ffcdfe3a85148582cfd2e74",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "76eda55c25af021b9861a3dc394b56e6d17d70cdfbced77c184238d2ad8c1da3",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/KhronosGroup/OpenXR-SDK-Source/tar.gz/ba4aec9686cb94c99a55f7ceba9768e9e35525c2",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "ded663c2dd23c7a44f21d56407b267a0d76f1d5097d384b0cc7448138f48f855",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/activity/activity/1.8.1/activity-1.8.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "783a221a7c1093ff8932053998a69a24489f7930806a32b55366108146d29c1d",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-experimental/1.4.0/annotation-experimental-1.4.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "5add69d7bb907ade52823bf4b15730a1a32cfce6657bfbe7eb865b00107a6369",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/annotation/annotation-jvm/1.8.1/annotation-jvm-1.8.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "563d430880d847890029234386ef03adb95403c34f3c9dec3a7002e2f4007ae4",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/arch/core/core-common/2.2.0/core-common-2.2.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "4adaab3a8ab711634d566d2e239e199af8b5ac92c1de85540dc34c7040754e96",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/arch/core/core-runtime/2.2.0/core-runtime-2.2.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "158ae7efee9c7394a241139ebf220751f8b812eda40269a38ef725dbe784b98d",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/collection/collection/1.1.0/collection-1.1.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "cc06fb6045a6c066f50e237a3c2126bc88c16d358a57b3612ba633c9f530b0a0",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/concurrent/concurrent-futures/1.1.0/concurrent-futures-1.1.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "8af6ec5a930ab3df22faa055ae2bf028264ee65d758b95ed4d62b39f02f43ae9",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/core/core/1.8.0/core-1.8.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "f246a5a9b55644a4367ae5cc051406827ad2a46d93b7f7fa81e05eb1bd4d9e59",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/core/core-ktx/1.2.0/core-ktx-1.2.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "f8c16e2b159971feed61d4c12b0fbf53da91f99f855cb893e5a8f2b67772907f",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/core/core-splashscreen/1.0.1/core-splashscreen-1.0.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "87c910a3c3c5d1e4881ebcc7a8f7fced04fdad6ff1f8e5ff7f100adf62df1787",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/customview/customview/1.0.0/customview-1.0.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "d39120d0f88be611b858b76986e16925e30cb59bf2b8c5dca6b5e12f99a19fdc",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/documentfile/documentfile/1.1.0/documentfile-1.1.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "bb152086ddddb6eedb31fdc1cb9da825ad317223520a7bd6755d722ff3789126",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/fragment/fragment/1.8.6/fragment-1.8.6-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "9b194a75aa6724bdac277be839eddd5d49192d64389d5ac02d1f6bb6c334124e",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.6.1/lifecycle-common-2.6.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "5e55ddad2a4a2cf7c33650059f11274a579db92dd88a04800912d70576227f61",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.6.1/lifecycle-livedata-2.6.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "cacbe1dc9c099df7fd37069266986eeb8c4447c3e08c4a31762c7466a0082568",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.6.1/lifecycle-livedata-core-2.6.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "07129c61c68a7c4333aeabe1712827c33677f973db29bc11b99044463899b13d",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.6.1/lifecycle-runtime-2.6.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "4eed85c3e86326da8b6949fd3964d2380aa5c56730de402e3c6f1c6d747596e0",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.6.1/lifecycle-viewmodel-2.6.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "3d6849e0ae21524fee6fdf4c48bd577451734ed2dbfa354b43ae0cfed20b3f2a",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel-savedstate/2.6.1/lifecycle-viewmodel-savedstate-2.6.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "efcbafaac8fc06bd5b162b57ac1e146d11919b79dea2202339470c931cecdc67",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/loader/loader/1.0.0/loader-1.0.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "0ff5f58d8df11e5f8254013b04386789bdb1367288e9eb74433198261fb14d95",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/profileinstaller/profileinstaller/1.3.1/profileinstaller-1.3.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "fd201fb9ea2d3e66262cb09bf1e33cbbe41050fcfcb96c9ce197f1780b614a73",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/savedstate/savedstate/1.2.1/savedstate-1.2.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "53e03bc065b26b2227b5fdca6776cbfa0d1a69afb8f3c1e96c1743fa54320196",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/startup/startup-runtime/1.1.1/startup-runtime-1.1.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "a593c115d145df9cb9ae2226960da1d53ff8590eff1c285e7c9de2b6727d3c21",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/tracing/tracing/1.0.0/tracing-1.0.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "135016af471acf4cd9583d36ceb779710c6b46812ccaaef7c526d5d60eae6b0b",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/versionedparcelable/versionedparcelable/1.1.1/versionedparcelable-1.1.1-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "d4f9a044ab8c23392b12a3f2930d5fd6b5982421a746f2f2a812e9619431fbfd",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://dl.google.com/dl/android/maven2/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "3d1bd8d4a39b293612a40e547ec51d9ce34fa638d7adeae83871cdbe2923b161",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/com/google/guava/listenablefuture/1.0/listenablefuture-1.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "42a5e144b8e81d50d6913d1007b695e62e614705268d8cf9f13dbdc478c2c68e",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "c05e6ead31a9bc17a6fbd5029c4824307992a012546aafb3800f27d1c7ee42be",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.1.21/kotlin-stdlib-2.1.21-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "ea10d3e5e6e695d8a5283cbf116321acae6ba42d0bdd3eda50f7c34a26fa25cb",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.8.0/kotlin-stdlib-jdk7-1.8.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "40e9a80f6b953d12389623760d438e69914098d0c4d7053f70f90533ec041259",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.8.0/kotlin-stdlib-jdk8-1.8.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "cc2c16ed89092c1ccb41db572d9da8e3b2f730fce4ba66687d47f6dc5ed7ec99",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-android/1.6.4/kotlinx-coroutines-android-1.6.4-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "aa1335ddb56712a4acca7bb0a2dc0870818b508b6054feb3be253075b6a9ed03",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.6.4/kotlinx-coroutines-core-jvm-1.6.4-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "adf0898191d55937fb3192ba971826f4f294292c4a960740f3c27310e7b70296",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/jspecify/jspecify/1.0.0/jspecify-1.0.0-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "cef079616924e2a5df144e9fd96852a61ef46da420025465d3e8968fdeaef8a4",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.maven.apache.org/maven2/org/khronos/openxr/openxr_loader_for_android/1.1.54/openxr_loader_for_android-1.1.54-sources.jar",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "2f0f93875aac21990d20f1eaf0ad8b970eb6f186c663c77ae47aaaf9e5711fcf",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-brotli-1.2.0-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "c5a6b000c2a7514be9e584403e0165a0aa36c8b495c338a836ba3934f7c16719",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-curl-8.22.0-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "74428280c17094da5b702c29b2e1a0abae59556ea5dfdd65705cc8ccc1e000fb",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.19-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "cd83e8514fbeb6a4499299b88691b9b9ecc3114cca1e2be4f6c54aab6ae9ddd0",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-libidn2-2.3.8-4.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "102b4ab4c60322162e808c5c81f545438c346c659e8fb63e0851066f07a0e76b",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-libpsl-0.21.5-3.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "bb78f8354441190221ece18a96c09f631fe02648f5dd7d1e247ae8d00a9fea5f",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-libssh2-1.11.1-2.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "a5bafb360d5c13c5c52ef071d5a8288ce2345346b902f20ed6e9322766ec60eb",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-libunistring-1.4.2-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "4bd392447f4a5f986462cfc412ab7ace3dfaa980e53b41f35d08c44b8b31cc9d",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-libvpl-2.17.0-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "be1cf373ae87b037e5d82d3e976e149974844387aa0d5b5f6b05392ac070479d",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-MinHook-1.3.4-2.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "19ec1f6f9619507a43db907c6e8fa1e925e4264871f76a0b373ef2c99be8a95a",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-miniupnpc-2.3.3-4.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "b60a8978d0e45f433ee8db7825d9ba90cc38956c89ab52055c05546f421942f9",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-openssl-3.6.4-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "f9f4f73a700edcd35e11d7f47bcb164c850b781fa2cccb48cd30d505262b43a2",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-opus-1.6.1-1.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "eef69dea52357e01b272d6fd6dc4d7c0773f71260cb7bcde6047c8c383518db3",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-zlib-1.3.2-2.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "306797282df799e95d550e6d0bb4b0a7b848027b8e13893a24236e060837c217",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://repo.msys2.org/mingw/sources/mingw-w64-zstd-1.5.7-2.src.tar.zst",
+    "reason": "Exact whole original upstream archive SHA256 bound in the corresponding-source lock; nested public examples/test/debug identities retain their origin. Owner markers are always scanned and can never be waived."
+  },
+  {
+    "sha256": "966153e73fd159bba74c0056cf576b1a9e6d4736b24480d2b4408fb61dc4b9f7",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/godotengine/godot/tar.gz/5b4e0cb0fd279832bbdd69fed5354d4e5ad26f88",
+    "reason": "Every relative file/link and content digest in this source archive was independently compared with the newly downloaded pinned official source archive and matched; local packaging headers are separately scanned."
+  },
+  {
+    "sha256": "97b16e7f2e61354f525c6c15c295b5e34d8ac3d5ef539168d4c2aca0f22b1e74",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/godotengine/godot-cpp/tar.gz/05057de73de4b99f114d36c40d84ca46926c0e25",
+    "reason": "Every relative file/link and content digest in this source archive was independently compared with the newly downloaded pinned official source archive and matched; local packaging headers are separately scanned."
+  },
+  {
+    "sha256": "0f6b1b48520369f7b6674c8d57c36be7cff1b0b2b91ea03502e3e1aac1087de7",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/microsoft/vcpkg/tar.gz/f781d9387e4684783e69e136e2e124ff4660bffc",
+    "reason": "Every relative file/link and content digest in this source archive was independently compared with the newly downloaded pinned official source archive and matched; local packaging headers are separately scanned."
+  },
+  {
+    "sha256": "fb0e4f0991b5f3c17c86c04d9dc755009c6828aa7a4e7f360b28ae18530be656",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/cgutman/enet/tar.gz/dea6fb5414b180908b58c0293c831105b5d124dd",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "fd680a1b5378294d5c4df4387eec2e6d2a3b4708d3cff7de055db7ab81f8cde5",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/curl/curl/tar.gz/refs/tags/curl-8_17_0",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "8cb1bb8cfa9aeae13279b4da42ae8307ae6777456d4270f2e603c95aa08ca8ef",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/FFmpeg/FFmpeg/tar.gz/refs/tags/n7.1.2",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "472c6e7f3f7a9d576f21e2c57d16390b46d238f98e69a47d84730e943f5c5506",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/godotengine/godot-cpp/tar.gz/refs/tags/godot-4.4-stable",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/madler/zlib/tar.gz/refs/tags/v1.3.1",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "d2057539518abbe2cecdf00dbcad863d66027797d874de4ae2fcc60045f23b99",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/moonlight-stream/moonlight-common-c/tar.gz/7b026e77be62175104640e7e722b758df6d3d0d7",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "1535d184cbd04ea6b20485b98719fa8d609e45c3657f7c65b8299ae606f78159",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/openssl/openssl/tar.gz/refs/tags/openssl-3.6.0",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "ed2a3268658f2f2a9b5367628a85ccd4cf9516460ed8604eed369653d49b25fb",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/simd-everywhere/simde/tar.gz/refs/tags/v0.8.2",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "9480e329e989f70d69886ded470c7f8cfe6c0667cc4196d4837ac9e668fb7404",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://codeload.github.com/xiph/opus/tar.gz/refs/tags/v1.5.2",
+    "reason": "Exact whole original source archive bytes independently downloaded from official upstream and matched to the corresponding-source hash."
+  },
+  {
+    "sha256": "67acec02d0d118b5de9eb441f5fb707b3a1cdd884be00ca24b9a73c995511f74",
+    "scope": "upstream-archive",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-cmake.tar.xz",
+    "reason": "Actual original archive SHA256/size matched fresh anonymous official GitHub Release API digest; public Boost examples/test identities and generated documentation publisher paths are not owner secrets."
+  },
+  {
+    "sha256": "d3062c8b7f2e351e304618023eb7dce41d0dda939bf5fd6b737667c342d37c1f",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 2,
+    "origin": "https://raw.githubusercontent.com/GodotVR/godot_openxr_vendors/6a04c8632140f7dc14670e5564fd473464047a15/hooks/pre-commit",
+    "reason": "Exact full leaf byte match with independently fetched official pinned upstream hook; generic home is a public script example."
+  },
+  {
+    "sha256": "d46e93f7d12b578ef9e9be1ae57b9d1b2dffcceef2189bc9b8d5e6f04af8b015",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/build.sh",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "2e389e67a9a62f537623e3620a1e429c30da499a913b4cb57cdd03bfd64df7ee",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/docs/archive/plans/linux-pcvr-wivrn.md",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "9bf6b569adae6f61d60c9197c568ebde29efe3cbd1c8123ddfd7766c7f7cd3c3",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/docs/archive/plans/stereo-composition-layer.md",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "6bf734dee681efb691998e8886e74611c34d8bb82bfc93e114e781fd5a3e5e3c",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/extensions/nightfall-xr/build_android.sh",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "5e417132f9e49af66c7cdd57865810de8147b7056c0fe61292b47571dd698bc4",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/test/check_gdscript_parse.sh",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "a7a7c2588346663d940e2b518399a84b62be66bd0ddad941a92864e6e822197f",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/test/run_gdscript_tests.sh",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "f7b3a0f20a19aec32e37bb3a8d0d7b45b5a747e4240cda118b3a3a57c2c67f9f",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/tools/build_support/bootstrap_native_xr.sh",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "c9a3d87cb5c746bb6097360f531475babd8ca3c667fe9c37f33f6fe48a7e09db",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/tools/build_support/build_android.sh",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "6e150c623bd69cfd40e2ba4b9130ff6ac5bfc702042c451ce7a0f7a07724be5c",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/tB0nE/nightfall/2c2162af9738dadb32e441a48255cef65bf7dd56/tools/model_tester/run_models.py",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "b4eeb37a7f470201c5479baacd4fc344aec69d8ef962e3b6d74b6a592a4e026e",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/LizardByte/Sunshine/cb72dffa3233c5815cd5ba88f09f049dd679ba75/cmake/dependencies/glad.cmake",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "aa8878844db6e68aa174a88d070b3c6b542e4d0ca4a408f2572a99dccd9cbdc6",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 2,
+    "origin": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/38b88335f99e76ed89ff3c93f877fdefce736c13/doc/faq.texi",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "5965050235e3de69449ec6822c724bfc3c692490e8b9b6355c9830213494ee4d",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 3,
+    "origin": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/38b88335f99e76ed89ff3c93f877fdefce736c13/doc/fate.texi",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "4f8a4ec0e994a90ae6a2deced346ca94522ac959c4f3a3d178f3b11134769b15",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/38b88335f99e76ed89ff3c93f877fdefce736c13/doc/protocols.texi",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "bb6b84c0181b4da43bdaa8da96552324ad3eb9fbf7837bf5e9183dbf96796b60",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/38b88335f99e76ed89ff3c93f877fdefce736c13/libavcodec/cdgraphics.c",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "8351ef1db57e9354b8538523070a6e96887ce5d1958c6df5905af888e887f48c",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/38b88335f99e76ed89ff3c93f877fdefce736c13/tests/ref/fate/mxf-probe-dnxhd",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "dfb3abf1dcd556a023b198728f6a84b4f345cbf7261fc805e91df59b6e7619ee",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 11,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/LoaderDebugging.md",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "6fee9f43f917f24ecc877c94bf761981e54a18765892811cd9b837cf26f7a1b3",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 7,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/LoaderDriverInterface.md",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "48eb2c8bed6d1e2407bb5fb5256eafcccbc0683ab3b8aaa68ca8325f95a8cc0b",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 4,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/LoaderLayerInterface.md",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "f44521e7e5b093c2ebe929b2c212276cd9d4cd9ce7191482fb25c393735b27d2",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/function_instance_chain.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "4fae90526f164e112710a7899d319829c3efcf113e1aafe26bdfa33f98ffd9f2",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/high_level_loader.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "83b9e8bc4ae156c4f36f4b663962f73e42765bf9fd111f702519186b9997c215",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/loader_device_chain_app.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "8dd6fcb7efdc227bfbe7e4f2b2780cb57da07c1a51876f5bb33f12f98d594700",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/loader_device_chain_loader.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "a225a3e7ccf9c6eeb8d9b6889f86bd3f560fbbedffb4a824be2d8fdc8436f0dd",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/loader_device_surface_chain.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "b25acbf44e5031b1a53855c7f903591fada1875ce1570a81db1bfd96a6be65d6",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/loader_instance_chain.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "1c36cfeb05797857ed7f70c07a16181c8d000feb4f44feb8a8decd5e86706867",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/loader_layer_order.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "c023599d61ee05a30623fe8e69816b8900de33cab43fadc25c3880b8276c927d",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Loader/5f157b62e333c63260d05d81bf66faa216ab0fb8/docs/images/svgs/loader_layer_order_calls.svg",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "49a54b37c95132b99869bbcfbb692889d4de880842146137acd2f0a1c4f70b8b",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 2,
+    "origin": "https://raw.githubusercontent.com/LizardByte-infrastructure/x264/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/.gitlab-ci.yml",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "ecebd10c21ec313deb262872c29f180a3ea815bed20863757c9fb1b07d76fed2",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 4,
+    "origin": "https://raw.githubusercontent.com/LizardByte-infrastructure/x265_git/1d117bed4747758b51bd2c124d738527e30392cb/doc/reST/svthevc.rst",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "b8c82b1d97f28cf66aabf448395b58e29699d2dd3f603ea97d68016ddac2c01e",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 1,
+    "origin": "https://raw.githubusercontent.com/jothepro/doxygen-awesome-css/d52eafe3e9303399fda15661f3d7bb8fe3d7eabc/docs/img/fancy_scrollbars_webkit.gif",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "f94f574d4ba5aed98cf0adbb4f0f41e2f3a99585c82ed81b94f3ff6b810510dd",
+    "categories": [
+      "generic-user-home-path"
+    ],
+    "max_count": 6,
+    "origin": "https://raw.githubusercontent.com/google/googletest/52eb8108c5bdec04579160ae17225d66034bd723/docs/pkgconfig.md",
+    "reason": "All matched home-path example/publisher literals occur byte-for-byte in independently fetched pinned public upstream source; this exact modified/source payload SHA is locked. This is literal attribution, not a claim that every modified source byte equals upstream."
+  },
+  {
+    "sha256": "5d9c13ed30abad321fb0a3125d0df381e47df3b1f50f14c56feee08000aced26",
+    "categories": [
+      "private-key-block"
+    ],
+    "origin": "https://raw.githubusercontent.com/LizardByte/Sunshine/cb72dffa3233c5815cd5ba88f09f049dd679ba75/tests/unit/test_confighttp.cpp",
+    "reason": "Public Sunshine test pairing/key fixture independently fetched in the prior same-day audit; only CRLF differs from official upstream. Exact packaged source SHA remains required."
+  },
+  {
+    "sha256": "9c5b5f105a0875c1e3ac5d56144b8ad761457579c0137cffbedc7217e592dc4c",
+    "categories": [
+      "private-key-block"
+    ],
+    "origin": "https://raw.githubusercontent.com/LizardByte/Sunshine/cb72dffa3233c5815cd5ba88f09f049dd679ba75/tests/unit/test_http_pairing.cpp",
+    "reason": "Public Sunshine test pairing/key fixture independently fetched in the prior same-day audit; only CRLF differs from official upstream. Exact packaged source SHA remains required."
+  },
+  {
+    "sha256": "dfc17a138ce665a7d2f4aae16751ebaff00967f4f85ff1fb20bf1e95a87a2b2a",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/asio/boost-1.89.0/example/cpp11/ssl/ca.pem",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "a6070c979ae317e3db6c9d72129697a3f1d0f76cdb17b31b11c2a322dc593c4e",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/asio/boost-1.89.0/example/cpp11/ssl/server.pem",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "38da7e73494f7cdfe9e4852b3475a06a2748403fea2a5d555833f6a1c2766c7e",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/beast/boost-1.89.0/example/common/server_certificate.hpp",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "3d0ba3e70f9606b6df3b16527b1776a673cabe323ac7a1e1069ccafba27c6fd4",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/mysql/boost-1.89.0/test/unit/test/sansio/handshake/handshake_csha2p_keys.hpp",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "c425c08cd3a62f368e7ed81322d122b73e03c6766735ec69ac6fd90fe42f7e7c",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/mysql/boost-1.89.0/tools/ssl/server-key.pem",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "5ff4585209d5f8920bfb637238e0220368a1a08fa90fcae04c11404b00832d85",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/redis/boost-1.89.0/tools/docker/tls/ca.key",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "76b8b9add6b3799d72d944ca8f7eac97e6fa31341937eaec32fc8c0bc6ab8e87",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/boostorg/redis/boost-1.89.0/tools/docker/tls/server.key",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "5f8d72ce4842991318f8460c903bb31c9b8cfcc7a950d958138e051ff6ff66f3",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/godotengine/godot/5b4e0cb0fd279832bbdd69fed5354d4e5ad26f88/tests/data/crypto/in.key",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "822b38a1c868521808896340e15134e04f980ba8117e7b14a193a44d229c0492",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/godotengine/godot/5b4e0cb0fd279832bbdd69fed5354d4e5ad26f88/thirdparty/mbedtls/library/pk_internal.h",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "660dc6d06c5dc50c0a8cb22bc2b3560b7f463fe70c42d81164e598358f2ac1c3",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/godotengine/godot/5b4e0cb0fd279832bbdd69fed5354d4e5ad26f88/platform/android/java/editor/src/main/assets/keystores/debug.keystore",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  },
+  {
+    "sha256": "c65ebdde62c4ea0ac15f04f400853b31f54ea2ad94e27669d2d079a4e968a378",
+    "categories": [
+      "generic-user-home-path",
+      "private-key-block",
+      "private-state-or-key-file"
+    ],
+    "origin": "https://raw.githubusercontent.com/KhronosGroup/OpenXR-SDK-Source/58e026e7efa5a4f6a612c554560b53aa482f04d4/.env",
+    "reason": "Exact public upstream test/example/parser/debug identity/environment file confirmed in independent prior same-day byte comparison; never an owner signing or pairing identity."
+  }
+]

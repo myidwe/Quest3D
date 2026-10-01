@@ -67,6 +67,14 @@ def test_private_marker_does_not_expose_matched_value(tmp_path):
     assert "personal-device-marker" not in str(error.value)
 
 
+def test_binary_resource_utf16_private_marker_is_not_skipped():
+    marker = "synthetic-owner-account"
+    data = b"\x89PNG\r\n\x1a\n" + marker.encode("utf-16le")
+    findings = publication.content_findings("resources/icon.png", data, (marker,))
+    assert any(item["kind"].startswith("private-marker") for item in findings)
+    assert marker not in str(findings)
+
+
 def test_export_rejects_existing_destination_and_tamper(tmp_path):
     source = tmp_path / "input"
     minimal_tree(source)
