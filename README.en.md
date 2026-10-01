@@ -1,8 +1,14 @@
 # Quest3D
 
-View your Windows desktop on a large Meta Quest screen and switch **2D ↔ stereo 3D** with local AI.
+**Your PC screen in stereo 3D**
+
+Turn your existing browser or player screen into stereo 3D with local AI on your PC. Switch **2D ↔ stereo 3D** on the same large virtual screen in Meta Quest.
 
 [한국어](README.md) · **0.1.2-preview**
+
+![Windows screen → local AI depth estimation and left/right views → a large stereo screen in Quest](docs/assets/quest3d-workflow.png)
+
+<sub>Concept illustration · not an app screenshot or conversion result · [Image provenance](docs/assets/README.md)</sub>
 
 ## Check compatibility
 
@@ -43,6 +49,13 @@ Daily use: **Quest3D Desktop → PC 시작 (Start PC) → Connect on Quest**
 ## Preview notes
 
 Use the Windows mouse and keyboard for PC input. Thin objects and occluded backgrounds may retain stereo contour differences. DRM or capture-blocked content is not guaranteed to work. Sound defaults to PC output; Quest only requires existing Steam Streaming Speakers. See the [release guide](docs/RELEASE_0.1.2_PREVIEW.md) for remaining checks on other PCs, the latest Quest 2 UI, measured audio synchronization, and long sessions. Detailed technical documents are currently in Korean.
+
+<details>
+<summary>How does this relate to OWL3D?</summary>
+
+Quest3D is an independent open-source project for live 2D-to-stereo-3D PC screen viewing. It shares part of the use case offered by [OWL3D Link](https://www.owl3d.com/blog/releasesv203), but is not an OWL3D release or fork and is not affiliated with OWL3D. This does not imply matching features or image quality.
+
+</details>
 
 <details>
 <summary>Development, manual installation, and validation</summary>

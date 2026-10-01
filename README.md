@@ -1,8 +1,14 @@
 # Quest3D
 
-Windows 화면을 Meta Quest의 큰 화면으로 보고, 로컬 AI로 **2D ↔ 스테레오 3D**를 전환하는 앱
+**익숙한 PC 화면을 Quest에서 입체로**
+
+기존 브라우저·플레이어 화면을 PC의 로컬 AI로 실시간 입체화하고, 같은 가상 화면에서 **2D ↔ 스테레오 3D** 전환
 
 [English](README.en.md) · **0.1.2-preview**
+
+![Windows 화면 → 로컬 AI의 깊이 추정·좌우 영상 생성 → Quest의 큰 입체 화면](docs/assets/quest3d-workflow.png)
+
+<sub>기능 개념도 · 실제 앱 화면·변환 결과 아님 · [이미지 생성 정보](docs/assets/README.md)</sub>
 
 ## 시작 전 확인
 
@@ -43,6 +49,13 @@ Windows EXE는 아직 신뢰 코드 서명이 없어 경고·차단이 생길 �
 ## Preview 안내
 
 PC 조작은 Windows 마우스·키보드를 사용합니다. 얇은 물체·가려진 배경에는 3D 윤곽 차이가 남을 수 있으며 DRM·캡처 차단 콘텐츠는 지원을 보장하지 않습니다. 소리는 PC 출력이 기본이고, Quest only에는 기존 Steam Streaming Speakers가 필요합니다. 다른 PC·최신 Quest 2 UI·정량 음성 동기화·장시간 사용의 남은 검증은 [배포 안내](docs/RELEASE_0.1.2_PREVIEW.md)에서 확인할 수 있습니다.
+
+<details>
+<summary>OWL3D와의 관계</summary>
+
+Quest3D는 실시간 PC 화면 2D→3D 감상을 위한 독립 오픈소스 프로젝트입니다. [OWL3D Link](https://www.owl3d.com/blog/releasesv203)와 사용 목적이 일부 겹치지만, OWL3D의 공식판·포크가 아니며 제휴 관계가 없습니다. 기능·화질이 같다는 의미는 아닙니다.
+
+</details>
 
 <details>
 <summary>개발·수동 설치·검증 자료</summary>
