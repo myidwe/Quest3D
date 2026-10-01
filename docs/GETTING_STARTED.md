@@ -35,13 +35,13 @@ Windows EXE에는 아직 신뢰 코드 서명이 없어 SmartScreen 또는 관�
 
 ## 3. 처음 연결
 
-1. PC와 Quest를 같은 공유기의 사설 LAN에 연결합니다. 신뢰하는 집 네트워크에서 Windows 네트워크 프로필이 **개인(Private)**인지 확인합니다.
+1. PC와 Quest를 같은 공유기의 사설 LAN에 연결합니다. 신뢰하는 집 네트워크에서 Windows 네트워크 프로필이 **개인**(Private)으로 설정됐는지 확인합니다.
 2. PC 앱에서 **PC 시작**을 누르고 영상 준비를 기다립니다.
 3. Quest에서 **Select Server → Scan Network → 검색된 PC 선택 → Pair**를 누릅니다.
 4. Quest에 표시된 네 자리 PIN을 PC 앱의 **Connection → 새 Quest 연결**에 입력하고 **연결 승인**을 누릅니다. 승인될 때까지 Quest의 PIN 화면을 유지합니다.
 5. 자동으로 연결되지 않으면 Quest에서 **Connect**를 누릅니다.
 
-PC 검색이 안 되면 Quest의 **+**에서 PC 앱에 표시된 주소를 입력할 수 있습니다. 연결이 계속 실패하면 [연결 문제 해결](DESKTOP_USER_GUIDE.md#문제-해결)을 확인하세요.
+PC 검색이 안 되면 Quest의 **+** 버튼에서 PC 앱에 표시된 주소를 입력할 수 있습니다. 연결이 계속 실패하면 [연결 문제 해결](DESKTOP_USER_GUIDE.md#문제-해결)을 확인하세요.
 
 ## 다음부터 사용
 

@@ -1,6 +1,6 @@
 # Quest3D 설치·배포 안내
 
-처음 설치는 **[처음 설치와 연결](GETTING_STARTED.md)**에서 시작하세요. 이 문서는 설치 조건·업데이트·복구·제거의 상세 안내입니다. [문서 목차](README.md)
+처음 설치는 [처음 설치와 연결](GETTING_STARTED.md)에서 시작하세요. 이 문서는 설치 조건·업데이트·복구·제거의 상세 안내입니다. [문서 목차](README.md)
 
 **0.1.2-preview 설치 안내**. [같은 버전의 Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)에서 Desktop Setup EXE와 Quest Setup EXE를 받는다. ZIP은 수동 설치용이다. 기존 개발 앱·이전 검토 ZIP과 구분한다. 현재 지원 범위와 실제 검증 상태는 [배포 안내](RELEASE_0.1.2_PREVIEW.md), Release의 `release-validation.json`을 따른다.
 
@@ -73,13 +73,13 @@ USB 디버깅·개발자 모드는 소유자가 직접 승인한다. 설치창�
 
 USB 디버깅 승인은 해당 PC의 설치·디버깅 접근이며 앱 PIN 페어링·MTP 파일 접근과 별개다. 최신 개발 APK manifest에는 마이크·카메라·외부 저장소·Scene 권한이 없다. PC 소리 수신 때문에 마이크 승인을 요구하지 않는다. 실제 새 설치의 최초 실행 시스템 안내는 별도 검증한다. 현재 PC/Quest 설치창은 진행 중 취소를 제공하지 않으므로 완료/실패를 기다린 후 재시도한다.
 
-기존 개발 APK는 `app.questto3d.client.debug`다. 공개 앱은 **`app.questto3d.client`**로 별도 설치하며 기존 개발 앱을 삭제하지 않는다. 새 공개 앱에서 PC를 다시 검색·페어링한다. 이후 공개 앱 업데이트는 같은 패키지·공개 서명키를 유지하고 versionCode를 높여 설치한다. 개발 앱의 설정·페어링을 공개 앱에 자동 이전하지 않는다.
+기존 개발 APK는 `app.questto3d.client.debug`다. 공개 앱은 `app.questto3d.client`로 별도 설치하며 기존 개발 앱을 삭제하지 않는다. 새 공개 앱에서 PC를 다시 검색·페어링한다. 이후 공개 앱 업데이트는 같은 패키지·공개 서명키를 유지하고 versionCode를 높여 설치한다. 개발 앱의 설정·페어링을 공개 앱에 자동 이전하지 않는다.
 
 ## 첫 연결과 매번 사용
 
 **PC 앱 → PC 시작 → Quest 앱 Connect**가 일상 순서다.
 
-새 헤드셋은 **Select Server → Scan Network → 검색된 PC → Pair**로 연결한다. 검색되지 않으면 **+**에 PC 앱 주소를 입력한다. 헤드셋의 네 자리 PIN을 PC 앱 **Connection → 새 Quest 연결**에 입력하고 승인한다. 승인까지 Quest PIN 화면을 유지하고, 필요하면 Connect를 누른다. 각 PC·헤드셋은 새로 페어링한다.
+새 헤드셋은 **Select Server → Scan Network → 검색된 PC → Pair**로 연결한다. 검색되지 않으면 **+** 버튼으로 PC 앱 주소를 입력한다. 헤드셋의 네 자리 PIN을 PC 앱 **Connection → 새 Quest 연결**에 입력하고 승인한다. 승인까지 Quest PIN 화면을 유지하고, 필요하면 Connect를 누른다. 각 PC·헤드셋은 새로 페어링한다.
 
 2D/3D·Depth·윤곽 안정화를 조절한다. Quest Display에서는 크기·거리·위치·곡률·여백·보기 저장을, Quality에서는 선명도·색감·전송을 조절한다. 최신 설정창은 세로 구성이며 기본 Level은 수평을 유지하고 Free를 명시적으로 선택하면 기울기를 조절한다. 자세한 동작은 [사용 안내](DESKTOP_USER_GUIDE.md)를 따른다.
 

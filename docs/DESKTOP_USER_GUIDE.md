@@ -8,7 +8,7 @@
 2. **PC 시작**을 누르고 영상 준비를 기다립니다.
 3. Quest 앱에서 이 PC의 **Connect**를 누릅니다.
 
-처음 연결하는 Quest는 **Select Server → Scan Network → 검색된 PC 선택**으로 Pair를 진행합니다. PC 앱의 **Connection → 새 Quest 연결**에 헤드셋의 네 자리 PIN을 입력합니다. PC 시작이 끝나야 승인할 수 있습니다. PIN 승인 뒤 실제 연결 완료는 Quest에서 확인하세요. 연결 정보는 다음 실행에도 유지됩니다. 네트워크에서 자동 검색을 지원하지 않으면 **+**의 주소 입력을 보조 수단으로 사용합니다.
+처음 연결하는 Quest는 **Select Server → Scan Network → 검색된 PC 선택**으로 Pair를 진행합니다. PC 앱의 **Connection → 새 Quest 연결**에 헤드셋의 네 자리 PIN을 입력합니다. PC 시작이 끝나야 승인할 수 있습니다. PIN 승인 뒤 실제 연결 완료는 Quest에서 확인하세요. 연결 정보는 다음 실행에도 유지됩니다. 네트워크에서 자동 검색을 지원하지 않으면 **+** 버튼으로 주소를 입력합니다.
 
 ## Quest 2 / Quest 3 선택
 
@@ -40,7 +40,7 @@ Quest only에서도 특정 앱의 소리만 PC에 남으면 Windows 음량 믹�
 
 **Settings → Quality → AI Quality**는 Standard / Quality · Preview를 선택합니다. PC 중지 후 변경·재시작이 필요합니다. Standard는 속도, Quality는 더 높은 AI 분석 해상도를 사용하며 눈별 송출 크기는 그대로입니다. Quality가 모든 장면에서 더 좋거나 일정 FPS를 보장하는 설정은 아닙니다.
 
-**Settings → Quality → Depth model**에서 **DAv2 Small (기본)** / **DAD Small (비교)**를 선택할 수 있습니다. 설치된 모델은 송출 중에도 재연결 없이 전환됩니다. 같은 장면·Depth로 비교하고, 윤곽과 입체감이 더 자연스러운 모델을 사용하세요. DAD는 장면에 따라 입체감도 줄어들 수 있습니다. 중지 상태의 선택은 다음 PC 시작에 적용됩니다. 미설치 항목은 선택할 수 없습니다.
+**Settings → Quality → Depth model**에서 **DAv2 Small**(기본) / **DAD Small**(비교)를 선택할 수 있습니다. 설치된 모델은 송출 중에도 재연결 없이 전환됩니다. 같은 장면·Depth로 비교하고, 윤곽과 입체감이 더 자연스러운 모델을 사용하세요. DAD는 장면에 따라 입체감도 줄어들 수 있습니다. 중지 상태의 선택은 다음 PC 시작에 적용됩니다. 미설치 항목은 선택할 수 없습니다.
 
 | 조절 | 의미 |
 |---|---|

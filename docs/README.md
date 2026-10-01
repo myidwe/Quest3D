@@ -1,6 +1,6 @@
 # Quest3D 문서
 
-처음 사용하는 분은 **[처음 설치와 연결](GETTING_STARTED.md)**부터 읽으세요. 현재 설치 파일은 **[0.1.2-preview Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)**에서 받습니다.
+처음 사용하는 분은 [처음 설치와 연결](GETTING_STARTED.md)부터 읽으세요. 현재 설치 파일은 [0.1.2-preview Release](https://github.com/myidwe/Quest3D/releases/tag/v0.1.2-preview)에서 받습니다.
 
 [English getting started](GETTING_STARTED.en.md) · [프로젝트 소개](../README.md)
 
