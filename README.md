@@ -6,9 +6,22 @@ Windows 화면을 Quest의 큰 가상 화면에서 **스테레오 3D**로 볼 �
 
 [English](README.en.md) · **0.1.3-preview**
 
+## 소개 영상
+
+https://github.com/user-attachments/assets/0a0dac44-79db-49f7-911c-ecf5be4d2878
+
+[세로 영상](https://github.com/user-attachments/assets/ace626d0-0c4a-45f1-a4ff-518449464cc4) · [영상 정보](docs/media/README.md)
+
+<sub>실제 앱 UI와 로컬 AI의 깊이·좌우 영상 생성 과정을 소개합니다. 자동차 돌출 장면은 입체 감상을 설명하는 광고 연출입니다.</sub>
+
+<details>
+<summary>이미지로 보는 처리 흐름</summary>
+
 ![PC 화면의 깊이를 AI로 추정하고 좌우 영상을 만들어 Quest에서 입체로 보는 과정](docs/assets/quest3d-workflow-v3.png)
 
 <sub>기능을 설명하기 위해 생성한 이미지입니다. 실제 앱 화면이나 AI 변환 결과는 아닙니다. [이미지 제작 정보](docs/assets/README.md)</sub>
+
+</details>
 
 ## 시작 전 확인
 

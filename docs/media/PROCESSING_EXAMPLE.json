@@ -1,0 +1,84 @@
+{
+  "scope": "Real local single-frame depth inference and stereo synthesis using Sterevi project code; not a live app or Quest capture or a throughput measurement",
+  "input_origin": "Built-in ImageGen flat car photograph derived from the ad's car-flat-landscape artwork; generated input, not service footage",
+  "source": "public/car-source.png",
+  "source_sha256": "189eb7327f0b109a7c3c92cc831c731f0eb511c2654050720c686e137e418df9",
+  "source_size": [
+    1672,
+    941
+  ],
+  "model": {
+    "model_id": "depth_anything_v2_small",
+    "name": "Depth Anything V2 Small",
+    "sha256": "715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378",
+    "repository": "depth-anything/Depth-Anything-V2-Small",
+    "revision": "03876f8651c73a60fe4c2c48294e09fcb6838fcf",
+    "source_repository": "https://github.com/DepthAnything/Depth-Anything-V2.git",
+    "source_commit": "a561b849ebae10a6f5ef49e26c83cbbcd36c71bf",
+    "license": "Apache-2.0",
+    "depth_kind": "inverse_depth",
+    "strict_load": {
+      "missing": [],
+      "unexpected": []
+    }
+  },
+  "model_input_size": [
+    280,
+    504
+  ],
+  "requested_ai_short_edge": 280,
+  "precision": "PyTorch autocast FP16; float32 returned depth",
+  "torch_version": "2.7.1+cu126",
+  "gpu": "NVIDIA GeForce RTX 2060 SUPER",
+  "stereo": {
+    "method": "forward-cuda",
+    "profile": "comfort",
+    "depth_refinement": "none",
+    "eye_size": [
+      1280,
+      720
+    ],
+    "disparity_px": 16.768,
+    "convergence": 0.5,
+    "content_rect": [
+      0,
+      0,
+      1279,
+      720
+    ],
+    "effective_convergence": 0.625,
+    "colour_precision": "float"
+  },
+  "depth_display": "Actual inferred inverse depth, independently normalized min/max to grayscale: bright near, dark far; not metric distance",
+  "checks": {
+    "same_frame_and_generation": true,
+    "finite_depth": true,
+    "left_right_differ": true,
+    "eye_mean_absolute_byte_difference": 13.96166847511574
+  },
+  "outputs": {
+    "public/car-depth.png": {
+      "sha256": "3caa49bccb42e10242eeba50b72387652b9f1a99c88290f91debe743952aa864",
+      "size": [
+        504,
+        280
+      ]
+    },
+    "public/car-left.png": {
+      "sha256": "a709cf9c62b7436dcf93119e0479259c387350a72452a35be5d8b6ba4683421b",
+      "size": [
+        1280,
+        720
+      ]
+    },
+    "public/car-right.png": {
+      "sha256": "09123f0fef1e0b132bbb422259edda979c02af306d339cba43e27b00c4e37693",
+      "size": [
+        1280,
+        720
+      ]
+    }
+  },
+  "quest_verified": false,
+  "film_format": "Regular 2D explanatory video showing L/R cards; not an SBS playback file"
+}

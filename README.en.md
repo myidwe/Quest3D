@@ -6,9 +6,22 @@ Turn your existing browser or player screen into stereo 3D with local AI on your
 
 [한국어](README.md) · **0.1.3-preview**
 
+## 24-second overview
+
+https://github.com/user-attachments/assets/0a0dac44-79db-49f7-911c-ecf5be4d2878
+
+[Vertical video](https://github.com/user-attachments/assets/ace626d0-0c4a-45f1-a4ff-518449464cc4) · [Video details and subtitles](docs/media/README.md)
+
+<sub>Real app UI and an actual local depth/left-right processing example. The pop-out car scene is advertising artwork illustrating stereo viewing.</sub>
+
+<details>
+<summary>Workflow illustration</summary>
+
 ![Windows screen → local AI depth estimation and left/right views → a large stereo screen with visible depth in Quest](docs/assets/quest3d-workflow-v3.png)
 
 <sub>Concept illustration · not an app screenshot or conversion result · [Image provenance](docs/assets/README.md)</sub>
+
+</details>
 
 ## Check compatibility
 

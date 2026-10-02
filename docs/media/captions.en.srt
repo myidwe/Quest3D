@@ -1,0 +1,29 @@
+1
+00:00:00,000 --> 00:00:03,000
+Your PC screen, unchanged
+Use your existing browser or player
+
+2
+00:00:03,000 --> 00:00:07,000
+Connect with Sterevi
+AI runs locally on your PC
+
+3
+00:00:07,000 --> 00:00:11,500
+Estimate depth, generate two eye views
+Real local AI processing example
+
+4
+00:00:11,500 --> 00:00:16,500
+Stereo 3D on Quest
+Switch between 2D and 3D
+
+5
+00:00:16,500 --> 00:00:20,000
+Adjust your stereo view
+Depth, screen size, and distance
+
+6
+00:00:20,000 --> 00:00:24,000
+Sterevi · Free and open source
+github.com/myidwe/Sterevi
