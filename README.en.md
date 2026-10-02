@@ -10,7 +10,7 @@ Turn your existing browser or player screen into stereo 3D with local AI on your
 
 https://github.com/user-attachments/assets/0a0dac44-79db-49f7-911c-ecf5be4d2878
 
-[Vertical video](https://github.com/user-attachments/assets/ace626d0-0c4a-45f1-a4ff-518449464cc4) · [Video details and subtitles](docs/media/README.md)
+[Vertical video](docs/media/VERTICAL.md) · [Video details and subtitles](docs/media/README.md)
 
 <sub>Real app UI and an actual local depth/left-right processing example. The pop-out car scene is advertising artwork illustrating stereo viewing.</sub>
 

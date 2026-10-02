@@ -10,7 +10,7 @@ Windows 화면을 Quest의 큰 가상 화면에서 **스테레오 3D**로 볼 �
 
 https://github.com/user-attachments/assets/0a0dac44-79db-49f7-911c-ecf5be4d2878
 
-[세로 영상](https://github.com/user-attachments/assets/ace626d0-0c4a-45f1-a4ff-518449464cc4) · [영상 정보](docs/media/README.md)
+[세로 영상](docs/media/VERTICAL.md) · [영상 정보](docs/media/README.md)
 
 <sub>실제 앱 UI와 로컬 AI의 깊이·좌우 영상 생성 과정을 소개합니다. 자동차 돌출 장면은 입체 감상을 설명하는 광고 연출입니다.</sub>
 

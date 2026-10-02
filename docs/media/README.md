@@ -1,6 +1,6 @@
 # 소개 영상 · Video overview
 
-[가로 영상 · Landscape](https://github.com/user-attachments/assets/0a0dac44-79db-49f7-911c-ecf5be4d2878) · [세로 영상 · Vertical](https://github.com/user-attachments/assets/ace626d0-0c4a-45f1-a4ff-518449464cc4)
+[가로 영상 · Landscape](../../README.md#소개-영상) · [세로 영상 · Vertical](VERTICAL.md)
 
 PC의 2D 화면 → 앱 실행·Quest 연결 → 깊이 추정·좌우 눈용 영상 생성 → Quest 입체 감상 → 화면 조절 순서의 24초 소개 영상입니다. 한국어·영어 README에서 가로 영상을 바로 재생할 수 있습니다.
 
